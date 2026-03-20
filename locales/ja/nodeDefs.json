@@ -1,0 +1,38 @@
+{
+  "OpenPoseStudio": {
+    "display_name": "OpenPose Studio",
+    "description": "ポーズJSONを画像にレンダリングし、フィルタリングされたJSONとPOSE_KEYPOINTを出力します。",
+    "inputs": {
+      "pose_json": {
+        "name": "Pose JSON",
+        "tooltip": "ポーズJSONデータ（レガシーおよび標準フォーマットに対応）。"
+      },
+      "render_body": {
+        "name": "身体を描画",
+        "tooltip": "身体のキーポイントを描画します。"
+      },
+      "render_hand": {
+        "name": "手を描画",
+        "tooltip": "手のキーポイントを描画します。"
+      },
+      "render_face": {
+        "name": "顔を描画",
+        "tooltip": "顔のキーポイントを描画します。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "画像",
+        "tooltip": "レンダリングされたポーズ画像。"
+      },
+      "1": {
+        "name": "JSON",
+        "tooltip": "フィルタリングされたポーズJSON（描画設定に基づく）。"
+      },
+      "2": {
+        "name": "KPS",
+        "tooltip": "下流ノード用のPOSE_KEYPOINT構造。"
+      }
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "OpenPoseStudio": {
+    "display_name": "OpenPose Studio",
+    "description": "Genera un render de un JSON de pose a una imagen, además del JSON filtrado y la salida POSE_KEYPOINT.",
+    "inputs": {
+      "pose_json": {
+        "name": "Pose JSON",
+        "tooltip": "Datos del JSON de pose (soporta formatos legacy y estándar)."
+      },
+      "render_body": {
+        "name": "render cuerpo",
+        "tooltip": "Renderizar keypoints del cuerpo."
+      },
+      "render_hand": {
+        "name": "render manos",
+        "tooltip": "Renderizar keypoints de las manos."
+      },
+      "render_face": {
+        "name": "render cara",
+        "tooltip": "Renderirzar keypoints de la cara."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Imagen",
+        "tooltip": "Imagen del render de la pose."
+      },
+      "1": {
+        "name": "JSON",
+        "tooltip": "JSON de pose filtrado (basado en los interruptores de render)."
+      },
+      "2": {
+        "name": "KPS",
+        "tooltip": "Estructura POSE_KEYPOINT para nodos downstream."
+      }
+    }
+  }
+}

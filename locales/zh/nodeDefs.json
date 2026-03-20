@@ -1,0 +1,38 @@
+{
+  "OpenPoseStudio": {
+    "display_name": "OpenPose Studio",
+    "description": "将 Pose JSON 渲染为图像，并输出过滤后的 JSON 和 POSE_KEYPOINT。",
+    "inputs": {
+      "pose_json": {
+        "name": "Pose JSON",
+        "tooltip": "Pose JSON 数据（支持旧版和标准格式）。"
+      },
+      "render_body": {
+        "name": "绘制身体",
+        "tooltip": "绘制身体关键点。"
+      },
+      "render_hand": {
+        "name": "绘制手部",
+        "tooltip": "绘制手部关键点。"
+      },
+      "render_face": {
+        "name": "绘制面部",
+        "tooltip": "绘制面部关键点。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "图像",
+        "tooltip": "渲染后的姿势图像。"
+      },
+      "1": {
+        "name": "JSON",
+        "tooltip": "过滤后的 Pose JSON（基于绘制设置）。"
+      },
+      "2": {
+        "name": "KPS",
+        "tooltip": "用于下游节点的 POSE_KEYPOINT 结构。"
+      }
+    }
+  }
+}

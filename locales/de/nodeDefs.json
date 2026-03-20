@@ -1,0 +1,38 @@
+{
+  "OpenPoseStudio": {
+    "display_name": "OpenPose Studio",
+    "description": "Rendert ein Pose-JSON als Bild und gibt zusätzlich das gefilterte JSON und den POSE_KEYPOINT-Ausgang aus.",
+    "inputs": {
+      "pose_json": {
+        "name": "Pose JSON",
+        "tooltip": "Pose-JSON-Daten (unterstützt Legacy- und Standardformate)."
+      },
+      "render_body": {
+        "name": "Körper rendern",
+        "tooltip": "Körper-Keypoints zeichnen."
+      },
+      "render_hand": {
+        "name": "Hände rendern",
+        "tooltip": "Hand-Keypoints zeichnen."
+      },
+      "render_face": {
+        "name": "Gesicht rendern",
+        "tooltip": "Gesichts-Keypoints zeichnen."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Bild",
+        "tooltip": "Gerendertes Pose-Bild."
+      },
+      "1": {
+        "name": "JSON",
+        "tooltip": "Gefiltertes Pose-JSON (basierend auf den Render-Schaltern)."
+      },
+      "2": {
+        "name": "KPS",
+        "tooltip": "POSE_KEYPOINT-Struktur für nachgelagerte Nodes."
+      }
+    }
+  }
+}

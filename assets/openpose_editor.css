@@ -1,0 +1,1260 @@
+.ope-openpose-modal.ope-openpose-shell-panel,
+.ope-openpose-modal.ope-openpose-modal-shell {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    border-radius: var(--p-dialog-border-radius, 12px);
+    border: 1px solid var(--p-dialog-border-color, var(--openpose-border));
+    background: var(--p-dialog-background, var(--openpose-panel-bg));
+    box-shadow: var(--p-dialog-shadow, 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1));
+    opacity: 0;
+    transform: scale(0.7);
+    pointer-events: none;
+    transition: opacity 150ms cubic-bezier(0, 0, 0.2, 1), transform 150ms cubic-bezier(0, 0, 0.2, 1), width 220ms ease, height 220ms ease, left 220ms ease, top 220ms ease;
+}
+
+.ope-openpose-modal.ope-openpose-shell-panel.ope-is-open,
+.ope-openpose-modal.ope-openpose-shell-panel.ope-openpose-modal-open,
+.ope-openpose-modal.ope-openpose-modal-shell.ope-is-open,
+.ope-openpose-modal.ope-openpose-modal-shell.ope-openpose-modal-open {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+}
+
+.ope-openpose-modal.ope-openpose-shell-panel.ope-is-closing,
+.ope-openpose-modal.ope-openpose-shell-panel.ope-openpose-modal-closing,
+.ope-openpose-modal.ope-openpose-modal-shell.ope-is-closing,
+.ope-openpose-modal.ope-openpose-modal-shell.ope-openpose-modal-closing {
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1), cubic-bezier(0.4, 0, 0.2, 1), ease, ease, ease, ease;
+}
+
+.ope-openpose-modal.ope-openpose-shell-panel:has(.ope-dragging) {
+    transition: none;
+}
+
+.ope-openpose-shell-backdrop,
+.ope-openpose-modal-backdrop {
+    background: var(--p-mask-background, rgba(0, 0, 0, 0.6));
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.ope-openpose-shell-backdrop.ope-is-open,
+.ope-openpose-shell-backdrop.ope-openpose-modal-open,
+.ope-openpose-modal-backdrop.ope-is-open,
+.ope-openpose-modal-backdrop.ope-openpose-modal-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ope-openpose-shell-backdrop.ope-is-closing,
+.ope-openpose-shell-backdrop.ope-openpose-modal-closing,
+.ope-openpose-modal-backdrop.ope-is-closing,
+.ope-openpose-modal-backdrop.ope-openpose-modal-closing {
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ope-openpose-modal .ope-openpose-native-header {
+    display: none;
+    height: 0;
+    padding: 0;
+    margin: 0;
+}
+
+.ope-openpose-modal .ope-openpose-native-close {
+    display: none;
+}
+
+.ope-openpose-modal .ope-openpose-native-footer {
+    display: none;
+    height: 0;
+    padding: 0;
+    margin: 0;
+}
+
+.ope-openpose-modal .ope-openpose-dialog-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.ope-openpose-modal.openpose-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    box-sizing: border-box;
+    height: 100%;
+    background: var(--openpose-panel-bg);
+    color: var(--openpose-text);
+    flex: 1 1 auto;
+    margin: 0;
+}
+
+.ope-openpose-modal .ope-openpose-shell-tabs-row,
+.ope-openpose-modal .ope-openpose-modal-titlebar,
+.ope-openpose-modal .ope-openpose-modal-tabs {
+    display: flex;
+    gap: 0;
+    align-items: center;
+    padding: 10px 12px 0 12px;
+    border-bottom: 4px solid var(--openpose-primary-bg);
+    background: var(--openpose-panel-bg);
+    flex: 0 0 auto;
+    min-width: 0;
+}
+
+.ope-openpose-modal .ope-openpose-shell-header-left {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.ope-openpose-modal .ope-openpose-shell-header-left::-webkit-scrollbar {
+    display: none;
+}
+
+.ope-openpose-modal .openpose-tab-modules {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+.ope-openpose-modal .ope-openpose-shell-drag-handle,
+.ope-openpose-modal .ope-openpose-modal-drag-handle {
+    flex: 1 1 auto;
+    min-width: 20px;
+    align-self: stretch;
+}
+
+.ope-openpose-modal .ope-openpose-shell-drag-handle.ope-drag-enabled,
+.ope-openpose-modal .ope-openpose-modal-drag-handle.ope-drag-enabled {
+    cursor: grab;
+}
+
+.ope-openpose-modal .ope-openpose-shell-drag-handle.ope-dragging,
+.ope-openpose-modal .ope-openpose-modal-drag-handle.ope-dragging {
+    cursor: grabbing;
+}
+
+.ope-openpose-modal .ope-openpose-shell-header-right,
+.ope-openpose-modal .ope-openpose-modal-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex: 0 0 auto;
+    margin-left: 8px;
+}
+
+.ope-openpose-modal .openpose-tab-maximize,
+.ope-openpose-modal .openpose-tab-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 4px;
+    background: var(--openpose-panel-bg);
+    color: var(--openpose-text-muted);
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.ope-openpose-modal .openpose-tab-maximize:hover,
+.ope-openpose-modal .openpose-tab-close:hover {
+    background: var(--openpose-hover-bg);
+    color: var(--openpose-text);
+}
+
+.ope-openpose-modal .openpose-tab-contribute {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border: 1px solid color-mix(in srgb, var(--openpose-primary-bg) 35%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--openpose-primary-bg) 10%, transparent);
+    color: var(--openpose-text);
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.ope-openpose-modal .openpose-tab-contribute:hover {
+    background: color-mix(in srgb, var(--openpose-primary-bg) 18%, transparent);
+    color: var(--openpose-primary-text);
+}
+
+.ope-openpose-modal .ope-openpose-shell-tab {
+    padding: 8px 14px;
+    border: 0;
+    border-radius: 0;
+    background: var(--openpose-panel-bg);
+    color: var(--openpose-text-muted);
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    transition: color 0.15s ease, text-shadow 0.15s ease, background 0.15s ease;
+}
+
+.ope-openpose-modal .ope-openpose-shell-tab:hover {
+    color: var(--openpose-primary-text);
+    background: var(--openpose-primary-hover-bg);
+}
+
+.ope-openpose-modal .ope-openpose-shell-tab.is-active {
+    background: var(--openpose-primary-bg);
+    color: var(--openpose-primary-text);
+    text-shadow: var(--openpose-tab-shadow);
+    box-shadow: inset 0 -2px 0 var(--openpose-primary-bg);
+}
+
+.ope-openpose-modal .ope-openpose-shell-tab.is-active:hover {
+    background: var(--openpose-primary-hover-bg);
+    color: var(--openpose-primary-text);
+}
+
+.ope-openpose-modal .ope-openpose-shell-main {
+    display: flex;
+    flex-direction: row;
+    flex: 1 1 auto;
+    align-items: stretch;
+    min-height: 0;
+    min-width: 0;
+    width: 100%;
+}
+
+.ope-openpose-modal .openpose-module-slot {
+    display: contents;
+}
+
+.ope-openpose-modal .openpose-sidebar {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 6px 10px 10px;
+    gap: 0;
+    min-width: var(--ope-openpose-sidebar-min-width, 220px);
+    width: var(--ope-openpose-sidebar-width, 280px);
+    flex: 0 0 auto;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    background: transparent;
+    height: 100%;
+    overflow: visible;
+}
+
+.ope-openpose-modal .openpose-sidebar:not(.openpose-sidebar-right) {
+    border-right: 0;
+    margin: 0;
+}
+
+.ope-openpose-modal .openpose-sidebar-right {
+    border-left: 0;
+    margin: 0;
+    padding: 10px 10px 10px 6px;
+    overflow: hidden;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.ope-openpose-modal .openpose-sidebar-placeholder-left {
+    display: none;
+    padding: 10px 6px 10px 10px;
+}
+
+.ope-openpose-modal .openpose-sidebar-placeholder-right {
+    display: none;
+    padding: 10px 10px 10px 6px;
+}
+
+.ope-openpose-modal .ope-openpose-shell-footer-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.ope-openpose-modal .ope-openpose-shell-footer-row .openpose-btn {
+    flex: 1;
+}
+
+@media (max-width: 900px) {
+    .ope-openpose-modal .ope-openpose-shell-tabs-row {
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+}
+
+@media (max-width: 700px) {
+    .ope-openpose-modal .ope-openpose-shell-tabs-row {
+        padding-left: 4px;
+        padding-right: 4px;
+    }
+
+    .ope-openpose-modal .openpose-tab-maximize {
+        display: none !important;
+    }
+}
+
+@media (max-width: 500px) {
+    .ope-openpose-modal .ope-openpose-shell-tabs-row {
+        padding-left: 2px;
+        padding-right: 2px;
+        gap: 0;
+    }
+
+    .ope-openpose-modal .ope-openpose-shell-header-right {
+        margin-left: 4px;
+    }
+
+    .ope-openpose-modal .ope-openpose-shell-tab {
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+}
+
+.ope-openpose-modal .openpose-overlay {
+    padding: 8px;
+}
+
+.ope-openpose-modal .openpose-overlay-card {
+    background: var(--openpose-panel-bg-secondary);
+    border: none;
+    border-radius: var(--openpose-card-radius);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.14);
+    padding: 16px;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-sidebar-card,
+.ope-openpose-modal .openpose-coco-keypoints-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    border: none;
+    border-radius: var(--openpose-card-radius);
+    background: var(--openpose-panel-bg-secondary);
+    box-sizing: border-box;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.14);
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-btn:not(.openpose-apply-btn):not(.openpose-cancel-btn):not(.openpose-support-btn),
+.openpose-sidebar-btn-styled {
+    padding: 6px 12px;
+    border: 1px solid var(--openpose-border);
+    border-radius: 4px;
+    background: var(--openpose-btn-bg);
+    color: var(--openpose-text);
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-btn:not(.openpose-apply-btn):not(.openpose-cancel-btn):not(.openpose-support-btn):hover:not(:disabled),
+.openpose-sidebar-btn-styled:hover:not(:disabled) {
+    background: var(--openpose-btn-hover-bg);
+}
+
+.ope-openpose-modal .openpose-action-row,
+.ope-openpose-modal .openpose-dimensions-row,
+.ope-openpose-modal .openpose-canvas-dimensions-row,
+.ope-openpose-modal .openpose-bg-buttons-row,
+.ope-openpose-modal .openpose-save-row,
+.ope-openpose-modal .openpose-bg-row,
+.ope-openpose-modal .openpose-preset-header-controls,
+.ope-openpose-modal .openpose-bg-mode-row,
+.ope-openpose-modal .openpose-opacity-row,
+.ope-openpose-modal .openpose-preset-header {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.ope-openpose-modal .openpose-action-row,
+.ope-openpose-modal .openpose-right-actions,
+.ope-openpose-modal .openpose-footer-actions {
+    width: 100%;
+}
+
+.ope-openpose-modal .openpose-right-actions,
+.ope-openpose-modal .openpose-footer-actions,
+.ope-openpose-modal .openpose-dimension,
+.ope-openpose-modal .openpose-canvas-dimension,
+.ope-openpose-modal .openpose-section-group,
+.ope-openpose-modal .openpose-coco-keypoints-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.ope-openpose-modal .openpose-right-actions,
+.ope-openpose-modal .openpose-footer-actions,
+.ope-openpose-modal .openpose-section-group {
+    gap: 8px;
+}
+
+.ope-openpose-modal .openpose-footer-actions {
+    align-items: stretch;
+    justify-content: flex-end;
+}
+
+.ope-openpose-modal .openpose-action-row .openpose-btn,
+.ope-openpose-modal .openpose-bg-buttons-row .openpose-btn,
+.ope-openpose-modal .openpose-save-row .openpose-btn,
+.ope-openpose-modal .openpose-bg-row .openpose-btn,
+.ope-openpose-modal .openpose-dimension,
+.ope-openpose-modal .openpose-canvas-dimension,
+.ope-openpose-modal .openpose-bg-mode-select,
+.ope-openpose-modal .openpose-opacity-slider {
+    flex: 1;
+}
+
+.ope-openpose-modal .openpose-canvas-dimension {
+    gap: 0;
+}
+
+.ope-openpose-modal .openpose-canvas-dimensions-row {
+    align-items: flex-end;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-btn-small {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-btn-icon {
+    padding: 4px 8px;
+    min-width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    font-size: 14px;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-label,
+.ope-openpose-modal .openpose-sidebar .openpose-label-inline,
+.ope-openpose-modal .openpose-opacity-value {
+    color: var(--openpose-text-muted);
+    font-family: Arial, sans-serif;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-label {
+    font-size: 12px;
+    margin-top: 0;
+    font-weight: 500;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-dimension .openpose-label {
+    margin-top: 4px;
+}
+
+.ope-openpose-modal .openpose-coco-keypoints-label {
+    margin-bottom: 8px;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-label-inline,
+.ope-openpose-modal .openpose-opacity-value {
+    font-size: 11px;
+}
+
+.ope-openpose-modal .openpose-label-inline {
+    white-space: nowrap;
+    min-width: 45px;
+}
+
+.ope-openpose-modal .openpose-opacity-value {
+    min-width: 40px;
+    text-align: right;
+    margin-left: 4px;
+}
+
+.ope-openpose-modal .openpose-bg-mode-select {
+    display: block;
+    padding: 4px 6px;
+    font-size: 12px;
+}
+
+.ope-openpose-modal .openpose-opacity-slider {
+    display: block;
+    cursor: pointer;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-separator,
+.ope-openpose-modal .openpose-sidebar .openpose-right-separator {
+    height: 1px;
+    background: var(--openpose-border);
+    margin: 6px 0;
+    width: 100%;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-spacer {
+    flex: 1;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-apply-btn,
+.ope-openpose-modal .openpose-sidebar .openpose-cancel-btn {
+    padding: 8px 12px;
+    border: 1px solid var(--openpose-border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-apply-btn {
+    background: var(--openpose-primary-bg);
+    color: var(--openpose-primary-text);
+    font-weight: bold;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-apply-btn:hover {
+    background: var(--openpose-primary-hover-bg);
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-cancel-btn {
+    background: var(--openpose-btn-bg);
+    color: var(--openpose-text);
+    font-weight: 600;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-cancel-btn:hover {
+    background: var(--openpose-btn-hover-bg);
+}
+
+.ope-openpose-modal .openpose-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ope-openpose-modal .openpose-section-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    filter: grayscale(1);
+    opacity: 0.6;
+}
+
+.ope-openpose-modal .openpose-sidebar .openpose-input {
+    padding: 6px 8px;
+    border: 1px solid var(--openpose-border);
+    border-radius: 4px;
+    background: var(--openpose-input-bg);
+    color: var(--openpose-input-text);
+    width: 100%;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+.ope-openpose-modal .openpose-preset-preview-frame {
+    width: 100%;
+    height: 220px;
+    max-height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.ope-openpose-modal .openpose-preset-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    border: 1px solid var(--openpose-canvas-border);
+    border-radius: 8px;
+    background: var(--openpose-canvas-bg);
+    box-shadow: var(--openpose-canvas-shadow);
+    cursor: grab;
+}
+
+.ope-openpose-modal .openpose-canvas-area {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: stretch;
+    position: relative;
+    overflow: hidden;
+    padding: 10px 6px;
+    min-width: 0;
+    min-height: 0;
+    width: auto;
+    max-width: none;
+    box-sizing: border-box;
+    background: var(--openpose-panel-bg);
+}
+
+.ope-openpose-modal .canvas-drag-overlay,
+.ope-openpose-modal .openpose-file-input,
+.ope-openpose-modal .openpose-bg-file-input {
+    display: none;
+}
+
+.ope-openpose-modal .openpose-editor-canvas {
+    border-radius: 0.25rem;
+    border: 1px solid var(--openpose-canvas-border);
+    box-shadow: var(--openpose-canvas-shadow);
+    box-sizing: border-box;
+}
+
+.ope-openpose-modal .openpose-canvas-area .canvas-container {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.ope-openpose-modal .openpose-muted-icon {
+    filter: grayscale(1) brightness(0.5);
+    opacity: 0.7;
+}
+
+.ope-openpose-modal .openpose-coco-keypoints-list {
+    gap: 4px;
+    flex: 1 1 auto;
+    overflow-y: auto;
+}
+
+.ope-openpose-modal .openpose-coco-keypoint-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    background-color: var(--openpose-input-bg);
+    font-size: 12px;
+    font-family: Arial, sans-serif;
+    color: var(--openpose-input-text);
+    min-height: 20px;
+}
+
+.ope-openpose-modal .openpose-coco-keypoint-item.openpose-keypoint-missing:hover {
+    background: var(--openpose-panel-bg-secondary) !important;
+}
+
+.ope-openpose-modal .openpose-coco-keypoint-item:not(.openpose-keypoint-disabled):hover .openpose-coco-keypoint-name {
+    color: var(--openpose-text) !important;
+}
+
+.ope-openpose-modal .openpose-coco-status-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    width: 16px;
+    min-width: 16px;
+    height: 26px;
+    min-height: 26px;
+    line-height: 1;
+    flex: 0 0 16px;
+    padding: 0;
+    margin: 0;
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--openpose-text);
+    position: relative;
+}
+
+.ope-openpose-modal .openpose-coco-color-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    border: 1px solid var(--openpose-border);
+}
+
+.ope-openpose-modal .openpose-coco-keypoint-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.15s ease;
+}
+
+.openpose-kp-status.is-missing::before {
+    content: "";
+    width: 6px;
+    height: 10px;
+    background:
+        radial-gradient(circle at 1px 1px, currentColor 1px, transparent 1px),
+        radial-gradient(circle at 1px 5px, currentColor 1px, transparent 1px),
+        radial-gradient(circle at 1px 9px, currentColor 1px, transparent 1px),
+        radial-gradient(circle at 5px 1px, currentColor 1px, transparent 1px),
+        radial-gradient(circle at 5px 5px, currentColor 1px, transparent 1px),
+        radial-gradient(circle at 5px 9px, currentColor 1px, transparent 1px);
+    background-size: 6px 10px;
+    background-repeat: no-repeat;
+    display: block;
+    flex-shrink: 0;
+}
+
+.ope-openpose-modal .openpose-about-list,
+.ope-openpose-modal .openpose-about-row {
+    display: flex;
+    flex-direction: column;
+}
+
+.ope-openpose-modal .openpose-about-list {
+    gap: 12px;
+}
+
+.ope-openpose-modal .openpose-about-row {
+    gap: 6px;
+}
+
+.ope-openpose-modal .openpose-about-header-row {
+    padding: 0 0 10px 0;
+    margin-bottom: 2px;
+    border-bottom: 1px solid var(--openpose-border);
+}
+
+.ope-openpose-modal .openpose-about-card {
+    padding: 16px;
+    border: none;
+    border-radius: var(--openpose-card-radius);
+    background: linear-gradient(rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.035)), var(--openpose-panel-bg);
+    box-sizing: border-box;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.ope-openpose-modal .openpose-about-row p {
+    margin: 2px 0;
+    font-size: 13px;
+}
+
+.ope-openpose-modal .openpose-about-row-title {
+    font-weight: 600;
+    font-size: 15.5px;
+    color: var(--openpose-text);
+    margin-top: 0;
+}
+
+.ope-openpose-modal .openpose-support-titlebar,
+.ope-openpose-modal .openpose-about-header,
+.ope-openpose-modal .openpose-about-left,
+.ope-openpose-modal .openpose-about-right,
+.ope-openpose-modal .openpose-support-badges,
+.ope-openpose-modal .openpose-support-actions,
+.ope-openpose-modal .openpose-support-bullet,
+.ope-openpose-modal .openpose-plugin-item {
+    display: flex;
+    align-items: center;
+}
+
+.ope-openpose-modal .openpose-support-titlebar,
+.ope-openpose-modal .openpose-about-header,
+.ope-openpose-modal .openpose-support-actions {
+    justify-content: space-between;
+}
+
+.ope-openpose-modal .openpose-about-header {
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.ope-openpose-modal .openpose-about-left,
+.ope-openpose-modal .openpose-about-right,
+.ope-openpose-modal .openpose-support-badges,
+.ope-openpose-modal .openpose-plugin-item,
+.ope-openpose-modal .openpose-support-bullet {
+    gap: 8px;
+}
+
+.ope-openpose-modal .openpose-about-left,
+.ope-openpose-modal .openpose-support-middle {
+    flex: 1;
+}
+
+.ope-openpose-modal .openpose-about-emoji {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3em;
+    line-height: 1;
+}
+
+.ope-openpose-modal .openpose-about-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--openpose-text);
+    white-space: nowrap;
+}
+
+.ope-openpose-modal .openpose-about-version {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--openpose-text);
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--openpose-panel-bg);
+    border: 1px solid var(--openpose-border);
+    white-space: nowrap;
+}
+
+.ope-openpose-modal .openpose-about-author,
+.ope-openpose-modal .openpose-plugin-link {
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.ope-openpose-modal .openpose-about-author {
+    font-size: 11px;
+    color: var(--openpose-text-muted);
+    white-space: nowrap;
+}
+
+.ope-openpose-modal .openpose-about-author:hover,
+.ope-openpose-modal .openpose-plugin-link:hover {
+    text-decoration: underline;
+}
+
+.ope-openpose-modal .openpose-plugin-link {
+    font-weight: 600;
+    color: var(--openpose-text);
+    font-size: 13px;
+}
+
+.ope-openpose-modal .openpose-plugin-desc {
+    font-size: 13px;
+    color: var(--openpose-text-muted);
+}
+
+.ope-openpose-modal .openpose-about-overlay .openpose-btn {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.ope-openpose-modal .openpose-about-overlay .csp-small-btn {
+    font-size: 12px;
+    padding: 3px 8px;
+    margin: 0;
+    border: 1px solid var(--openpose-border);
+    border-radius: 3px;
+    background: var(--openpose-btn-bg);
+    color: var(--openpose-text);
+    font-family: Arial, sans-serif;
+    font-weight: 600;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+    cursor: pointer;
+    white-space: nowrap;
+    text-decoration: none;
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    min-height: 24px;
+}
+
+.ope-openpose-modal .openpose-about-overlay .csp-small-btn:hover:not(:disabled) {
+    background: var(--openpose-btn-hover-bg);
+}
+
+.ope-openpose-modal .openpose-about-overlay .csp-small-btn:disabled {
+    cursor: default;
+}
+
+.ope-openpose-modal .openpose-issues-btn,
+.ope-openpose-modal .openpose-other-repos-btn {
+    align-self: flex-start;
+}
+
+.ope-openpose-modal .openpose-support-badges {
+    margin-left: auto;
+    flex: 0 0 auto;
+}
+
+.ope-openpose-modal .openpose-support-badge-link {
+    margin: 0;
+    background: transparent;
+    text-decoration: none;
+    opacity: 1;
+    filter: brightness(1);
+    transition: filter 0.15s, opacity 0.15s;
+    display: block;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: rgba(0, 0, 0, 0.35) 0px 1px 2px;
+}
+
+.ope-openpose-modal .openpose-support-badge-link:hover {
+    filter: brightness(1.1);
+}
+
+.ope-openpose-modal .openpose-support-badge-img {
+    display: block;
+    border-radius: 4px;
+}
+
+.ope-openpose-modal .openpose-support-actions {
+    align-items: stretch;
+    gap: 16px;
+    margin-top: 6px;
+}
+
+.ope-openpose-modal .openpose-support-middle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 14px;
+    border-radius: 6px;
+    background: linear-gradient(rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.025)), var(--openpose-panel-bg);
+    border: 1px solid color-mix(in srgb, var(--openpose-border) 30%, transparent);
+    box-sizing: border-box;
+}
+
+.ope-openpose-modal .openpose-support-copy,
+.ope-openpose-modal .openpose-plugin-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.ope-openpose-modal .openpose-support-copy {
+    align-items: flex-start;
+    justify-content: center;
+    text-align: left;
+    width: 100%;
+    max-width: 100%;
+    gap: 8px;
+}
+
+.ope-openpose-modal .openpose-support-bullet {
+    align-items: baseline;
+    gap: 6px;
+    width: 100%;
+}
+
+.ope-openpose-modal .openpose-support-bullet-icon {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    flex: 0 0 20px;
+    width: 20px;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.ope-openpose-modal .openpose-support-bullet p {
+    flex: 1;
+}
+
+.ope-openpose-modal .openpose-support-copy p {
+    margin: 4px 0;
+    font-size: 13.5px;
+    color: var(--openpose-text-muted);
+    line-height: 1.4;
+}
+
+.ope-openpose-modal .openpose-support-qr {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    align-self: stretch;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+}
+
+.ope-openpose-modal .openpose-support-qr-link {
+    display: block;
+}
+
+.ope-openpose-modal .openpose-support-qr img {
+    max-width: 168px;
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+    background: var(--openpose-input-bg);
+    transition: filter 0.15s ease;
+    filter: brightness(1);
+}
+
+.ope-openpose-modal .openpose-support-qr:hover img {
+    filter: brightness(1.035);
+}
+
+.ope-openpose-modal .openpose-plugin-list {
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.ope-openpose-modal .openpose-plugin-icon {
+    font-size: 15px;
+    line-height: 1;
+}
+
+.ope-openpose-modal .openpose-warning-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 16px;
+    border: 1px solid rgba(255, 193, 7, 0.6);
+    border-radius: 6px;
+    background: rgba(255, 193, 7, 0.18);
+    margin: 0 16px;
+}
+
+.ope-openpose-modal .openpose-warning-title {
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--openpose-text);
+}
+
+.ope-openpose-modal .openpose-warning-text {
+    opacity: 0.9;
+    font-size: 12.5px;
+    color: var(--openpose-text);
+    line-height: 1.35;
+}
+
+.openpose-alert {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 6px;
+    box-sizing: border-box;
+    width: 100%;
+    font-size: 13px;
+    line-height: 1.5;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+}
+
+.openpose-alert-warning {
+    background-color: rgba(244, 173, 62, 0.16);
+    border: 1px solid rgba(244, 173, 62, 0.50);
+    color: var(--openpose-text, #222);
+}
+
+.openpose-alert-info {
+    background-color: rgba(62, 142, 244, 0.14);
+    border: 1px solid rgba(62, 142, 244, 0.40);
+    color: var(--openpose-text, #222);
+}
+
+.openpose-alert-warning .openpose-alert-icon {
+    color: var(--openpose-status-warn, #b45309);
+}
+
+.openpose-alert-icon {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.openpose-alert-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    color: inherit;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+.openpose-alert-body p {
+    margin: 0;
+    padding: 0;
+}
+
+.openpose-alert-body strong {
+    font-weight: 700;
+}
+
+.openpose-alert-body a {
+    color: inherit;
+    text-decoration: underline;
+}
+
+.openpose-alert-close {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+}
+
+.openpose-alert-close:hover {
+    opacity: 1;
+}
+
+.openpose-alert-close:focus {
+    outline: 1px solid var(--openpose-border, rgba(0, 0, 0, 0.35));
+    outline-offset: 2px;
+}
+
+.openpose-donation-footer-styled {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    margin-top: 16px;
+    gap: 8px;
+}
+
+.openpose-donation-footer-styled .openpose-donation-footer-text {
+    color: var(--openpose-input-text);
+    opacity: 0.75;
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    line-height: 1.25;
+    padding: 0 6px;
+    text-align: left;
+}
+
+.openpose-donation-footer-styled .openpose-donation-footer-btns {
+    display: flex;
+    gap: 10px;
+    flex-wrap: nowrap;
+    width: 100%;
+    justify-content: space-between;
+}
+
+.openpose-donate-btn-base {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 6px 6px;
+    border: 1px solid var(--openpose-border);
+    border-radius: 4px;
+    background: var(--openpose-btn-bg);
+    color: var(--openpose-text);
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    text-align: center;
+}
+
+.openpose-donate-btn-base:hover:not(:disabled) {
+    background: var(--openpose-btn-hover-bg);
+}
+
+.openpose-donate-btn-kofi {
+    border-left: 3px solid #FF5E5B;
+}
+
+.openpose-donate-btn-paypal {
+    border-left: 3px solid #009CDE;
+}
+
+.openpose-donate-btn-usdc {
+    border-left: 3px solid #D4A017;
+}
+
+@media (max-width: 900px) {
+    .ope-openpose-modal .openpose-overlay {
+        padding: 4px;
+    }
+    .ope-openpose-modal .openpose-overlay-card {
+        padding: 10px;
+    }
+}
+
+@media (max-width: 700px) {
+    .ope-openpose-modal .openpose-overlay {
+        padding: 2px;
+    }
+    .ope-openpose-modal .openpose-overlay-card {
+        padding: 8px;
+        border-radius: 4px;
+    }
+    .ope-openpose-modal .openpose-guide-row {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+    .ope-openpose-modal .openpose-render-style-section {
+        padding: 8px;
+    }
+    .ope-openpose-modal .openpose-render-style-grid {
+        grid-template-columns: 100px minmax(0, 1fr);
+        gap: 6px 8px;
+    }
+}
+
+@media (max-width: 500px) {
+    .ope-openpose-modal .openpose-overlay {
+        padding: 0;
+    }
+    .ope-openpose-modal .openpose-overlay-card {
+        padding: 6px;
+        border-radius: 0;
+        border: none;
+    }
+    .ope-openpose-modal .openpose-guide-row {
+        padding-left: 4px;
+        padding-right: 4px;
+    }
+    .ope-openpose-modal .openpose-render-style-section {
+        padding: 6px;
+    }
+    .ope-openpose-modal .openpose-render-style-grid {
+        grid-template-columns: 1fr;
+    }
+    .ope-openpose-modal .openpose-render-style-label {
+        margin-bottom: -4px;
+    }
+}

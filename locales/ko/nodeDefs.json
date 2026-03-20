@@ -1,0 +1,38 @@
+{
+  "OpenPoseStudio": {
+    "display_name": "OpenPose Studio",
+    "description": "Pose JSON을 이미지로 렌더링하고, 필터링된 JSON과 POSE_KEYPOINT 출력을 제공합니다.",
+    "inputs": {
+      "pose_json": {
+        "name": "Pose JSON",
+        "tooltip": "Pose JSON 데이터 (레거시 및 표준 형식 지원)."
+      },
+      "render_body": {
+        "name": "몸 그리기",
+        "tooltip": "몸 키포인트를 그립니다."
+      },
+      "render_hand": {
+        "name": "손 그리기",
+        "tooltip": "손 키포인트를 그립니다."
+      },
+      "render_face": {
+        "name": "얼굴 그리기",
+        "tooltip": "얼굴 키포인트를 그립니다."
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "이미지",
+        "tooltip": "렌더링된 포즈 이미지."
+      },
+      "1": {
+        "name": "JSON",
+        "tooltip": "필터링된 Pose JSON (렌더 설정 기준)."
+      },
+      "2": {
+        "name": "KPS",
+        "tooltip": "다운스트림 노드를 위한 POSE_KEYPOINT 구조."
+      }
+    }
+  }
+}
