@@ -21,3 +21,12 @@ Operational Rules for AI Coding Agents
 - Testing & validation: When applicable, suggest how to validate changes. Do not claim tests were run unless you ran them.
 - Communication: Briefly explain what changed and why.
 - Failure handling: Do not abort silently. If you must continue later, say so clearly and indicate what remains.
+
+## Version Tagging
+
+- When a commit bumps the version in `pyproject.toml`, create and push the matching Git tag targeting that exact commit before doing anything else.
+- The tag name must exactly match the version string in `pyproject.toml` (e.g., `1.0.0`, `1.0.1`, `1.2.3`). No `v` prefix, no other format.
+- Do not create GitHub releases unless explicitly requested.
+- Never move, overwrite, recreate, or retag an existing version tag to point to a different commit.
+- Each version tag is immutable: it must permanently point to the commit where that version was published.
+- If a version is pushed without the matching tag, the README version badge will become outdated or inconsistent.
