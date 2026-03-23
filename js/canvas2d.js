@@ -5,7 +5,7 @@
 
 
 import { getSkeletonEdges, getSkeletonEdgeColors, isValidKeypoint, PREVIEW_OUTLINE_STROKE, PREVIEW_OUTLINE_FILL } from "./utils.js";
-import { COCO_KEYPOINTS, getFormat, detectFormatFromMetadata, DEFAULT_FORMAT_ID } from "./formats/index.js";
+import { COCO_KEYPOINTS, getFormat, detectFormatFromMetadata, DEFAULT_FORMAT_ID, isFormatEditAllowed } from "./formats/index.js";
 
 const HAND_EDGES = [
 	[0, 1], [1, 2], [2, 3], [3, 4],
@@ -123,12 +123,14 @@ export class OpenPoseCanvas2D {
 		this.handlePointerMove = this.handlePointerMove.bind(this);
 		this.handlePointerUp = this.handlePointerUp.bind(this);
 		this.handlePointerLeave = this.handlePointerLeave.bind(this);
+		this.handleDoubleClick = this.handleDoubleClick.bind(this);
 		
 		// Attach events
 		this.canvas.addEventListener('pointerdown', this.handlePointerDown);
 		this.canvas.addEventListener('pointermove', this.handlePointerMove);
 		this.canvas.addEventListener('pointerup', this.handlePointerUp);
 		this.canvas.addEventListener('pointerleave', this.handlePointerLeave);
+		this.canvas.addEventListener('dblclick', this.handleDoubleClick);
 		
 		// Initialize canvas dimensions with HiDPI support
 		this.initializeCanvasSize();
@@ -502,6 +504,7 @@ export class OpenPoseCanvas2D {
 		this.canvas.removeEventListener('pointermove', this.handlePointerMove);
 		this.canvas.removeEventListener('pointerup', this.handlePointerUp);
 		this.canvas.removeEventListener('pointerleave', this.handlePointerLeave);
+		this.canvas.removeEventListener('dblclick', this.handleDoubleClick);
 		if (this.animationFrameId) {
 			clearTimeout(this.animationFrameId); // Clear timeout instead of canceling RAF
 		}
@@ -1645,7 +1648,142 @@ export class OpenPoseCanvas2D {
 		// Update cursor to default
 		this.updateCursor();
 	}
-	
+
+	/**
+	 * Double-click on a loose keypoint (one with no currently-drawn skeleton connections)
+	 * completes the chain by placing all missing intermediate keypoints between the
+	 * double-clicked keypoint and the nearest existing neighbor reachable through the
+	 * skeleton topology. Intermediate points are placed equidistantly along the straight
+	 * line between the two endpoints. Does nothing if the keypoint is already connected
+	 * or if no reachable neighbor exists.
+	 */
+	handleDoubleClick(evt) {
+		evt.preventDefault();
+		const pointer = this.screenToLogical(evt.clientX, evt.clientY);
+
+		// Hit-test: find which keypoint was double-clicked (reverse order, topmost first)
+		let hitPoseIdx = null;
+		let hitKeypointId = null;
+		for (let poseIdx = this.poses.length - 1; poseIdx >= 0; poseIdx--) {
+			const pose = this.poses[poseIdx];
+			for (let kpId = 0; kpId < pose.keypoints.length; kpId++) {
+				const kp = pose.keypoints[kpId];
+				if (kp) {
+					const dx = pointer.x - kp.x;
+					const dy = pointer.y - kp.y;
+					if (Math.sqrt(dx * dx + dy * dy) <= this.keypointHitRadius) {
+						hitPoseIdx = poseIdx;
+						hitKeypointId = kpId;
+						break;
+					}
+				}
+			}
+			if (hitPoseIdx !== null) break;
+		}
+
+		if (hitPoseIdx === null) return;
+
+		// Ensure the double-clicked pose becomes the active selection
+		if (this.selectedPoseIndex !== hitPoseIdx) {
+			this.setSelectedPose(hitPoseIdx);
+		}
+
+		const pose = this.poses[hitPoseIdx];
+
+		// Respect existing format edit restrictions (e.g. COCO-17 is read-only)
+		const isCoco17 = pose.keypoints[1] == null;
+		const formatId = isCoco17 ? 'coco17' : 'coco18';
+		if (!isFormatEditAllowed(formatId)) {
+			return;
+		}
+
+		// Build adjacency from the active skeleton topology for this pose
+		const format = getFormat(formatId) || getFormat(DEFAULT_FORMAT_ID);
+		const edges = Array.isArray(format?.skeletonEdges) ? format.skeletonEdges : [];
+		const kpCount = pose.keypoints.length;
+		const adjacency = Array.from({ length: kpCount }, () => []);
+		for (const edge of edges) {
+			if (!Array.isArray(edge) || edge.length < 2) continue;
+			const [a, b] = edge;
+			if (a >= 0 && a < kpCount && b >= 0 && b < kpCount) {
+				adjacency[a].push(b);
+				adjacency[b].push(a);
+			}
+		}
+
+		// A keypoint is "loose" when none of its direct skeleton neighbors are present.
+		// If it already has at least one drawn connection, there is nothing to complete.
+		const directNeighbors = adjacency[hitKeypointId];
+		const hasDirectConnection = directNeighbors.some(n => pose.keypoints[n] != null);
+		if (hasDirectConnection) {
+			return;
+		}
+
+		// BFS outward through only missing keypoints to find the nearest present one.
+		// BFS guarantees the first present keypoint found is reachable via the fewest hops.
+		const visited = new Set([hitKeypointId]);
+		const queue = [];
+		for (const neighbor of directNeighbors) {
+			if (!visited.has(neighbor)) {
+				visited.add(neighbor);
+				queue.push({ id: neighbor, path: [neighbor] });
+			}
+		}
+
+		let bestChain = null;
+		while (queue.length > 0) {
+			const { id, path } = queue.shift();
+			if (pose.keypoints[id] != null) {
+				// Nearest reachable existing keypoint found.
+				// path is [n1, n2, ..., target] where n1..n_{k-1} are missing and target is present.
+				bestChain = {
+					target: id,
+					missing: path.slice(0, -1),
+					hopCount: path.length
+				};
+				break;
+			}
+			// This node is also missing — continue BFS
+			for (const next of adjacency[id]) {
+				if (!visited.has(next)) {
+					visited.add(next);
+					queue.push({ id: next, path: [...path, next] });
+				}
+			}
+		}
+
+		if (!bestChain || bestChain.missing.length === 0) {
+			// No reachable existing neighbor found, or nothing to fill in
+			return;
+		}
+
+		// Place missing intermediate keypoints equidistantly along the straight line
+		// from the double-clicked keypoint to the found existing neighbor.
+		// For k missing nodes and hopCount total hops the interpolation factor for
+		// the k-th intermediate is t = (k+1) / hopCount.
+		const startKp = pose.keypoints[hitKeypointId];
+		const targetKp = pose.keypoints[bestChain.target];
+		let placed = 0;
+		for (let k = 0; k < bestChain.missing.length; k++) {
+			const midId = bestChain.missing[k];
+			if (pose.keypoints[midId] != null) {
+				continue; // Safety: already present, never overwrite
+			}
+			const t = (k + 1) / bestChain.hopCount;
+			pose.keypoints[midId] = {
+				x: Math.max(0, Math.min(this.logicalWidth,  startKp.x + t * (targetKp.x - startKp.x))),
+				y: Math.max(0, Math.min(this.logicalHeight, startKp.y + t * (targetKp.y - startKp.y)))
+			};
+			placed++;
+		}
+
+		if (placed > 0) {
+			this.markKeypointEdited();
+			this.requestRedraw();
+			this.notifyChange('geometry');
+		}
+	}
+
 	getKeypointColor(keypointId, keypointColors = null, formatKeypoints = null) {
 		const colors = Array.isArray(keypointColors) ? keypointColors : null;
 		if (colors && colors[keypointId]) {
