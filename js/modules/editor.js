@@ -1116,23 +1116,7 @@ ${tabsSectionHtml}
 			}
 		}
 		const isKeypointRemovable = (keypointId, keypoints) => {
-			if (!keypoints || !keypoints[keypointId]) {
-				return false;
-			}
-			const neighbors = adjacency[keypointId];
-			if (!neighbors || neighbors.length === 0) {
-				return true;
-			}
-			const currentDepth = depth[keypointId];
-			if (currentDepth == null) {
-				return neighbors.every((neighbor) => !keypoints[neighbor]);
-			}
-			for (const neighbor of neighbors) {
-				if (depth[neighbor] != null && depth[neighbor] > currentDepth && keypoints[neighbor]) {
-					return false;
-				}
-			}
-			return true;
+			return !!(keypoints && keypoints[keypointId]);
 		};
 		const createRemoveControl = () => {
 			const control = document.createElement("button");
@@ -1298,12 +1282,6 @@ ${tabsSectionHtml}
 					removeControl.style.opacity = "0.25";
 					removeControl.style.cursor = "not-allowed";
 					removeControl.title = "Select a pose to edit.";
-				} else if (!removable) {
-					removeControl.dataset.removeDisabled = "1";
-					removeControl.dataset.removeBaseOpacity = "0.35";
-					removeControl.style.opacity = "0.35";
-					removeControl.style.cursor = "not-allowed";
-					removeControl.title = "Remove distal points first.";
 				} else {
 					removeControl.dataset.removeDisabled = "0";
 					removeControl.dataset.removeBaseOpacity = "0.7";
@@ -1320,10 +1298,6 @@ ${tabsSectionHtml}
 					const posesNow = this.renderer ? this.renderer.getPoses() : [];
 					const pose = posesNow[activeIndex];
 					if (!pose || !pose.keypoints || !pose.keypoints[keypointId]) {
-						return;
-					}
-					if (!isKeypointRemovable(keypointId, pose.keypoints)) {
-						showToast("info", "Pose Editor", t("toast.remove_distal_first"));
 						return;
 					}
 					const didClear = this.renderer.clearKeypoint(activeIndex, keypointId);
