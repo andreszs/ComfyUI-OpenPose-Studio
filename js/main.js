@@ -1793,8 +1793,11 @@ class OpenPosePanel {
 		if (poses.length === 0) {
 			return null;
 		}
-		// Check if Neck (index 1) is missing - indicates COCO-17
+		// Use stored per-pose formatId; fall back to neck-presence heuristic for old data
 		const firstPose = poses[0];
+		if (firstPose.formatId) {
+			return firstPose.formatId;
+		}
 		const neckKeypoint = firstPose.keypoints[1];
 		const neckIsMissing = !neckKeypoint || !isKeypointPresent(neckKeypoint);
 		return neckIsMissing ? "coco17" : "coco18";

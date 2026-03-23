@@ -205,8 +205,9 @@ export function getKeypointSchemaTitle(renderer) {
 	if (!keypoints || keypoints.length < 2) {
 		return "COCO Keypoints";
 	}
-	// COCO-17: Neck (index 1) is null or missing
-	const formatId = (keypoints[1] == null) ? "coco17" : "coco18";
+	// Use stored per-pose formatId; fall back to neck-presence heuristic for old data
+	const pose = poses[activeIndex];
+	const formatId = pose.formatId || ((keypoints[1] == null) ? "coco17" : "coco18");
 	const format = getFormat(formatId);
 	return format ? `${format.displayName} Keypoints` : "COCO Keypoints";
 }
@@ -1023,13 +1024,13 @@ ${tabsSectionHtml}
 		// For displaying keypoint presence, use selected pose or fallback to first pose
 		const displayKeypoints = selectedKeypoints || (poses.length > 0 ? poses[0].keypoints : []);
 		
-		// Detect active format from selection or first pose (format registry is source of truth)
+		// Use stored per-pose formatId; fall back to keypoint-based detection for old data
 		let activeFormat = null;
-		if (selectedKeypoints) {
-			activeFormat = getFormatForPose(selectedKeypoints);
+		if (activePose) {
+			activeFormat = getFormat(activePose.formatId) || getFormatForPose(activePose.keypoints);
 		} else if (poses.length > 0) {
-			// Use first pose's format when no selection
-			activeFormat = getFormatForPose(poses[0].keypoints);
+			const fallbackPose = poses[0];
+			activeFormat = getFormat(fallbackPose.formatId) || getFormatForPose(fallbackPose.keypoints);
 		} else {
 			activeFormat = getFormatForPose([]);
 		}

@@ -5,7 +5,7 @@
 
 
 import { getSkeletonEdges, getSkeletonEdgeColors, isValidKeypoint, PREVIEW_OUTLINE_STROKE, PREVIEW_OUTLINE_FILL } from "./utils.js";
-import { COCO_KEYPOINTS, getFormat, detectFormatFromMetadata, DEFAULT_FORMAT_ID, isFormatEditAllowed } from "./formats/index.js";
+import { COCO_KEYPOINTS, getFormat, detectFormat, detectFormatFromMetadata, DEFAULT_FORMAT_ID, isFormatEditAllowed } from "./formats/index.js";
 
 const HAND_EDGES = [
 	[0, 1], [1, 2], [2, 3], [3, 4],
@@ -238,12 +238,16 @@ export class OpenPoseCanvas2D {
 	}
 	
 	setPoses(posesArray) {
-		this.poses = posesArray.map(pose => ({
-			keypoints: pose.keypoints || pose,
-			faceKeypoints: this.normalizeExtraKeypoints(pose.faceKeypoints || pose.face_keypoints_2d),
-			handLeftKeypoints: this.normalizeExtraKeypoints(pose.handLeftKeypoints || pose.hand_left_keypoints_2d),
-			handRightKeypoints: this.normalizeExtraKeypoints(pose.handRightKeypoints || pose.hand_right_keypoints_2d)
-		}));
+		this.poses = posesArray.map(pose => {
+			const kps = pose.keypoints || pose;
+			return {
+				keypoints: kps,
+				formatId: pose.formatId || detectFormat(kps),
+				faceKeypoints: this.normalizeExtraKeypoints(pose.faceKeypoints || pose.face_keypoints_2d),
+				handLeftKeypoints: this.normalizeExtraKeypoints(pose.handLeftKeypoints || pose.hand_left_keypoints_2d),
+				handRightKeypoints: this.normalizeExtraKeypoints(pose.handRightKeypoints || pose.hand_right_keypoints_2d)
+			};
+		});
 		this.keypointEdits = false;
 		this.requestRedraw();
 	}
@@ -251,6 +255,7 @@ export class OpenPoseCanvas2D {
 	getPoses() {
 		return this.poses.map(pose => ({
 			keypoints: pose.keypoints,
+			formatId: pose.formatId,
 			faceKeypoints: pose.faceKeypoints,
 			handLeftKeypoints: pose.handLeftKeypoints,
 			handRightKeypoints: pose.handRightKeypoints
@@ -258,7 +263,7 @@ export class OpenPoseCanvas2D {
 	}
 	
 	       addPose(keypoints18, faceKeypoints = null, handLeftKeypoints = null, handRightKeypoints = null) {
-		       this.poses.push({ keypoints: keypoints18, faceKeypoints, handLeftKeypoints, handRightKeypoints });
+		       this.poses.push({ keypoints: keypoints18, formatId: detectFormat(keypoints18), faceKeypoints, handLeftKeypoints, handRightKeypoints });
 		       this.selectedPoseIndex = this.poses.length - 1;
 		       debugLog('[OpenPoseCanvas2D] addPose:', {
 			       poseIndex: this.selectedPoseIndex,
@@ -785,6 +790,7 @@ export class OpenPoseCanvas2D {
 				keypoints: poseKeypoints.map(kp => 
 					kp && kp.length === 2 ? { x: kp[0], y: kp[1] } : null
 				),
+				formatId: this.activeFormatId,
 				faceKeypoints: this.normalizeExtraKeypoints(
 					faceKeypoints ? faceKeypoints[index] : null
 				),
@@ -972,9 +978,9 @@ export class OpenPoseCanvas2D {
 	}
 	
 	drawPose(pose, isSelected) {
-		// Determine format from pose data (Neck missing => COCO-17)
-		const isCoco17 = pose.keypoints[1] == null;
-		const format = getFormat(isCoco17 ? "coco17" : "coco18") || getFormat(DEFAULT_FORMAT_ID);
+		// Use stored per-pose formatId; fall back to neck-presence heuristic for old data
+		const formatId = pose.formatId || (pose.keypoints[1] == null ? 'coco17' : 'coco18');
+		const format = getFormat(formatId) || getFormat(DEFAULT_FORMAT_ID);
 		const edges = Array.isArray(format?.skeletonEdges) ? format.skeletonEdges : [];
 		const colors = Array.isArray(format?.skeletonColors) ? format.skeletonColors : [];
 		const keypointColors = Array.isArray(format?.keypointColors) ? format.keypointColors : null;
@@ -1691,8 +1697,7 @@ export class OpenPoseCanvas2D {
 		const pose = this.poses[hitPoseIdx];
 
 		// Respect existing format edit restrictions (e.g. COCO-17 is read-only)
-		const isCoco17 = pose.keypoints[1] == null;
-		const formatId = isCoco17 ? 'coco17' : 'coco18';
+		const formatId = pose.formatId || (pose.keypoints[1] == null ? 'coco17' : 'coco18');
 		if (!isFormatEditAllowed(formatId)) {
 			return;
 		}
