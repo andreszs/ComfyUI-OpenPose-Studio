@@ -211,5 +211,6 @@
     "toast.pose_selection_canceled":  "Pose selection canceled.",
     "toast.remove_distal_first":  "Remove distal points first.",
     "toast.removed":  "removed",
-    "toast.right_hand_removed":  "Right hand removed"
+    "toast.right_hand_removed":  "Right hand removed",
+    "toast.no_pose_selected":  "Select a pose before placing a keypoint."
 }

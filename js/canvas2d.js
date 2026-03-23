@@ -659,6 +659,37 @@ export class OpenPoseCanvas2D {
 		return true;
 	}
 
+	/**
+	 * Place a missing keypoint at the specified logical canvas coordinates.
+	 * Only places when the slot is currently null (does not overwrite existing keypoints).
+	 * After placement, the render loop will automatically draw any skeleton lines whose
+	 * both endpoints are now present, without any extra work needed here.
+	 */
+	placeKeypoint(poseIndex, keypointId, x, y) {
+		if (poseIndex == null || poseIndex < 0 || poseIndex >= this.poses.length) {
+			return false;
+		}
+		const pose = this.poses[poseIndex];
+		if (!pose || !Array.isArray(pose.keypoints)) {
+			return false;
+		}
+		if (keypointId == null || keypointId < 0 || keypointId >= pose.keypoints.length) {
+			return false;
+		}
+		if (pose.keypoints[keypointId]) {
+			// Slot is already occupied — refuse to overwrite
+			return false;
+		}
+		pose.keypoints[keypointId] = {
+			x: Math.max(0, Math.min(this.logicalWidth, x)),
+			y: Math.max(0, Math.min(this.logicalHeight, y))
+		};
+		this.markKeypointEdited();
+		this.requestRedraw();
+		this.notifyChange('geometry');
+		return true;
+	}
+
 	hasKeypointEdits() {
 		return this.keypointEdits;
 	}

@@ -52,7 +52,7 @@ import {
 	setPersistedSetting,
 	injectGlobalAlertStyles
 } from "./utils.js";
-import { getFormatForPose } from "./formats/index.js";
+import { getFormatForPose, isFormatEditAllowed } from "./formats/index.js";
 
 // Re-export for backwards compatibility
 export { showToast } from "./utils.js";
@@ -672,12 +672,9 @@ class OpenPosePanel {
             if (event.dataTransfer) {
                 event.dataTransfer.dropEffect = "copy";
             }
-            if (isPreset) {
+            if (isPreset || isMissingKeypoint) {
                 this._dragOverCanvas = true;
                 setCanvasDropHighlight(true, event, "drag-over");
-            } else {
-                this._dragOverCanvas = false;
-                clearCanvasDropHighlight(event, "drag-missing-keypoint");
             }
         };
         if (dropTarget) {
@@ -720,11 +717,32 @@ class OpenPosePanel {
 					}
                 } else if (isMissingKeypoint) {
                     this._draggingMissingKeypoint = false;
-                    showToast(
-                        "warn",
-                        "Pose Editor",
-                        t("feature.not_available_yet")
-                    );
+                    const keypointIdNum = parseInt(missingKeypointId, 10);
+                    if (!Number.isFinite(keypointIdNum) || keypointIdNum < 0) {
+                        return;
+                    }
+                    const selectedPoseIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
+                    if (selectedPoseIndex == null || selectedPoseIndex < 0) {
+                        showToast("warn", "Pose Editor", t("toast.no_pose_selected"));
+                        return;
+                    }
+                    const poses = this.renderer ? this.renderer.getPoses() : [];
+                    const selectedPose = poses[selectedPoseIndex];
+                    if (!selectedPose) {
+                        return;
+                    }
+                    const format = getFormatForPose(selectedPose.keypoints);
+                    if (!isFormatEditAllowed(format ? format.id : null)) {
+                        showToast("warn", "Pose Editor", t("toast.coco17_edit_disabled"));
+                        return;
+                    }
+                    const logical = this.renderer.screenToLogical(event.clientX, event.clientY);
+                    const didPlace = this.renderer.placeKeypoint(selectedPoseIndex, keypointIdNum, logical.x, logical.y);
+                    if (didPlace) {
+                        this.recordHistory();
+                        this.saveToNode();
+                        this.refreshCocoKeypointsPanel();
+                    }
                 }
             });
         }
@@ -742,7 +760,7 @@ class OpenPosePanel {
             clearInterval(this._dragHighlightWatchdog);
         }
         this._dragHighlightWatchdog = setInterval(() => {
-            if (!this._draggingPreset) {
+            if (!this._draggingPreset && !this._draggingMissingKeypoint) {
                 forceClearCanvasDropHighlight("watchdog-not-dragging");
                 return;
             }
