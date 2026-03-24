@@ -4,9 +4,6 @@ import { getFormat, DEFAULT_FORMAT_ID, getFormatForPose, detectFormatFromMetadat
 import { registerModule } from "./index.js";
 import { UiIcons } from "../ui-icons.js";
 
-/** Minimum non-null body keypoints for an imported people[] entry to be a valid pose. */
-const MIN_BODY_KEYPOINTS_FOR_VALID_PERSON = 3;
-
 export function buildPresetsMergerOverlayHtml() {
   return `
     <div class="openpose-merge-sidebar openpose-merge-panel" data-merge-panel="left">
@@ -538,7 +535,7 @@ function getPreviewPoseData(payload) {
           baseWidth,
           baseHeight,
         );
-        if (kps && kps.filter(kp => kp !== null).length >= MIN_BODY_KEYPOINTS_FOR_VALID_PERSON) {
+        if (kps) {
           allKeypoints.push(...kps);
         }
       }
@@ -2056,9 +2053,12 @@ export class PosePresetsMerger {
       }
 
       // Add the pose(s) to canvas (handle multi-person poses by chunking every kpCount keypoints)
+      // Pass the file-level detectedFormat.id so every person from this file uses the same
+      // format, preventing a sparse person (e.g. missing neck) being mis-detected as COCO-17.
+      const insertFormatId = preflightResult.detectedFormat?.id || null;
       for (let i = 0; i < keypoints.length; i += kpCount) {
         const personKeypoints = keypoints.slice(i, i + kpCount);
-        const addResult = this.openposeInstance.addPose(personKeypoints);
+        const addResult = this.openposeInstance.addPose(personKeypoints, null, null, null, insertFormatId);
         if (addResult === false) {
           // addPose returned false; this should not happen if preflight passed
           // but wrap in try/catch for safety

@@ -117,10 +117,6 @@ HAND_KEYPOINT_COLORS = [
 
 DEBUG_RENDER = os.environ.get("OPENPOSE_EDITOR_DEBUG", "").strip().lower() in ("1", "true", "yes", "on")
 
-# Minimum non-null body keypoints required to treat a people[] entry as a valid standalone
-# pose. Entries with fewer valid keypoints are discarded as orphaned fragments.
-_MIN_BODY_KEYPOINTS_FOR_VALID_PERSON = 3
-
 
 def _debug_log(message, detail=None):
     if not DEBUG_RENDER:
@@ -312,14 +308,18 @@ def _normalize_pose_json(pose_json):
         for person in people:
             if not isinstance(person, dict):
                 continue
+            raw_kp2d = person.get("pose_keypoints_2d") or []
+            # Determine format from flat array count (17 triplets = COCO-17, 18 = COCO-18).
+            # Do NOT infer format from per-person keypoint nullity: a sparse COCO-18 person
+            # whose neck confidence is 0 would otherwise be mis-identified as COCO-17.
+            raw_step = 3 if (len(raw_kp2d) % 3 == 0) else (2 if len(raw_kp2d) % 2 == 0 else 0)
+            person_format_is_coco17 = raw_step > 0 and (len(raw_kp2d) // raw_step) == 17
             keypoints = _extract_keypoints_from_pose_keypoints_2d(
-                person.get("pose_keypoints_2d"),
+                raw_kp2d,
                 width,
                 height
             )
             if not keypoints:
-                continue
-            if sum(1 for kp in keypoints if kp is not None) < _MIN_BODY_KEYPOINTS_FOR_VALID_PERSON:
                 continue
             face_keypoints = _extract_extra_keypoints_from_keypoints_2d(
                 person.get("face_keypoints_2d"),
@@ -338,7 +338,7 @@ def _normalize_pose_json(pose_json):
             )
             poses.append({
                 "keypoints": keypoints,
-                "is_coco17": len(keypoints) == 18 and keypoints[1] is None,
+                "is_coco17": person_format_is_coco17,
                 "face_keypoints": face_keypoints,
                 "hand_left_keypoints": hand_left_keypoints,
                 "hand_right_keypoints": hand_right_keypoints

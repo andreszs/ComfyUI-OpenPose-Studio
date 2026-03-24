@@ -262,8 +262,12 @@ export class OpenPoseCanvas2D {
 		}));
 	}
 	
-	       addPose(keypoints18, faceKeypoints = null, handLeftKeypoints = null, handRightKeypoints = null) {
-		       this.poses.push({ keypoints: keypoints18, formatId: detectFormat(keypoints18), faceKeypoints, handLeftKeypoints, handRightKeypoints });
+	       addPose(keypoints18, faceKeypoints = null, handLeftKeypoints = null, handRightKeypoints = null, formatId = null) {
+		       // Use caller-supplied formatId when available so that per-file format detected
+		       // at import time is preserved across all persons in the same file, preventing
+		       // a sparse person (null neck) from being mis-detected as COCO-17.
+		       const resolvedFormatId = formatId !== null ? formatId : detectFormat(keypoints18);
+		       this.poses.push({ keypoints: keypoints18, formatId: resolvedFormatId, faceKeypoints, handLeftKeypoints, handRightKeypoints });
 		       this.selectedPoseIndex = this.poses.length - 1;
 		       debugLog('[OpenPoseCanvas2D] addPose:', {
 			       poseIndex: this.selectedPoseIndex,
@@ -280,7 +284,7 @@ export class OpenPoseCanvas2D {
 	 * validation and bounds-clamping, then add as a new pose.
 	 * @param {Array} xyPairs - 18-element array of [x,y] pairs
 	 */
-	addPoseFromArray(xyPairs, faceKeypoints = null, handLeftKeypoints = null, handRightKeypoints = null) {
+	addPoseFromArray(xyPairs, faceKeypoints = null, handLeftKeypoints = null, handRightKeypoints = null, formatId = null) {
 		const converted = [];
 		for (let i = 0; i < xyPairs.length; i++) {
 			const point = xyPairs[i];
@@ -301,7 +305,7 @@ export class OpenPoseCanvas2D {
 		const convertedFaceKeypoints = this.normalizeExtraKeypoints(faceKeypoints);
 		const convertedHandLeftKeypoints = this.normalizeExtraKeypoints(handLeftKeypoints);
 		const convertedHandRightKeypoints = this.normalizeExtraKeypoints(handRightKeypoints);
-		this.addPose(converted, convertedFaceKeypoints, convertedHandLeftKeypoints, convertedHandRightKeypoints);
+		this.addPose(converted, convertedFaceKeypoints, convertedHandLeftKeypoints, convertedHandRightKeypoints, formatId);
 	}
 
 	normalizeExtraKeypoints(points) {
@@ -355,10 +359,11 @@ export class OpenPoseCanvas2D {
 		this.poses = [];
 		this.selectedPoseIndex = null;
 		this.keypointEdits = false;
+		const resolvedFormatId = (format && format.id) ? format.id : null;
 		for (let i = 0; i < flatXYPairs.length; i += kpCount) {
 			const chunk = flatXYPairs.slice(i, i + kpCount);
 			if (chunk.length >= kpCount) {
-				this.addPoseFromArray(chunk);
+				this.addPoseFromArray(chunk, null, null, null, resolvedFormatId);
 			}
 		}
 		this.requestRedraw();

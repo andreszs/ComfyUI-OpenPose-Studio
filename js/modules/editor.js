@@ -626,7 +626,7 @@ export const poseEditorCanvasWorkflow = {
 			const faceGroup = Array.isArray(faceKeypoints) ? faceKeypoints[personIndex] : null;
 			const handLeftGroup = Array.isArray(handLeftKeypoints) ? handLeftKeypoints[personIndex] : null;
 			const handRightGroup = Array.isArray(handRightKeypoints) ? handRightKeypoints[personIndex] : null;
-			this.addPose(personKeypoints, faceGroup, handLeftGroup, handRightGroup);
+			this.addPose(personKeypoints, faceGroup, handLeftGroup, handRightGroup, detectedFormat?.id || null);
 			this.renderer.setSelectedPose(null);
 			personIndex += 1;
 		}
@@ -650,11 +650,11 @@ export const poseEditorCanvasWorkflow = {
 	}
 },
 
-addPose(keypoints = undefined, faceKeypoints = null, handLeftKeypoints = null, handRightKeypoints = null) {
+addPose(keypoints = undefined, faceKeypoints = null, handLeftKeypoints = null, handRightKeypoints = null, formatId = null) {
 	if (keypoints === undefined) {
 		keypoints = cloneKeypoints(DEFAULT_POSE_COCO18.keypoints);
 	}
-		this.renderer.addPoseFromArray(keypoints, faceKeypoints, handLeftKeypoints, handRightKeypoints);
+		this.renderer.addPoseFromArray(keypoints, faceKeypoints, handLeftKeypoints, handRightKeypoints, formatId);
 		this.updateRemoveState();
 		// Trigger redraw to make new pose visible
 		this.renderer.requestRedraw();
