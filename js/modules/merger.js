@@ -4,6 +4,9 @@ import { getFormat, DEFAULT_FORMAT_ID, getFormatForPose, detectFormatFromMetadat
 import { registerModule } from "./index.js";
 import { UiIcons } from "../ui-icons.js";
 
+/** Minimum non-null body keypoints for an imported people[] entry to be a valid pose. */
+const MIN_BODY_KEYPOINTS_FOR_VALID_PERSON = 3;
+
 export function buildPresetsMergerOverlayHtml() {
   return `
     <div class="openpose-merge-sidebar openpose-merge-panel" data-merge-panel="left">
@@ -535,7 +538,7 @@ function getPreviewPoseData(payload) {
           baseWidth,
           baseHeight,
         );
-        if (kps) {
+        if (kps && kps.filter(kp => kp !== null).length >= MIN_BODY_KEYPOINTS_FOR_VALID_PERSON) {
           allKeypoints.push(...kps);
         }
       }

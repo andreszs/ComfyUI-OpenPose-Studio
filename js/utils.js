@@ -599,6 +599,12 @@ export function scaleKeypointsToCanvas(
 }
 
 /**
+ * Minimum non-null body keypoints for an imported people[] entry to be treated as a
+ * valid standalone pose. Entries below this threshold are discarded as fragments.
+ */
+const MIN_BODY_KEYPOINTS_FOR_VALID_PERSON = 3;
+
+/**
  * Validate keypoint count matches the selected format's keypoint structure.
  * Accepts keypoint arrays where total % format.keypoints.length === 0.
  * @param {number} count - Total keypoint count
@@ -937,6 +943,9 @@ export function normalizePoseJson(raw) {
       if (!Array.isArray(keypoints) || keypoints.length === 0) {
         continue;
       }
+      if (keypoints.filter(kp => kp !== null).length < MIN_BODY_KEYPOINTS_FOR_VALID_PERSON) {
+        continue;
+      }
       const pose = { keypoints };
       const face = extractFaceKeypointsFromFaceKeypoints2d(
         person.face_keypoints_2d,
@@ -1055,7 +1064,7 @@ export function normalizePresetData(payload, filename = "") {
           baseWidth,
           baseHeight,
         );
-        if (kps) {
+        if (kps && kps.filter(kp => kp !== null).length >= MIN_BODY_KEYPOINTS_FOR_VALID_PERSON) {
           allKeypoints.push(...kps);
           const face = extractFaceKeypointsFromFaceKeypoints2d(
             person.face_keypoints_2d,
@@ -1211,7 +1220,7 @@ export function normalizePresetData(payload, filename = "") {
           poseWidth,
           poseHeight,
         );
-        if (kps) {
+        if (kps && kps.filter(kp => kp !== null).length >= MIN_BODY_KEYPOINTS_FOR_VALID_PERSON) {
           allKeypoints.push(...kps);
           const face = extractFaceKeypointsFromFaceKeypoints2d(
             person.face_keypoints_2d,

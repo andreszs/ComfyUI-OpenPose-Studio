@@ -117,6 +117,10 @@ HAND_KEYPOINT_COLORS = [
 
 DEBUG_RENDER = os.environ.get("OPENPOSE_EDITOR_DEBUG", "").strip().lower() in ("1", "true", "yes", "on")
 
+# Minimum non-null body keypoints required to treat a people[] entry as a valid standalone
+# pose. Entries with fewer valid keypoints are discarded as orphaned fragments.
+_MIN_BODY_KEYPOINTS_FOR_VALID_PERSON = 3
+
 
 def _debug_log(message, detail=None):
     if not DEBUG_RENDER:
@@ -314,6 +318,8 @@ def _normalize_pose_json(pose_json):
                 height
             )
             if not keypoints:
+                continue
+            if sum(1 for kp in keypoints if kp is not None) < _MIN_BODY_KEYPOINTS_FOR_VALID_PERSON:
                 continue
             face_keypoints = _extract_extra_keypoints_from_keypoints_2d(
                 person.get("face_keypoints_2d"),
