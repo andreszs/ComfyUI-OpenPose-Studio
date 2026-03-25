@@ -1,7 +1,0 @@
-{
-  "git.showActionButton": {
-    "sync": false,
-    "publish": false,
-    "commit": true
-  }
-}
