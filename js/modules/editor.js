@@ -717,13 +717,25 @@ addPose(keypoints = undefined, faceKeypoints = null, handLeftKeypoints = null, h
 			return;
 		}
 		if (e.key === "Delete") {
-			// Delete key: remove selected pose
 			const selectedIndex = this.renderer?.getSelectedPoseIndex();
 			if (selectedIndex !== null && selectedIndex >= 0) {
-				this.removePose();
-				this.recordHistory();
-				this.saveToNode();
-				this.refreshCocoKeypointsPanel();
+				const selectedKeypointIds = this.renderer?.selectedKeypointIds;
+				if (selectedKeypointIds && selectedKeypointIds.size > 0) {
+					// Delete key with active keypoint selection: remove only the selected keypoints
+					for (const kpId of selectedKeypointIds) {
+						this.renderer.clearKeypoint(selectedIndex, kpId);
+					}
+					this.renderer.selectedKeypointIds = new Set();
+					this.recordHistory();
+					this.saveToNode();
+					this.refreshCocoKeypointsPanel();
+				} else {
+					// Delete key with no keypoint selection: remove the selected pose
+					this.removePose();
+					this.recordHistory();
+					this.saveToNode();
+					this.refreshCocoKeypointsPanel();
+				}
 				e.preventDefault();
 				e.stopImmediatePropagation();
 			}
