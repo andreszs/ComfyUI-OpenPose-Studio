@@ -1701,6 +1701,23 @@ export class OpenPoseCanvas2D {
 		if (this.activeDragMode === 'marquee') {
 			this.marqueeRect.x2 = pointer.x;
 			this.marqueeRect.y2 = pointer.y;
+			// Live-preview: update selectedKeypointIds to match keypoints inside current rect
+			if (this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length) {
+				const rect = this.marqueeRect;
+				const rxMin = Math.min(rect.x1, rect.x2);
+				const rxMax = Math.max(rect.x1, rect.x2);
+				const ryMin = Math.min(rect.y1, rect.y2);
+				const ryMax = Math.max(rect.y1, rect.y2);
+				const liveSelection = new Set();
+				const activePose = this.poses[this.selectedPoseIndex];
+				for (let kpId = 0; kpId < activePose.keypoints.length; kpId++) {
+					const kp = activePose.keypoints[kpId];
+					if (kp && kp.x >= rxMin && kp.x <= rxMax && kp.y >= ryMin && kp.y <= ryMax) {
+						liveSelection.add(kpId);
+					}
+				}
+				this.selectedKeypointIds = liveSelection;
+			}
 			this.requestRedraw();
 			return;
 		}
