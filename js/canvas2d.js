@@ -1467,8 +1467,7 @@ export class OpenPoseCanvas2D {
 					}
 				}
 			}
-			// Shift+Click on empty space or inactive pose keypoint — do nothing
-			return;
+			// Shift+Click on empty space or inactive pose keypoint — fall through to step 5 for marquee start
 		}
 
 		// Plain click: hit-test all poses (topmost first)
@@ -1516,7 +1515,7 @@ export class OpenPoseCanvas2D {
 		}
 
 		// ── 4. Pose body hit (bounding box) ──
-		for (let poseIdx = this.poses.length - 1; poseIdx >= 0; poseIdx--) {
+		if (!isShift) for (let poseIdx = this.poses.length - 1; poseIdx >= 0; poseIdx--) {
 			const pose = this.poses[poseIdx];
 			const bbox = this.getPoseBounds(pose);
 			if (bbox) {
