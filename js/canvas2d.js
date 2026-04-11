@@ -103,6 +103,7 @@ export class OpenPoseCanvas2D {
 		// Multi-keypoint selection state (active pose only)
 		this.selectedKeypointIds = new Set(); // Set of keypointId integers; always scoped to selectedPoseIndex
 		this.marqueeRect = null; // {x1,y1,x2,y2} in logical coords while marquee drag is live; null otherwise
+		this.marqueeSelectionBase = null; // Set snapshot of selectedKeypointIds at marquee start when Shift held; null for replace-mode
 		this.dragStartKeypointMap = null; // Map<keypointId,{x,y}> snapshot for moveSelectedKeypoints / scaleSelectedKeypoints
 		
 		// Constants
@@ -1553,7 +1554,13 @@ export class OpenPoseCanvas2D {
 		}
 
 		// ── 5. Empty space — start marquee selection (only if a pose is selected) ──
-		this.selectedKeypointIds = new Set();
+		if (isShift && this.selectedPoseIndex !== null && this.selectedKeypointIds.size > 0) {
+			// Shift-marquee: additive — keep existing selection as the base
+			this.marqueeSelectionBase = new Set(this.selectedKeypointIds);
+		} else {
+			this.selectedKeypointIds = new Set();
+			this.marqueeSelectionBase = null;
+		}
 		if (this.selectedPoseIndex !== null) {
 			// Start marquee to select keypoints from the active pose
 			this.activeDragMode = 'marquee';
@@ -1708,7 +1715,7 @@ export class OpenPoseCanvas2D {
 				const rxMax = Math.max(rect.x1, rect.x2);
 				const ryMin = Math.min(rect.y1, rect.y2);
 				const ryMax = Math.max(rect.y1, rect.y2);
-				const liveSelection = new Set();
+				const liveSelection = this.marqueeSelectionBase ? new Set(this.marqueeSelectionBase) : new Set();
 				const activePose = this.poses[this.selectedPoseIndex];
 				for (let kpId = 0; kpId < activePose.keypoints.length; kpId++) {
 					const kp = activePose.keypoints[kpId];
@@ -1986,9 +1993,10 @@ export class OpenPoseCanvas2D {
 			const isClick = dragWidth < 5 && dragHeight < 5;
 			if (isClick) {
 				this.marqueeRect = null;
+				this.marqueeSelectionBase = null;
 				this.setSelectedPose(null);
 			} else {
-				const newSelection = new Set();
+				const newSelection = this.marqueeSelectionBase ? new Set(this.marqueeSelectionBase) : new Set();
 				if (this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length) {
 					const activePose = this.poses[this.selectedPoseIndex];
 					for (let kpId = 0; kpId < activePose.keypoints.length; kpId++) {
@@ -2000,6 +2008,7 @@ export class OpenPoseCanvas2D {
 				}
 				this.selectedKeypointIds = newSelection;
 				this.marqueeRect = null;
+				this.marqueeSelectionBase = null;
 				this.notifyChange('select');
 			}
 		}
