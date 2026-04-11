@@ -93,12 +93,17 @@ export class OpenPoseCanvas2D {
 		this.backgroundFillStyle = options.backgroundFillStyle || '#1a1a1a';
 		
 		// Interaction state
-		this.activeDragMode = 'none'; // 'none' | 'movePose' | 'dragKeypoint' | 'scalePose'
+		this.activeDragMode = 'none'; // 'none' | 'movePose' | 'dragKeypoint' | 'scalePose' | 'marquee' | 'moveSelectedKeypoints' | 'scaleSelectedKeypoints'
 		this.activeKeypointId = null;
 		this.activeScaleHandle = null; // 'tl' | 'tr' | 'bl' | 'br'
 		this.dragStartPointer = null;
 		this.dragStartPose = null;
 		this.dragStartKeypoint = null;
+
+		// Multi-keypoint selection state (active pose only)
+		this.selectedKeypointIds = new Set(); // Set of keypointId integers; always scoped to selectedPoseIndex
+		this.marqueeRect = null; // {x1,y1,x2,y2} in logical coords while marquee drag is live; null otherwise
+		this.dragStartKeypointMap = null; // Map<keypointId,{x,y}> snapshot for moveSelectedKeypoints / scaleSelectedKeypoints
 		
 		// Constants
 		this.keypointRadius = 5;
@@ -374,6 +379,7 @@ export class OpenPoseCanvas2D {
 			this.poses.splice(index, 1);
 			if (this.selectedPoseIndex === index) {
 				this.selectedPoseIndex = this.poses.length > 0 ? Math.min(index, this.poses.length - 1) : null;
+				this.selectedKeypointIds = new Set();
 			} else if (this.selectedPoseIndex > index) {
 				this.selectedPoseIndex--;
 			}
@@ -383,6 +389,10 @@ export class OpenPoseCanvas2D {
 	}
 	
 	setSelectedPose(indexOrNull) {
+		if (this.selectedPoseIndex !== indexOrNull) {
+			// Clear multi-keypoint selection whenever the active pose changes
+			this.selectedKeypointIds = new Set();
+		}
 		this.selectedPoseIndex = indexOrNull;
 		this.notifySelectionChange();
 		this.requestRedraw();
@@ -467,11 +477,15 @@ export class OpenPoseCanvas2D {
 		if (!this.canvas) return;
 
 		// During an active scale drag, show the resize cursor for that handle
-		if (this.activeDragMode === 'scalePose' && this.activeScaleHandle) {
+		if ((this.activeDragMode === 'scalePose' || this.activeDragMode === 'scaleSelectedKeypoints') && this.activeScaleHandle) {
 			this.canvas.style.cursor = this.getHandleCursor(this.activeScaleHandle);
 		}
-		// During an active drag of a keypoint, always show crosshair
-		else if (this.activeDragMode === 'dragKeypoint') {
+		// During an active drag of a keypoint or selected keypoints, always show crosshair/move
+		else if (this.activeDragMode === 'dragKeypoint' || this.activeDragMode === 'moveSelectedKeypoints') {
+			this.canvas.style.cursor = 'crosshair';
+		}
+		// During marquee draw, show crosshair
+		else if (this.activeDragMode === 'marquee') {
 			this.canvas.style.cursor = 'crosshair';
 		}
 		// When hovering a scale handle, show the appropriate resize cursor
@@ -856,8 +870,8 @@ export class OpenPoseCanvas2D {
 				       }
 				       debugLog('[OpenPoseCanvas2D] Poses drawn');
 			       }
-			       // Draw selection UI for selected pose
-			       if (this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length) {
+			       // Draw selection UI for selected pose (only when no multi-keypoint selection is active)
+			       if (this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length && this.selectedKeypointIds.size === 0) {
 				       debugLog('[OpenPoseCanvas2D] Drawing selection UI for pose', this.selectedPoseIndex);
 				       this.drawSelectionUI(this.poses[this.selectedPoseIndex]);
 				       debugLog('[OpenPoseCanvas2D] Selection UI drawn');
@@ -881,6 +895,15 @@ export class OpenPoseCanvas2D {
 					       this.drawHoveredKeypoint(this.poses[this.canvasHoveredPoseIndex], this.hoveredKeypointId);
 				       }
 				       debugLog('[OpenPoseCanvas2D] Hover ring drawn');
+			       }
+			       // Draw multi-keypoint selection highlights and bbox (active pose only)
+			       if (this.selectedKeypointIds.size > 0) {
+				       this.drawSelectedKeypointHighlights();
+				       this.drawMultiSelectionUI();
+			       }
+			       // Draw live marquee rectangle during drag
+			       if (this.marqueeRect !== null) {
+				       this.drawMarqueeRect();
 			       }
 			
 		} catch (error) {
@@ -1255,6 +1278,112 @@ export class OpenPoseCanvas2D {
 		
 		return { ...cornerHandles, ...sideHandles };
 	}
+
+	/**
+	 * Compute the bounding box of only the currently selected keypoints
+	 * (those in this.selectedKeypointIds) within the active pose.
+	 * Returns null if there are no selected keypoints with valid positions.
+	 */
+	getSelectedKeypointsBounds() {
+		if (this.selectedPoseIndex === null || this.selectedKeypointIds.size === 0) return null;
+		const pose = this.poses[this.selectedPoseIndex];
+		if (!pose) return null;
+		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		let hasPoints = false;
+		for (const kpId of this.selectedKeypointIds) {
+			const kp = pose.keypoints[kpId];
+			if (kp) {
+				minX = Math.min(minX, kp.x); minY = Math.min(minY, kp.y);
+				maxX = Math.max(maxX, kp.x); maxY = Math.max(maxY, kp.y);
+				hasPoints = true;
+			}
+		}
+		return hasPoints ? { minX, minY, maxX, maxY } : null;
+	}
+
+	/**
+	 * Draw highlight rings for all selected keypoints on the active pose.
+	 */
+	drawSelectedKeypointHighlights() {
+		if (this.selectedPoseIndex === null || this.selectedKeypointIds.size === 0) return;
+		const pose = this.poses[this.selectedPoseIndex];
+		if (!pose) return;
+		const ctx = this.ctx;
+		ctx.strokeStyle = 'rgba(100, 200, 255, 0.95)';
+		ctx.lineWidth = 2.5;
+		for (const kpId of this.selectedKeypointIds) {
+			const kp = pose.keypoints[kpId];
+			if (kp) {
+				ctx.beginPath();
+				ctx.arc(kp.x, kp.y, this.keypointRadius + 4, 0, Math.PI * 2);
+				ctx.stroke();
+			}
+		}
+	}
+
+	/**
+	 * Draw the persistent dashed bounding box around the selected keypoints
+	 * along with scale handles (active-pose only).
+	 */
+	drawMultiSelectionUI() {
+		const bbox = this.getSelectedKeypointsBounds();
+		if (!bbox) return;
+		const ctx = this.ctx;
+		const padding = 10;
+		const isActive = this.activeDragMode === 'moveSelectedKeypoints' || this.activeDragMode === 'scaleSelectedKeypoints';
+		const boxColor = isActive ? 'rgba(100, 200, 255, 0.9)' : 'rgba(100, 200, 255, 0.65)';
+		const handleFill = isActive ? 'rgba(100, 200, 255, 0.95)' : 'rgba(100, 200, 255, 0.75)';
+
+		ctx.strokeStyle = boxColor;
+		ctx.lineWidth = 1.5;
+		ctx.setLineDash([4, 4]);
+		ctx.strokeRect(
+			bbox.minX - padding, bbox.minY - padding,
+			bbox.maxX - bbox.minX + padding * 2,
+			bbox.maxY - bbox.minY + padding * 2
+		);
+		ctx.setLineDash([]);
+
+		// Draw scale handles (same layout as pose handles)
+		const handles = this.getScaleHandles(bbox, padding);
+		const handleSize = 6;
+		ctx.fillStyle = handleFill;
+		ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+		ctx.lineWidth = 1.5;
+		for (const [handleName, handle] of Object.entries(handles)) {
+			if (['nw', 'ne', 'sw', 'se'].includes(handleName)) {
+				ctx.beginPath();
+				ctx.arc(handle.x, handle.y, handleSize / 2, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.stroke();
+			} else {
+				ctx.fillRect(handle.x - handleSize / 2, handle.y - handleSize / 2, handleSize, handleSize);
+				ctx.strokeRect(handle.x - handleSize / 2, handle.y - handleSize / 2, handleSize, handleSize);
+			}
+		}
+	}
+
+	/**
+	 * Draw the live marquee selection rectangle during drag.
+	 */
+	drawMarqueeRect() {
+		if (!this.marqueeRect) return;
+		const ctx = this.ctx;
+		const rect = this.marqueeRect;
+		const x = Math.min(rect.x1, rect.x2);
+		const y = Math.min(rect.y1, rect.y2);
+		const w = Math.abs(rect.x2 - rect.x1);
+		const h = Math.abs(rect.y2 - rect.y1);
+		ctx.strokeStyle = 'rgba(100, 200, 255, 0.85)';
+		ctx.fillStyle = 'rgba(100, 200, 255, 0.10)';
+		ctx.lineWidth = 1.5;
+		ctx.setLineDash([4, 4]);
+		ctx.beginPath();
+		ctx.rect(x, y, w, h);
+		ctx.fill();
+		ctx.stroke();
+		ctx.setLineDash([]);
+	}
 	
 	// Event handlers
 	screenToLogical(clientX, clientY) {
@@ -1268,9 +1397,35 @@ export class OpenPoseCanvas2D {
 	handlePointerDown(evt) {
 		const pointer = this.screenToLogical(evt.clientX, evt.clientY);
 		this.dragStartPointer = pointer;
-		
-		// Check scale handle hit (only for selected pose)
-		if (this.selectedPoseIndex !== null) {
+		const isShift = evt.shiftKey;
+
+		// ── 1. Multi-keypoint selection bbox scale handles (active pose only) ──
+		if (!isShift && this.selectedPoseIndex !== null && this.selectedKeypointIds.size > 0) {
+			const mkBbox = this.getSelectedKeypointsBounds();
+			if (mkBbox) {
+				const handles = this.getScaleHandles(mkBbox, 10);
+				for (const [name, handle] of Object.entries(handles)) {
+					const dist = Math.sqrt((pointer.x - handle.x) ** 2 + (pointer.y - handle.y) ** 2);
+					if (dist <= this.handleHitRadius) {
+						this.activeDragMode = 'scaleSelectedKeypoints';
+						this.activeScaleHandle = name;
+						// Snapshot selected keypoints' start positions
+						const pose = this.poses[this.selectedPoseIndex];
+						this.dragStartKeypointMap = new Map();
+						for (const kpId of this.selectedKeypointIds) {
+							const kp = pose.keypoints[kpId];
+							if (kp) this.dragStartKeypointMap.set(kpId, { x: kp.x, y: kp.y });
+						}
+						this.canvas.setPointerCapture(evt.pointerId);
+						this.updateCursor();
+						return;
+					}
+				}
+			}
+		}
+
+		// ── 2. Pose-level scale handles (only when no multi-kp selection active) ──
+		if (!isShift && this.selectedPoseIndex !== null && this.selectedKeypointIds.size === 0) {
 			const pose = this.poses[this.selectedPoseIndex];
 			const bbox = this.getPoseBounds(pose);
 			if (bbox) {
@@ -1287,8 +1442,35 @@ export class OpenPoseCanvas2D {
 				}
 			}
 		}
-		
-		// Check keypoint hit
+
+		// ── 3. Keypoint hit-test ──
+		// For Shift+Click: only act on keypoints from the active pose.
+		// For plain click: find the topmost keypoint across all poses.
+		if (isShift) {
+			// Shift+Click: toggle keypoint in active pose only
+			if (this.selectedPoseIndex !== null) {
+				const activePose = this.poses[this.selectedPoseIndex];
+				for (let kpId = 0; kpId < activePose.keypoints.length; kpId++) {
+					const kp = activePose.keypoints[kpId];
+					if (kp) {
+						const dist = Math.sqrt((pointer.x - kp.x) ** 2 + (pointer.y - kp.y) ** 2);
+						if (dist <= this.keypointHitRadius) {
+							if (this.selectedKeypointIds.has(kpId)) {
+								this.selectedKeypointIds.delete(kpId);
+							} else {
+								this.selectedKeypointIds.add(kpId);
+							}
+							this.requestRedraw();
+							return; // Shift+Click never starts a drag
+						}
+					}
+				}
+			}
+			// Shift+Click on empty space or inactive pose keypoint — do nothing
+			return;
+		}
+
+		// Plain click: hit-test all poses (topmost first)
 		for (let poseIdx = this.poses.length - 1; poseIdx >= 0; poseIdx--) {
 			const pose = this.poses[poseIdx];
 			for (let kpId = 0; kpId < pose.keypoints.length; kpId++) {
@@ -1299,6 +1481,22 @@ export class OpenPoseCanvas2D {
 						this.preselectionPoseIndex = null;
 						this.selectionBoxHovered = true;
 						this.hoveredHandle = null;
+						// If this keypoint is part of the active multi-selection, move the whole group
+						if (poseIdx === this.selectedPoseIndex && this.selectedKeypointIds.has(kpId) && this.selectedKeypointIds.size > 0) {
+							// Move all selected keypoints together
+							this.activeDragMode = 'moveSelectedKeypoints';
+							const snapshotMap = new Map();
+							for (const id of this.selectedKeypointIds) {
+								const kpSnap = pose.keypoints[id];
+								if (kpSnap) snapshotMap.set(id, { x: kpSnap.x, y: kpSnap.y });
+							}
+							this.dragStartKeypointMap = snapshotMap;
+							this.canvas.setPointerCapture(evt.pointerId);
+							this.updateCursor();
+							return;
+						}
+						// Otherwise: plain single-keypoint drag (clears multi-selection)
+						this.selectedKeypointIds = new Set();
 						this.setSelectedPose(poseIdx);
 						this.activeDragMode = 'dragKeypoint';
 						this.activeKeypointId = kpId;
@@ -1315,17 +1513,36 @@ export class OpenPoseCanvas2D {
 				}
 			}
 		}
-		
-		// Check pose body hit (bounding box)
+
+		// ── 4. Pose body hit (bounding box) ──
 		for (let poseIdx = this.poses.length - 1; poseIdx >= 0; poseIdx--) {
 			const pose = this.poses[poseIdx];
 			const bbox = this.getPoseBounds(pose);
 			if (bbox) {
 				if (pointer.x >= bbox.minX && pointer.x <= bbox.maxX &&
 					pointer.y >= bbox.minY && pointer.y <= bbox.maxY) {
+					// If clicking inside the active pose's body with a multi-selection,
+					// do not clear the selection — start moving the selected keypoints
+					if (poseIdx === this.selectedPoseIndex && this.selectedKeypointIds.size > 0) {
+						this.preselectionPoseIndex = null;
+						this.selectionBoxHovered = true;
+						this.hoveredHandle = null;
+						this.activeDragMode = 'moveSelectedKeypoints';
+						const snapshotMap = new Map();
+						const activePose = this.poses[this.selectedPoseIndex];
+						for (const id of this.selectedKeypointIds) {
+							const kpSnap = activePose.keypoints[id];
+							if (kpSnap) snapshotMap.set(id, { x: kpSnap.x, y: kpSnap.y });
+						}
+						this.dragStartKeypointMap = snapshotMap;
+						this.canvas.setPointerCapture(evt.pointerId);
+						this.updateCursor();
+						return;
+					}
 					this.preselectionPoseIndex = null;
 					this.selectionBoxHovered = true;
 					this.hoveredHandle = null;
+					this.selectedKeypointIds = new Set();
 					this.setSelectedPose(poseIdx);
 					this.activeDragMode = 'movePose';
 					this.dragStartPose = JSON.parse(JSON.stringify(pose));
@@ -1334,8 +1551,19 @@ export class OpenPoseCanvas2D {
 				}
 			}
 		}
-		
-		// Clicked on empty space - deselect
+
+		// ── 5. Empty space — start marquee selection (only if a pose is selected) ──
+		this.selectedKeypointIds = new Set();
+		if (this.selectedPoseIndex !== null) {
+			// Start marquee to select keypoints from the active pose
+			this.activeDragMode = 'marquee';
+			this.marqueeRect = { x1: pointer.x, y1: pointer.y, x2: pointer.x, y2: pointer.y };
+			this.canvas.setPointerCapture(evt.pointerId);
+			this.updateCursor();
+			return;
+		}
+
+		// No pose selected — plain deselect
 		this.setSelectedPose(null);
 	}
 	
@@ -1373,35 +1601,61 @@ export class OpenPoseCanvas2D {
 			debugLog('[canvas2d] Detected hover on keypoint ID:', hoveredKeypointId, 'Pose:', hoveredPoseIndex);
 		}
 
-		// Check if pointer is hovering a scale handle or inside the selection bounding box
+		// Check if pointer is hovering a scale handle or inside the selection bounding box.
+		// Multi-keypoint selection handles take priority over pose-level handles.
 		const wasSelectionBoxHovered = this.selectionBoxHovered;
 		const wasHoveredHandle = this.hoveredHandle;
 		this.selectionBoxHovered = false;
 		this.hoveredHandle = null;
 		if (this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length) {
-			const selectedPose = this.poses[this.selectedPoseIndex];
-			const bbox = this.getPoseBounds(selectedPose);
-			if (bbox) {
-				const padding = 10;
-				// Check handle hover first
-				const handles = this.getScaleHandles(bbox, padding);
-				for (const [name, handle] of Object.entries(handles)) {
-					const dist = Math.sqrt((pointer.x - handle.x) ** 2 + (pointer.y - handle.y) ** 2);
-					if (dist <= this.handleHitRadius) {
-						this.hoveredHandle = name;
-						this.selectionBoxHovered = true; // Handle hover implies box hover
-						break;
+			// Priority 1: multi-keypoint selection bbox handles
+			if (this.selectedKeypointIds.size > 0) {
+				const mkBbox = this.getSelectedKeypointsBounds();
+				if (mkBbox) {
+					const padding = 10;
+					const handles = this.getScaleHandles(mkBbox, padding);
+					for (const [name, handle] of Object.entries(handles)) {
+						const dist = Math.sqrt((pointer.x - handle.x) ** 2 + (pointer.y - handle.y) ** 2);
+						if (dist <= this.handleHitRadius) {
+							this.hoveredHandle = name;
+							this.selectionBoxHovered = true;
+							break;
+						}
+					}
+					if (!this.hoveredHandle) {
+						const inBounds = (
+							pointer.x >= mkBbox.minX - padding &&
+							pointer.x <= mkBbox.maxX + padding &&
+							pointer.y >= mkBbox.minY - padding &&
+							pointer.y <= mkBbox.maxY + padding
+						);
+						this.selectionBoxHovered = inBounds;
 					}
 				}
-				// If not hovering a handle, check bounding box
-				if (!this.hoveredHandle) {
-					const inBounds = (
-						pointer.x >= bbox.minX - padding &&
-						pointer.x <= bbox.maxX + padding &&
-						pointer.y >= bbox.minY - padding &&
-						pointer.y <= bbox.maxY + padding
-					);
-					this.selectionBoxHovered = inBounds;
+			} else {
+				// Priority 2: pose-level bbox handles (only when no multi-selection)
+				const selectedPose = this.poses[this.selectedPoseIndex];
+				const bbox = this.getPoseBounds(selectedPose);
+				if (bbox) {
+					const padding = 10;
+					const handles = this.getScaleHandles(bbox, padding);
+					for (const [name, handle] of Object.entries(handles)) {
+						const dist = Math.sqrt((pointer.x - handle.x) ** 2 + (pointer.y - handle.y) ** 2);
+						if (dist <= this.handleHitRadius) {
+							this.hoveredHandle = name;
+							this.selectionBoxHovered = true;
+							break;
+						}
+					}
+					if (!this.hoveredHandle) {
+						const inBounds = (
+							pointer.x >= bbox.minX - padding &&
+							pointer.x <= bbox.maxX + padding &&
+							pointer.y >= bbox.minY - padding &&
+							pointer.y <= bbox.maxY + padding
+						);
+						this.selectionBoxHovered = inBounds;
+					}
 				}
 			}
 		}
@@ -1442,6 +1696,14 @@ export class OpenPoseCanvas2D {
 
 		// Return early if not actively dragging (hover detection done)
 		if (this.activeDragMode === 'none') return;
+
+		// ── Marquee drag ──
+		if (this.activeDragMode === 'marquee') {
+			this.marqueeRect.x2 = pointer.x;
+			this.marqueeRect.y2 = pointer.y;
+			this.requestRedraw();
+			return;
+		}
 		
 		const pose = this.poses[this.selectedPoseIndex];
 		
@@ -1451,6 +1713,70 @@ export class OpenPoseCanvas2D {
 				x: Math.max(0, Math.min(this.logicalWidth, pointer.x)),
 				y: Math.max(0, Math.min(this.logicalHeight, pointer.y))
 			};
+			this.requestRedraw();
+		}
+		else if (this.activeDragMode === 'moveSelectedKeypoints') {
+			// Delta-move all selected keypoints from their start positions
+			const dx = pointer.x - this.dragStartPointer.x;
+			const dy = pointer.y - this.dragStartPointer.y;
+			for (const [kpId, startPos] of this.dragStartKeypointMap) {
+				pose.keypoints[kpId] = {
+					x: Math.max(0, Math.min(this.logicalWidth, startPos.x + dx)),
+					y: Math.max(0, Math.min(this.logicalHeight, startPos.y + dy))
+				};
+			}
+			this.requestRedraw();
+		}
+		else if (this.activeDragMode === 'scaleSelectedKeypoints') {
+			// Compute bbox from the snapshot positions in dragStartKeypointMap
+			let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+			for (const pos of this.dragStartKeypointMap.values()) {
+				minX = Math.min(minX, pos.x); minY = Math.min(minY, pos.y);
+				maxX = Math.max(maxX, pos.x); maxY = Math.max(maxY, pos.y);
+			}
+			const bbox = { minX, minY, maxX, maxY };
+			const handle = this.activeScaleHandle;
+			let scaleX = 1, scaleY = 1, anchorX, anchorY;
+
+			if (['nw', 'ne', 'sw', 'se'].includes(handle)) {
+				const anchorMap = {
+					nw: { x: bbox.maxX, y: bbox.maxY },
+					ne: { x: bbox.minX, y: bbox.maxY },
+					sw: { x: bbox.maxX, y: bbox.minY },
+					se: { x: bbox.minX, y: bbox.minY }
+				};
+				const anchor = anchorMap[handle];
+				anchorX = anchor.x; anchorY = anchor.y;
+				const handleOriginal = this.getScaleHandles(bbox, 10)[handle];
+				const originalDist = Math.sqrt((handleOriginal.x - anchorX) ** 2 + (handleOriginal.y - anchorY) ** 2);
+				const currentDist = Math.sqrt((pointer.x - anchorX) ** 2 + (pointer.y - anchorY) ** 2);
+				let scale = originalDist > 0 ? currentDist / originalDist : 1;
+				scale = Math.max(0.1, Math.min(10, scale));
+				scaleX = scale; scaleY = scale;
+			} else if (handle === 'e') {
+				anchorX = bbox.minX; anchorY = (bbox.minY + bbox.maxY) / 2;
+				const w = bbox.maxX - bbox.minX;
+				scaleX = w > 0 ? Math.max(0.1, Math.min(10, (pointer.x - anchorX) / w)) : 1; scaleY = 1;
+			} else if (handle === 'w') {
+				anchorX = bbox.maxX; anchorY = (bbox.minY + bbox.maxY) / 2;
+				const w = bbox.maxX - bbox.minX;
+				scaleX = w > 0 ? Math.max(0.1, Math.min(10, (anchorX - pointer.x) / w)) : 1; scaleY = 1;
+			} else if (handle === 's') {
+				anchorX = (bbox.minX + bbox.maxX) / 2; anchorY = bbox.minY;
+				const h = bbox.maxY - bbox.minY;
+				scaleX = 1; scaleY = h > 0 ? Math.max(0.1, Math.min(10, (pointer.y - anchorY) / h)) : 1;
+			} else if (handle === 'n') {
+				anchorX = (bbox.minX + bbox.maxX) / 2; anchorY = bbox.maxY;
+				const h = bbox.maxY - bbox.minY;
+				scaleX = 1; scaleY = h > 0 ? Math.max(0.1, Math.min(10, (anchorY - pointer.y) / h)) : 1;
+			}
+
+			for (const [kpId, startPos] of this.dragStartKeypointMap) {
+				pose.keypoints[kpId] = {
+					x: anchorX + (startPos.x - anchorX) * scaleX,
+					y: anchorY + (startPos.y - anchorY) * scaleY
+				};
+			}
 			this.requestRedraw();
 		}
 		else if (this.activeDragMode === 'movePose') {
@@ -1629,7 +1955,42 @@ export class OpenPoseCanvas2D {
 				this.markKeypointEdited();
 			}
 		}
-		if (this.activeDragMode !== 'none') {
+
+		// Finalise marquee: select keypoints from active pose inside the rect
+		if (this.activeDragMode === 'marquee' && this.marqueeRect !== null) {
+			const rect = this.marqueeRect;
+			const rxMin = Math.min(rect.x1, rect.x2);
+			const rxMax = Math.max(rect.x1, rect.x2);
+			const ryMin = Math.min(rect.y1, rect.y2);
+			const ryMax = Math.max(rect.y1, rect.y2);
+			const dragWidth = rxMax - rxMin;
+			const dragHeight = ryMax - ryMin;
+			// Treat sub-5px drag as a plain click: deselect the pose (same as original empty-space click)
+			const isClick = dragWidth < 5 && dragHeight < 5;
+			if (isClick) {
+				this.marqueeRect = null;
+				this.setSelectedPose(null);
+			} else {
+				const newSelection = new Set();
+				if (this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length) {
+					const activePose = this.poses[this.selectedPoseIndex];
+					for (let kpId = 0; kpId < activePose.keypoints.length; kpId++) {
+						const kp = activePose.keypoints[kpId];
+						if (kp && kp.x >= rxMin && kp.x <= rxMax && kp.y >= ryMin && kp.y <= ryMax) {
+							newSelection.add(kpId);
+						}
+					}
+				}
+				this.selectedKeypointIds = newSelection;
+				this.marqueeRect = null;
+				this.notifyChange('select');
+			}
+		}
+
+		if (this.activeDragMode === 'moveSelectedKeypoints' || this.activeDragMode === 'scaleSelectedKeypoints') {
+			this.markKeypointEdited();
+			this.notifyChange('geometry');
+		} else if (this.activeDragMode !== 'none' && this.activeDragMode !== 'marquee') {
 			this.notifyChange('geometry');
 		}
 		
@@ -1639,10 +2000,12 @@ export class OpenPoseCanvas2D {
 		this.dragStartPointer = null;
 		this.dragStartPose = null;
 		this.dragStartKeypoint = null;
+		this.dragStartKeypointMap = null;
 		this.canvas.releasePointerCapture(evt.pointerId);
 		
 		// Update cursor after drag ends (may restore to default or keep crosshair if still hovering)
 		this.updateCursor();
+		this.requestRedraw();
 	}
 	
 	handlePointerLeave(evt) {
