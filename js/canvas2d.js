@@ -1180,16 +1180,16 @@ export class OpenPoseCanvas2D {
 		const passiveHandleFill = 'rgba(140, 140, 140, 0.7)';
 		const handleFillColor = isActive ? activeHandleFill : passiveHandleFill;
 
-		// Draw bounding box
+		// Draw bounding box — clamp to [1, dim-1] so the full 2px stroke stays inside the canvas
+		// clip area even when the pose is flush against a canvas edge.
+		const bxL = Math.max(1, bbox.minX - padding);
+		const bxT = Math.max(1, bbox.minY - padding);
+		const bxR = Math.min(this.logicalWidth  - 1, bbox.maxX + padding);
+		const bxB = Math.min(this.logicalHeight - 1, bbox.maxY + padding);
 		ctx.strokeStyle = boxColor;
 		ctx.lineWidth = 2;
 		ctx.setLineDash([5, 5]);
-		ctx.strokeRect(
-			bbox.minX - padding,
-			bbox.minY - padding,
-			bbox.maxX - bbox.minX + padding * 2,
-			bbox.maxY - bbox.minY + padding * 2
-		);
+		ctx.strokeRect(bxL, bxT, bxR - bxL, bxB - bxT);
 		ctx.setLineDash([]);
 
 		// Draw scale handles (8 total: 4 corners + 4 sides)
