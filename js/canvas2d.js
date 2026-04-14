@@ -93,12 +93,14 @@ export class OpenPoseCanvas2D {
 		this.backgroundFillStyle = options.backgroundFillStyle || '#1a1a1a';
 		
 		// Interaction state
-		this.activeDragMode = 'none'; // 'none' | 'movePose' | 'dragKeypoint' | 'scalePose' | 'marquee' | 'moveSelectedKeypoints' | 'scaleSelectedKeypoints'
+		this.activeDragMode = 'none'; // 'none' | 'movePose' | 'dragKeypoint' | 'scalePose' | 'rotatePose' | 'marquee' | 'moveSelectedKeypoints' | 'scaleSelectedKeypoints'
 		this.activeKeypointId = null;
 		this.activeScaleHandle = null; // 'tl' | 'tr' | 'bl' | 'br'
 		this.dragStartPointer = null;
 		this.dragStartPose = null;
 		this.dragStartKeypoint = null;
+		this.rotatePivot = null;
+		this.rotateStartAngle = null;
 
 		// Multi-keypoint selection state (active pose only)
 		this.selectedKeypointIds = new Set(); // Set of keypointId integers; always scoped to selectedPoseIndex
@@ -477,8 +479,12 @@ export class OpenPoseCanvas2D {
 	updateCursor() {
 		if (!this.canvas) return;
 
+		// During an active rotation drag, show grabbing cursor
+		if (this.activeDragMode === 'rotatePose') {
+			this.canvas.style.cursor = 'grabbing';
+		}
 		// During an active scale drag, show the resize cursor for that handle
-		if ((this.activeDragMode === 'scalePose' || this.activeDragMode === 'scaleSelectedKeypoints') && this.activeScaleHandle) {
+		else if ((this.activeDragMode === 'scalePose' || this.activeDragMode === 'scaleSelectedKeypoints') && this.activeScaleHandle) {
 			this.canvas.style.cursor = this.getHandleCursor(this.activeScaleHandle);
 		}
 		// During an active drag of a keypoint or selected keypoints, always show crosshair/move
@@ -515,7 +521,8 @@ export class OpenPoseCanvas2D {
 			n: 'ns-resize',     // Top middle
 			s: 'ns-resize',     // Bottom middle
 			w: 'ew-resize',     // Left middle
-			e: 'ew-resize'      // Right middle
+			e: 'ew-resize',     // Right middle
+			rotate: 'grab'      // Rotation handle
 		};
 		return cursorMap[handleName] || 'default';
 	}
@@ -1203,6 +1210,51 @@ export class OpenPoseCanvas2D {
 				ctx.strokeRect(handle.x - handleSize / 2, handle.y - handleSize / 2, handleSize, handleSize);
 			}
 		}
+
+		// Draw rotation handle above bounding box
+		const rotHandle = this.getRotationHandle(bbox, padding);
+		const nHandle = handles['n'];
+		const isRotActive = this.activeDragMode === 'rotatePose' || this.hoveredHandle === 'rotate';
+		const rotColor = isRotActive ? 'rgba(255, 190, 60, 0.95)' : boxColor;
+
+		// Stem line from 'n' scale handle to rotation handle
+		ctx.strokeStyle = rotColor;
+		ctx.lineWidth = 1;
+		ctx.setLineDash([3, 3]);
+		ctx.beginPath();
+		ctx.moveTo(nHandle.x, nHandle.y);
+		ctx.lineTo(rotHandle.x, rotHandle.y);
+		ctx.stroke();
+		ctx.setLineDash([]);
+
+		// Rotation arc with arrowhead (circular arrow icon)
+		const rotR = 7;
+		const arcStart = 0.35;
+		const arcEnd = Math.PI * 1.75;
+		ctx.strokeStyle = rotColor;
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		ctx.arc(rotHandle.x, rotHandle.y, rotR, arcStart, arcEnd);
+		ctx.stroke();
+
+		// Arrowhead at arc end
+		const arrowTipX = rotHandle.x + rotR * Math.cos(arcEnd);
+		const arrowTipY = rotHandle.y + rotR * Math.sin(arcEnd);
+		const tangentAngle = arcEnd + Math.PI / 2;
+		const arrowLen = 5;
+		const arrowSpread = 0.45;
+		ctx.beginPath();
+		ctx.moveTo(arrowTipX, arrowTipY);
+		ctx.lineTo(
+			arrowTipX + arrowLen * Math.cos(tangentAngle - arrowSpread),
+			arrowTipY + arrowLen * Math.sin(tangentAngle - arrowSpread)
+		);
+		ctx.moveTo(arrowTipX, arrowTipY);
+		ctx.lineTo(
+			arrowTipX + arrowLen * Math.cos(tangentAngle + arrowSpread),
+			arrowTipY + arrowLen * Math.sin(tangentAngle + arrowSpread)
+		);
+		ctx.stroke();
 	}
 
 	drawPreselectionUI(pose) {
@@ -1278,6 +1330,12 @@ export class OpenPoseCanvas2D {
 		};
 		
 		return { ...cornerHandles, ...sideHandles };
+	}
+
+	getRotationHandle(bbox, padding) {
+		const midX = (bbox.minX + bbox.maxX) / 2;
+		const handleY = bbox.minY - padding - 28;
+		return { x: midX, y: Math.max(16, handleY) };
 	}
 
 	/**
@@ -1425,11 +1483,26 @@ export class OpenPoseCanvas2D {
 			}
 		}
 
-		// ── 2. Pose-level scale handles (only when no multi-kp selection active) ──
+		// ── 2. Pose-level scale + rotation handles (only when no multi-kp selection active) ──
 		if (!isShift && this.selectedPoseIndex !== null && this.selectedKeypointIds.size === 0) {
 			const pose = this.poses[this.selectedPoseIndex];
 			const bbox = this.getPoseBounds(pose);
 			if (bbox) {
+				// Check rotation handle first (physically separated above the box)
+				const rotHandle = this.getRotationHandle(bbox, 10);
+				const rotDist = Math.sqrt((pointer.x - rotHandle.x) ** 2 + (pointer.y - rotHandle.y) ** 2);
+				if (rotDist <= this.handleHitRadius) {
+					this.activeDragMode = 'rotatePose';
+					this.dragStartPose = JSON.parse(JSON.stringify(pose));
+					this.rotatePivot = {
+						x: (bbox.minX + bbox.maxX) / 2,
+						y: (bbox.minY + bbox.maxY) / 2
+					};
+					this.rotateStartAngle = Math.atan2(pointer.y - this.rotatePivot.y, pointer.x - this.rotatePivot.x);
+					this.canvas.setPointerCapture(evt.pointerId);
+					this.updateCursor();
+					return;
+				}
 				const handles = this.getScaleHandles(bbox, 10);
 				for (const [name, handle] of Object.entries(handles)) {
 					const dist = Math.sqrt((pointer.x - handle.x) ** 2 + (pointer.y - handle.y) ** 2);
@@ -1644,13 +1717,21 @@ export class OpenPoseCanvas2D {
 				const bbox = this.getPoseBounds(selectedPose);
 				if (bbox) {
 					const padding = 10;
-					const handles = this.getScaleHandles(bbox, padding);
-					for (const [name, handle] of Object.entries(handles)) {
-						const dist = Math.sqrt((pointer.x - handle.x) ** 2 + (pointer.y - handle.y) ** 2);
-						if (dist <= this.handleHitRadius) {
-							this.hoveredHandle = name;
-							this.selectionBoxHovered = true;
-							break;
+					// Check rotation handle first
+					const rotHandle = this.getRotationHandle(bbox, padding);
+					const rotDist = Math.sqrt((pointer.x - rotHandle.x) ** 2 + (pointer.y - rotHandle.y) ** 2);
+					if (rotDist <= this.handleHitRadius) {
+						this.hoveredHandle = 'rotate';
+						this.selectionBoxHovered = true;
+					} else {
+						const handles = this.getScaleHandles(bbox, padding);
+						for (const [name, handle] of Object.entries(handles)) {
+							const dist = Math.sqrt((pointer.x - handle.x) ** 2 + (pointer.y - handle.y) ** 2);
+							if (dist <= this.handleHitRadius) {
+								this.hoveredHandle = name;
+								this.selectionBoxHovered = true;
+								break;
+							}
 						}
 					}
 					if (!this.hoveredHandle) {
@@ -1968,6 +2049,43 @@ export class OpenPoseCanvas2D {
 			}
 			this.requestRedraw();
 		}
+		else if (this.activeDragMode === 'rotatePose') {
+			if (!this.rotatePivot || this.rotateStartAngle === null) return;
+			const cx = this.rotatePivot.x;
+			const cy = this.rotatePivot.y;
+			const currentAngle = Math.atan2(pointer.y - cy, pointer.x - cx);
+			const deltaAngle = currentAngle - this.rotateStartAngle;
+			const cosA = Math.cos(deltaAngle);
+			const sinA = Math.sin(deltaAngle);
+			const rotatePoint = (kp) => {
+				if (!kp) return null;
+				const dx = kp.x - cx;
+				const dy = kp.y - cy;
+				return {
+					x: cx + dx * cosA - dy * sinA,
+					y: cy + dx * sinA + dy * cosA
+				};
+			};
+			for (let i = 0; i < pose.keypoints.length; i++) {
+				pose.keypoints[i] = rotatePoint(this.dragStartPose.keypoints[i]);
+			}
+			if (Array.isArray(pose.faceKeypoints) && Array.isArray(this.dragStartPose.faceKeypoints)) {
+				for (let i = 0; i < pose.faceKeypoints.length; i++) {
+					pose.faceKeypoints[i] = rotatePoint(this.dragStartPose.faceKeypoints[i]);
+				}
+			}
+			if (Array.isArray(pose.handLeftKeypoints) && Array.isArray(this.dragStartPose.handLeftKeypoints)) {
+				for (let i = 0; i < pose.handLeftKeypoints.length; i++) {
+					pose.handLeftKeypoints[i] = rotatePoint(this.dragStartPose.handLeftKeypoints[i]);
+				}
+			}
+			if (Array.isArray(pose.handRightKeypoints) && Array.isArray(this.dragStartPose.handRightKeypoints)) {
+				for (let i = 0; i < pose.handRightKeypoints.length; i++) {
+					pose.handRightKeypoints[i] = rotatePoint(this.dragStartPose.handRightKeypoints[i]);
+				}
+			}
+			this.requestRedraw();
+		}
 	}
 	
 	handlePointerUp(evt) {
@@ -2026,6 +2144,8 @@ export class OpenPoseCanvas2D {
 		this.dragStartPose = null;
 		this.dragStartKeypoint = null;
 		this.dragStartKeypointMap = null;
+		this.rotatePivot = null;
+		this.rotateStartAngle = null;
 		this.canvas.releasePointerCapture(evt.pointerId);
 		
 		// Update cursor after drag ends (may restore to default or keep crosshair if still hovering)
