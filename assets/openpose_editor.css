@@ -394,6 +394,10 @@
     align-items: center;
 }
 
+.ope-openpose-modal .openpose-preset-header {
+    justify-content: space-between;
+}
+
 .ope-openpose-modal .openpose-action-row,
 .ope-openpose-modal .openpose-right-actions,
 .ope-openpose-modal .openpose-footer-actions {
