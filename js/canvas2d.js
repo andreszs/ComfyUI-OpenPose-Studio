@@ -483,6 +483,7 @@ export class OpenPoseCanvas2D {
 		if (this.activeDragMode === 'rotatePose') {
 			this.canvas.style.cursor = 'grabbing';
 		}
+		// Mirror handles use pointer — communicated via getHandleCursor map; no drag mode needed
 		// During an active scale drag, show the resize cursor for that handle
 		else if ((this.activeDragMode === 'scalePose' || this.activeDragMode === 'scaleSelectedKeypoints') && this.activeScaleHandle) {
 			this.canvas.style.cursor = this.getHandleCursor(this.activeScaleHandle);
@@ -522,7 +523,9 @@ export class OpenPoseCanvas2D {
 			s: 'ns-resize',     // Bottom middle
 			w: 'ew-resize',     // Left middle
 			e: 'ew-resize',     // Right middle
-			rotate: 'grab'      // Rotation handle
+			rotate: 'grab',     // Rotation handle
+			mirrorV: 'pointer', // Vertical mirror (L/R flip) — instant click
+			mirrorH: 'pointer'  // Horizontal mirror (U/D flip) — instant click
 		};
 		return cursorMap[handleName] || 'default';
 	}
@@ -1258,6 +1261,131 @@ export class OpenPoseCanvas2D {
 		ctx.lineTo(baseX - aWide * Math.cos(perpA), baseY - aWide * Math.sin(perpA));
 		ctx.closePath();
 		ctx.fill();
+
+		// ── Vertical mirror handle (right side, mirrors L/R) ──
+		const mirrorVHandle = this.getMirrorVHandle(bbox, padding);
+		const eHandle = handles['e'];
+		const isMirrorVHovered = this.hoveredHandle === 'mirrorV';
+		const mirrorVColor = isMirrorVHovered ? 'rgba(100, 255, 160, 0.95)' : boxColor;
+
+		// Stem from 'e' resize handle to mirror handle
+		ctx.strokeStyle = mirrorVColor;
+		ctx.lineWidth = 1.5;
+		ctx.beginPath();
+		ctx.moveTo(eHandle.x, eHandle.y);
+		ctx.lineTo(mirrorVHandle.x, mirrorVHandle.y);
+		ctx.stroke();
+
+		// Icon: double-headed horizontal arrow (⟺) — two filled triangles on a horizontal shaft
+		const mvR = 7;  // half-width of the full icon
+		const mvAH = 4.5; // arrowhead half-length
+		const mvAW = 2.5; // arrowhead half-width
+		ctx.strokeStyle = mirrorVColor;
+		ctx.lineWidth = 2;
+		ctx.lineCap = 'round';
+		ctx.beginPath();
+		ctx.moveTo(mirrorVHandle.x - mvR, mirrorVHandle.y);
+		ctx.lineTo(mirrorVHandle.x + mvR, mirrorVHandle.y);
+		ctx.stroke();
+		ctx.lineCap = 'butt';
+		// Left arrowhead
+		ctx.fillStyle = mirrorVColor;
+		ctx.beginPath();
+		ctx.moveTo(mirrorVHandle.x - mvR, mirrorVHandle.y);
+		ctx.lineTo(mirrorVHandle.x - mvR + mvAH, mirrorVHandle.y - mvAW);
+		ctx.lineTo(mirrorVHandle.x - mvR + mvAH, mirrorVHandle.y + mvAW);
+		ctx.closePath();
+		ctx.fill();
+		// Right arrowhead
+		ctx.beginPath();
+		ctx.moveTo(mirrorVHandle.x + mvR, mirrorVHandle.y);
+		ctx.lineTo(mirrorVHandle.x + mvR - mvAH, mirrorVHandle.y - mvAW);
+		ctx.lineTo(mirrorVHandle.x + mvR - mvAH, mirrorVHandle.y + mvAW);
+		ctx.closePath();
+		ctx.fill();
+
+		// ── Horizontal mirror handle (bottom, mirrors U/D) ──
+		const mirrorHHandle = this.getMirrorHHandle(bbox, padding);
+		const sHandle = handles['s'];
+		const isMirrorHHovered = this.hoveredHandle === 'mirrorH';
+		const mirrorHColor = isMirrorHHovered ? 'rgba(100, 255, 160, 0.95)' : boxColor;
+
+		// Stem from 's' resize handle to mirror handle
+		ctx.strokeStyle = mirrorHColor;
+		ctx.lineWidth = 1.5;
+		ctx.beginPath();
+		ctx.moveTo(sHandle.x, sHandle.y);
+		ctx.lineTo(mirrorHHandle.x, mirrorHHandle.y);
+		ctx.stroke();
+
+		// Icon: double-headed vertical arrow — two filled triangles on a vertical shaft
+		const mhR = 7;
+		const mhAH = 4.5;
+		const mhAW = 2.5;
+		ctx.strokeStyle = mirrorHColor;
+		ctx.lineWidth = 2;
+		ctx.lineCap = 'round';
+		ctx.beginPath();
+		ctx.moveTo(mirrorHHandle.x, mirrorHHandle.y - mhR);
+		ctx.lineTo(mirrorHHandle.x, mirrorHHandle.y + mhR);
+		ctx.stroke();
+		ctx.lineCap = 'butt';
+		// Top arrowhead
+		ctx.fillStyle = mirrorHColor;
+		ctx.beginPath();
+		ctx.moveTo(mirrorHHandle.x, mirrorHHandle.y - mhR);
+		ctx.lineTo(mirrorHHandle.x - mhAW, mirrorHHandle.y - mhR + mhAH);
+		ctx.lineTo(mirrorHHandle.x + mhAW, mirrorHHandle.y - mhR + mhAH);
+		ctx.closePath();
+		ctx.fill();
+		// Bottom arrowhead
+		ctx.beginPath();
+		ctx.moveTo(mirrorHHandle.x, mirrorHHandle.y + mhR);
+		ctx.lineTo(mirrorHHandle.x - mhAW, mirrorHHandle.y + mhR - mhAH);
+		ctx.lineTo(mirrorHHandle.x + mhAW, mirrorHHandle.y + mhR - mhAH);
+		ctx.closePath();
+		ctx.fill();
+	}
+
+	/**
+	 * Apply a mirror transform to the whole active pose.
+	 * axis: 'vertical' = left-right flip (mirrors across vertical axis through bbox center)
+	 *       'horizontal' = up-down flip (mirrors across horizontal axis through bbox center)
+	 */
+	applyMirrorToPose(poseIndex, axis) {
+		if (poseIndex === null || poseIndex < 0 || poseIndex >= this.poses.length) return;
+		const pose = this.poses[poseIndex];
+		const bbox = this.getPoseBounds(pose);
+		if (!bbox) return;
+		const cx = (bbox.minX + bbox.maxX) / 2;
+		const cy = (bbox.minY + bbox.maxY) / 2;
+		const mirrorPoint = (kp) => {
+			if (!kp) return null;
+			if (axis === 'vertical') {
+				return { x: 2 * cx - kp.x, y: kp.y };
+			}
+			return { x: kp.x, y: 2 * cy - kp.y };
+		};
+		for (let i = 0; i < pose.keypoints.length; i++) {
+			pose.keypoints[i] = mirrorPoint(pose.keypoints[i]);
+		}
+		if (Array.isArray(pose.faceKeypoints)) {
+			for (let i = 0; i < pose.faceKeypoints.length; i++) {
+				pose.faceKeypoints[i] = mirrorPoint(pose.faceKeypoints[i]);
+			}
+		}
+		if (Array.isArray(pose.handLeftKeypoints)) {
+			for (let i = 0; i < pose.handLeftKeypoints.length; i++) {
+				pose.handLeftKeypoints[i] = mirrorPoint(pose.handLeftKeypoints[i]);
+			}
+		}
+		if (Array.isArray(pose.handRightKeypoints)) {
+			for (let i = 0; i < pose.handRightKeypoints.length; i++) {
+				pose.handRightKeypoints[i] = mirrorPoint(pose.handRightKeypoints[i]);
+			}
+		}
+		this.requestRedraw();
+		this.notifyChange('geometry');
 	}
 
 	drawPreselectionUI(pose) {
@@ -1339,6 +1467,20 @@ export class OpenPoseCanvas2D {
 		const midX = (bbox.minX + bbox.maxX) / 2;
 		const handleY = bbox.minY - padding - 28;
 		return { x: midX, y: Math.max(16, handleY) };
+	}
+
+	getMirrorVHandle(bbox, padding) {
+		// Right side: vertical mirror (left-right flip). Offset 28px beyond the 'e' resize handle.
+		const midY = (bbox.minY + bbox.maxY) / 2;
+		const handleX = bbox.maxX + padding + 28;
+		return { x: Math.min(this.logicalWidth - 16, handleX), y: midY };
+	}
+
+	getMirrorHHandle(bbox, padding) {
+		// Bottom: horizontal mirror (up-down flip). Offset 28px beyond the 's' resize handle.
+		const midX = (bbox.minX + bbox.maxX) / 2;
+		const handleY = bbox.maxY + padding + 28;
+		return { x: midX, y: Math.min(this.logicalHeight - 16, handleY) };
 	}
 
 	/**
@@ -1504,6 +1646,19 @@ export class OpenPoseCanvas2D {
 					this.rotateStartAngle = Math.atan2(pointer.y - this.rotatePivot.y, pointer.x - this.rotatePivot.x);
 					this.canvas.setPointerCapture(evt.pointerId);
 					this.updateCursor();
+					return;
+				}
+				// Check mirror handles (instant-click, no drag)
+				const mirrorVHandle = this.getMirrorVHandle(bbox, 10);
+				const mirrorVDist = Math.sqrt((pointer.x - mirrorVHandle.x) ** 2 + (pointer.y - mirrorVHandle.y) ** 2);
+				if (mirrorVDist <= this.handleHitRadius) {
+					this.applyMirrorToPose(this.selectedPoseIndex, 'vertical');
+					return;
+				}
+				const mirrorHHandle = this.getMirrorHHandle(bbox, 10);
+				const mirrorHDist = Math.sqrt((pointer.x - mirrorHHandle.x) ** 2 + (pointer.y - mirrorHHandle.y) ** 2);
+				if (mirrorHDist <= this.handleHitRadius) {
+					this.applyMirrorToPose(this.selectedPoseIndex, 'horizontal');
 					return;
 				}
 				const handles = this.getScaleHandles(bbox, 10);
@@ -1727,13 +1882,28 @@ export class OpenPoseCanvas2D {
 						this.hoveredHandle = 'rotate';
 						this.selectionBoxHovered = true;
 					} else {
-						const handles = this.getScaleHandles(bbox, padding);
-						for (const [name, handle] of Object.entries(handles)) {
-							const dist = Math.sqrt((pointer.x - handle.x) ** 2 + (pointer.y - handle.y) ** 2);
-							if (dist <= this.handleHitRadius) {
-								this.hoveredHandle = name;
+						// Check mirror handles
+						const mirrorVHandle = this.getMirrorVHandle(bbox, padding);
+						const mirrorVDist = Math.sqrt((pointer.x - mirrorVHandle.x) ** 2 + (pointer.y - mirrorVHandle.y) ** 2);
+						if (mirrorVDist <= this.handleHitRadius) {
+							this.hoveredHandle = 'mirrorV';
+							this.selectionBoxHovered = true;
+						} else {
+							const mirrorHHandle = this.getMirrorHHandle(bbox, padding);
+							const mirrorHDist = Math.sqrt((pointer.x - mirrorHHandle.x) ** 2 + (pointer.y - mirrorHHandle.y) ** 2);
+							if (mirrorHDist <= this.handleHitRadius) {
+								this.hoveredHandle = 'mirrorH';
 								this.selectionBoxHovered = true;
-								break;
+							} else {
+								const handles = this.getScaleHandles(bbox, padding);
+								for (const [name, handle] of Object.entries(handles)) {
+									const dist = Math.sqrt((pointer.x - handle.x) ** 2 + (pointer.y - handle.y) ** 2);
+									if (dist <= this.handleHitRadius) {
+										this.hoveredHandle = name;
+										this.selectionBoxHovered = true;
+										break;
+									}
+								}
 							}
 						}
 					}
