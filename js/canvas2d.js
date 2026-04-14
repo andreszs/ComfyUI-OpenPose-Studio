@@ -1217,44 +1217,47 @@ export class OpenPoseCanvas2D {
 		const isRotActive = this.activeDragMode === 'rotatePose' || this.hoveredHandle === 'rotate';
 		const rotColor = isRotActive ? 'rgba(255, 190, 60, 0.95)' : boxColor;
 
-		// Stem line from 'n' scale handle to rotation handle
+		// Stem line from 'n' scale handle to rotation handle — solid, thin
 		ctx.strokeStyle = rotColor;
-		ctx.lineWidth = 1;
-		ctx.setLineDash([3, 3]);
+		ctx.lineWidth = 1.5;
 		ctx.beginPath();
 		ctx.moveTo(nHandle.x, nHandle.y);
 		ctx.lineTo(rotHandle.x, rotHandle.y);
 		ctx.stroke();
-		ctx.setLineDash([]);
 
-		// Rotation arc with arrowhead (circular arrow icon)
+		// Rotation handle icon: 270° clockwise arc, gap at top, filled arrowhead at arc end.
+		// This is the standard rotation symbol used in Canva, CSS editors and design tools:
+		//   arc starts upper-right (-45°), sweeps clockwise through bottom, ends upper-left (225°).
 		const rotR = 7;
-		const arcStart = 0.35;
-		const arcEnd = Math.PI * 1.75;
+		const rotIconStart = -Math.PI / 4;               // -45°  → upper-right of handle center
+		const rotIconEnd   =  Math.PI * 1.25;            // 225°  → upper-left  of handle center
 		ctx.strokeStyle = rotColor;
 		ctx.lineWidth = 2;
+		ctx.lineCap = 'round';
 		ctx.beginPath();
-		ctx.arc(rotHandle.x, rotHandle.y, rotR, arcStart, arcEnd);
+		ctx.arc(rotHandle.x, rotHandle.y, rotR, rotIconStart, rotIconEnd, false);
 		ctx.stroke();
+		ctx.lineCap = 'butt';
 
-		// Arrowhead at arc end
-		const arrowTipX = rotHandle.x + rotR * Math.cos(arcEnd);
-		const arrowTipY = rotHandle.y + rotR * Math.sin(arcEnd);
-		const tangentAngle = arcEnd + Math.PI / 2;
-		const arrowLen = 5;
-		const arrowSpread = 0.45;
+		// Filled triangle arrowhead at arc end (225°).
+		// Forward direction (clockwise tangent) at 225° is 225° + 90° = 315° (upper-right).
+		const arcEndX  = rotHandle.x + rotR * Math.cos(rotIconEnd);
+		const arcEndY  = rotHandle.y + rotR * Math.sin(rotIconEnd);
+		const fwdAngle = rotIconEnd + Math.PI / 2;  // clockwise tangent = upper-right
+		const aHalf    = 4.5;   // half-length: tip extends aHalf ahead, base aHalf behind
+		const aWide    = 2.5;   // half-width of the arrowhead base
+		const tipX  = arcEndX + aHalf * Math.cos(fwdAngle);
+		const tipY  = arcEndY + aHalf * Math.sin(fwdAngle);
+		const baseX = arcEndX - aHalf * Math.cos(fwdAngle);
+		const baseY = arcEndY - aHalf * Math.sin(fwdAngle);
+		const perpA = fwdAngle + Math.PI / 2;
+		ctx.fillStyle = rotColor;
 		ctx.beginPath();
-		ctx.moveTo(arrowTipX, arrowTipY);
-		ctx.lineTo(
-			arrowTipX + arrowLen * Math.cos(tangentAngle - arrowSpread),
-			arrowTipY + arrowLen * Math.sin(tangentAngle - arrowSpread)
-		);
-		ctx.moveTo(arrowTipX, arrowTipY);
-		ctx.lineTo(
-			arrowTipX + arrowLen * Math.cos(tangentAngle + arrowSpread),
-			arrowTipY + arrowLen * Math.sin(tangentAngle + arrowSpread)
-		);
-		ctx.stroke();
+		ctx.moveTo(tipX, tipY);
+		ctx.lineTo(baseX + aWide * Math.cos(perpA), baseY + aWide * Math.sin(perpA));
+		ctx.lineTo(baseX - aWide * Math.cos(perpA), baseY - aWide * Math.sin(perpA));
+		ctx.closePath();
+		ctx.fill();
 	}
 
 	drawPreselectionUI(pose) {
