@@ -1276,31 +1276,31 @@ export class OpenPoseCanvas2D {
 		ctx.lineTo(mirrorVHandle.x, mirrorVHandle.y);
 		ctx.stroke();
 
-		// Icon: double-headed horizontal arrow (⟺) — two filled triangles on a horizontal shaft
-		const mvR = 7;  // half-width of the full icon
-		const mvAH = 4.5; // arrowhead half-length
-		const mvAW = 2.5; // arrowhead half-width
+		// Mirror icon: vertical axis line + two outward filled triangles (standard flip symbol)
+		// Axis line (the plane of reflection)
+		const mvX = mirrorVHandle.x;
+		const mvY = mirrorVHandle.y;
 		ctx.strokeStyle = mirrorVColor;
-		ctx.lineWidth = 2;
-		ctx.lineCap = 'round';
+		ctx.lineWidth = 1.5;
+		ctx.setLineDash([2, 2]);
 		ctx.beginPath();
-		ctx.moveTo(mirrorVHandle.x - mvR, mirrorVHandle.y);
-		ctx.lineTo(mirrorVHandle.x + mvR, mirrorVHandle.y);
+		ctx.moveTo(mvX, mvY - 9);
+		ctx.lineTo(mvX, mvY + 9);
 		ctx.stroke();
-		ctx.lineCap = 'butt';
-		// Left arrowhead
+		ctx.setLineDash([]);
+		// Left triangle (pointing left)
 		ctx.fillStyle = mirrorVColor;
 		ctx.beginPath();
-		ctx.moveTo(mirrorVHandle.x - mvR, mirrorVHandle.y);
-		ctx.lineTo(mirrorVHandle.x - mvR + mvAH, mirrorVHandle.y - mvAW);
-		ctx.lineTo(mirrorVHandle.x - mvR + mvAH, mirrorVHandle.y + mvAW);
+		ctx.moveTo(mvX - 10, mvY);           // tip
+		ctx.lineTo(mvX - 4,  mvY - 5);       // base top
+		ctx.lineTo(mvX - 4,  mvY + 5);       // base bottom
 		ctx.closePath();
 		ctx.fill();
-		// Right arrowhead
+		// Right triangle (pointing right)
 		ctx.beginPath();
-		ctx.moveTo(mirrorVHandle.x + mvR, mirrorVHandle.y);
-		ctx.lineTo(mirrorVHandle.x + mvR - mvAH, mirrorVHandle.y - mvAW);
-		ctx.lineTo(mirrorVHandle.x + mvR - mvAH, mirrorVHandle.y + mvAW);
+		ctx.moveTo(mvX + 10, mvY);           // tip
+		ctx.lineTo(mvX + 4,  mvY - 5);       // base top
+		ctx.lineTo(mvX + 4,  mvY + 5);       // base bottom
 		ctx.closePath();
 		ctx.fill();
 
@@ -1318,31 +1318,30 @@ export class OpenPoseCanvas2D {
 		ctx.lineTo(mirrorHHandle.x, mirrorHHandle.y);
 		ctx.stroke();
 
-		// Icon: double-headed vertical arrow — two filled triangles on a vertical shaft
-		const mhR = 7;
-		const mhAH = 4.5;
-		const mhAW = 2.5;
+		// Mirror icon: horizontal axis line + two outward filled triangles (standard flip symbol)
+		const mhX = mirrorHHandle.x;
+		const mhY = mirrorHHandle.y;
 		ctx.strokeStyle = mirrorHColor;
-		ctx.lineWidth = 2;
-		ctx.lineCap = 'round';
+		ctx.lineWidth = 1.5;
+		ctx.setLineDash([2, 2]);
 		ctx.beginPath();
-		ctx.moveTo(mirrorHHandle.x, mirrorHHandle.y - mhR);
-		ctx.lineTo(mirrorHHandle.x, mirrorHHandle.y + mhR);
+		ctx.moveTo(mhX - 9, mhY);
+		ctx.lineTo(mhX + 9, mhY);
 		ctx.stroke();
-		ctx.lineCap = 'butt';
-		// Top arrowhead
+		ctx.setLineDash([]);
+		// Top triangle (pointing up)
 		ctx.fillStyle = mirrorHColor;
 		ctx.beginPath();
-		ctx.moveTo(mirrorHHandle.x, mirrorHHandle.y - mhR);
-		ctx.lineTo(mirrorHHandle.x - mhAW, mirrorHHandle.y - mhR + mhAH);
-		ctx.lineTo(mirrorHHandle.x + mhAW, mirrorHHandle.y - mhR + mhAH);
+		ctx.moveTo(mhX,      mhY - 10);      // tip
+		ctx.lineTo(mhX - 5,  mhY - 4);       // base left
+		ctx.lineTo(mhX + 5,  mhY - 4);       // base right
 		ctx.closePath();
 		ctx.fill();
-		// Bottom arrowhead
+		// Bottom triangle (pointing down)
 		ctx.beginPath();
-		ctx.moveTo(mirrorHHandle.x, mirrorHHandle.y + mhR);
-		ctx.lineTo(mirrorHHandle.x - mhAW, mirrorHHandle.y + mhR - mhAH);
-		ctx.lineTo(mirrorHHandle.x + mhAW, mirrorHHandle.y + mhR - mhAH);
+		ctx.moveTo(mhX,      mhY + 10);      // tip
+		ctx.lineTo(mhX - 5,  mhY + 4);       // base left
+		ctx.lineTo(mhX + 5,  mhY + 4);       // base right
 		ctx.closePath();
 		ctx.fill();
 	}
