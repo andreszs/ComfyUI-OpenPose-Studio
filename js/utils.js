@@ -920,6 +920,13 @@ export function normalizePoseJson(raw) {
   if (!data || typeof data !== "object") {
     return null;
   }
+  if (Array.isArray(data)) {
+    if (data.length === 1 && data[0] !== null && typeof data[0] === "object" && !Array.isArray(data[0])) {
+      data = data[0];
+    } else {
+      return null;
+    }
+  }
 
   if (Array.isArray(data.people)) {
     const width = Number(data.canvas_width) || DEFAULT_CANVAS_WIDTH;

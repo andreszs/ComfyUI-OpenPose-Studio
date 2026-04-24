@@ -292,6 +292,11 @@ def _normalize_pose_json(pose_json):
     except Exception:
         return None
 
+    if isinstance(payload, list):
+        if len(payload) == 1 and isinstance(payload[0], dict):
+            payload = payload[0]
+        else:
+            return None
     if not isinstance(payload, dict):
         return None
 
@@ -783,6 +788,9 @@ class OpenPoseStudio:
                 "render_body": ("BOOLEAN", {"default": True, "label": "render_body"}),
                 "render_hand": ("BOOLEAN", {"default": True, "label": "render_hand"}),
                 "render_face": ("BOOLEAN", {"default": True, "label": "render_face"}),
+            },
+            "optional": {
+                "pose_keypoint": ("POSE_KEYPOINT", {}),
             }
         }
 
@@ -795,6 +803,16 @@ class OpenPoseStudio:
         """
         Render the pose from JSON to IMAGE and POSE_KEYPOINT.
         """
+        # If a POSE_KEYPOINT is connected, serialize it to JSON and use it in
+        # place of the pose_json widget value.  POSE_KEYPOINT is a Python list
+        # in the DWPose array format: [{canvas_width, canvas_height, people}].
+        pose_keypoint_input = kwargs.get("pose_keypoint")
+        if pose_keypoint_input is not None:
+            try:
+                pose_json = json.dumps(pose_keypoint_input)
+            except Exception:
+                pass
+
         if not pose_json or pose_json.strip() == "":
             # Return empty black image and empty pose if no pose
             empty = np.zeros((512, 512, 3), dtype=np.float32)
@@ -803,7 +821,7 @@ class OpenPoseStudio:
                 "canvas_height": 512,
                 "people": [],
             }
-            return (torch.from_numpy(empty).unsqueeze(0), "", empty_pose)
+            return {"ui": {"pose_json": [""]}, "result": (torch.from_numpy(empty).unsqueeze(0), "", empty_pose)}
 
         filtered_pose_json = _apply_export_filter(
             pose_json,
@@ -822,7 +840,7 @@ class OpenPoseStudio:
                 "canvas_height": height,
                 "people": [],
             }
-            return (torch.from_numpy(empty).unsqueeze(0), filtered_pose_json, empty_pose)
+            return {"ui": {"pose_json": [pose_json]}, "result": (torch.from_numpy(empty).unsqueeze(0), filtered_pose_json, empty_pose)}
 
         try:
             # Render pose from JSON
@@ -841,7 +859,7 @@ class OpenPoseStudio:
                 show_face=render_face,
                 show_hands=render_hand
             )
-            return (tensor, filtered_pose_json, pose_keypoint)
+            return {"ui": {"pose_json": [pose_json]}, "result": (tensor, filtered_pose_json, pose_keypoint)}
         except Exception as e:
             print(f"[OpenPose Studio] Error rendering pose: {e}")
             empty = np.zeros((512, 512, 3), dtype=np.float32)
@@ -850,7 +868,7 @@ class OpenPoseStudio:
                 "canvas_height": 512,
                 "people": [],
             }
-            return (torch.from_numpy(empty).unsqueeze(0), filtered_pose_json, empty_pose)
+            return {"ui": {"pose_json": [pose_json]}, "result": (torch.from_numpy(empty).unsqueeze(0), filtered_pose_json, empty_pose)}
 
 
 class OPS_ShowString:

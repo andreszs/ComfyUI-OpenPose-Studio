@@ -1836,9 +1836,16 @@ class OpenPosePanel {
 		 * Returns false if the JSON is empty, falsy, or has no valid keypoints.
 		 */
 		try {
-			const data = parsePosePayload(poseJson);
+			let data = parsePosePayload(poseJson);
 			if (!data || typeof data !== "object") {
 				return false;
+			}
+			if (Array.isArray(data)) {
+				if (data.length === 1 && data[0] !== null && typeof data[0] === "object" && !Array.isArray(data[0])) {
+					data = data[0];
+				} else {
+					return false;
+				}
 			}
 
 			// Check editor format: has keypoints array with actual data
@@ -1926,9 +1933,16 @@ class OpenPosePanel {
 		}
 
 		try {
-			const data = JSON.parse(poseJson);
+			let data = JSON.parse(poseJson);
 			if (!data || typeof data !== "object") {
 				return null;
+			}
+			if (Array.isArray(data)) {
+				if (data.length === 1 && data[0] !== null && typeof data[0] === "object" && !Array.isArray(data[0])) {
+					data = data[0];
+				} else {
+					return null;
+				}
 			}
 
 			// Check editor format: width and height at top level
@@ -1978,6 +1992,25 @@ Object.assign(OpenPosePanel.prototype, poseEditorSubsystemWorkflow);
 
 app.registerExtension({
     name: "Nui.OpenPoseEditor",
+
+    // Listen for executed events directly on the api so the OpenPose Studio
+    // node preview is always refreshed after execution, regardless of whether
+    // the pose_json input is a typed widget value, a connected STRING link, or
+    // a connected POSE_KEYPOINT link (the Python side serialises POSE_KEYPOINT
+    // to JSON and echoes it back through the UI dict in all cases).
+    async setup(app) {
+        app.api.addEventListener("executed", ({ detail }) => {
+            const nodeId = detail.display_node || detail.node;
+            const node = app.graph.getNodeById(nodeId);
+            if (!node || node.comfyClass !== "OpenPoseStudio") return;
+            const poseJson = detail.output?.pose_json?.[0];
+            if (typeof poseJson !== "string" || poseJson.trim().length === 0) return;
+            if (!node.properties) node.properties = {};
+            node.properties.savedPose = poseJson;
+            if (node.jsonWidget) node.jsonWidget.value = poseJson;
+            if (typeof node.updatePreview === "function") node.updatePreview();
+        });
+    },
 
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
 		if (nodeData.name === "OpenPoseStudio") {
@@ -2280,6 +2313,11 @@ app.registerExtension({
                         this.setDirtyCanvas(true);
                     }
                 };
+
+                // Sync incoming connected Pose JSON back into widget state and preview
+                // after each server-side execution. Handled globally in the extension
+                // setup() via api.addEventListener("executed", ...) to avoid relying
+                // on the indirect node.onExecuted dispatch chain.
 
                 // Set reasonable node size (will auto-expand for widgets)
                 const targetSize = this.computeSize();
