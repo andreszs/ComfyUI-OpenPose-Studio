@@ -211,5 +211,9 @@
   "toast.removed": "제거됨",
   "toast.right_hand_removed": "오른손 제거됨",
   "toast.coco17_edit_disabled": "COCO17 포즈를 편집하려면 이 확장 기능을 사용하세요: comfyui-ultralytics-editor",
-  "toast.coco18_edit_disabled": "COCO18 포즈를 편집하려면 이 확장 기능을 사용하세요: comfyui-openpose-studio"
+  "toast.coco18_edit_disabled": "COCO18 포즈를 편집하려면 이 확장 기능을 사용하세요: comfyui-openpose-studio",
+  "pose_editor.areas.toggle.show_title": "컨디셔닝 영역 표시",
+  "pose_editor.areas.toggle.hide_title": "컨디셔닝 영역 숨기기",
+  "pose_editor.areas.no_source.title": "연결된 컨디셔닝 영역 없음",
+  "pose_editor.areas.no_source.body": "편집기에서 컨디셔닝 영역을 보려면 이 노드의 \"areas\" 입력을 andreszs의 ComfyUI-LoRA-Pipeline 확장의 Conditioning Pipeline (Combine) 노드 \"areas_out\" 출력에 연결하세요.\n\nComfyUI-LoRA-Pipeline을 지금 설치하시겠습니까?"
 }

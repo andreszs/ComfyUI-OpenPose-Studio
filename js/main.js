@@ -85,6 +85,97 @@ function logLayout(label, data) {
 }
 
 /**
+ * Traverse the LiteGraph graph from an OpenPoseStudio node to collect the
+ * conditioning area data from connected ConditioningPipelineSetArea nodes.
+ *
+ * This runs synchronously from graph UI state and does NOT require workflow
+ * execution.  Returns an array of {x, y, width, height, strength} objects,
+ * or an empty array when no areas are found or the connection is absent.
+ *
+ * Coupling to LoRA Pipeline node class names is intentionally isolated here.
+ */
+function collectAreasFromGraph(openposeNode) {
+	try {
+		if (!openposeNode || !app || !app.graph) return [];
+
+		// Locate the 'areas' input slot on the OpenPoseStudio node
+		const inputs = openposeNode.inputs;
+		if (!Array.isArray(inputs)) return [];
+
+		const areasInput = inputs.find(inp => inp.name === "areas");
+		if (!areasInput || areasInput.link == null) return [];
+
+		// Follow link to ConditioningPipelineCombine
+		const combineLink = app.graph.links[areasInput.link];
+		if (!combineLink) return [];
+
+		const combineNode = app.graph.getNodeById(combineLink.origin_id);
+		if (!combineNode || combineNode.comfyClass !== "ConditioningPipelineCombine") return [];
+
+		// Locate the 'pipeline' input on ConditioningPipelineCombine
+		const combineInputs = combineNode.inputs;
+		if (!Array.isArray(combineInputs)) return [];
+
+		const pipelineInput = combineInputs.find(inp => inp.name === "pipeline");
+		if (!pipelineInput || pipelineInput.link == null) return [];
+
+		// Walk the chain of ConditioningPipelineSetArea nodes (reverse order)
+		const areasReversed = [];
+		let currentLinkId = pipelineInput.link;
+		const MAX_DEPTH = 64;
+
+		for (let depth = 0; depth < MAX_DEPTH && currentLinkId != null; depth++) {
+			const link = app.graph.links[currentLinkId];
+			if (!link) break;
+
+			const setAreaNode = app.graph.getNodeById(link.origin_id);
+			if (!setAreaNode || setAreaNode.comfyClass !== "ConditioningPipelineSetArea") break;
+
+			// Read widget values by name (robust to widget order changes)
+			const widgets = setAreaNode.widgets;
+			if (!Array.isArray(widgets)) break;
+
+			const getW = (name) => {
+				const w = widgets.find(w => w.name === name);
+				return w != null ? Number(w.value) : null;
+			};
+
+			const x = getW("x");
+			const y = getW("y");
+			const width = getW("width");
+			const height = getW("height");
+			const strength = getW("strength");
+
+			if (x == null || y == null || width == null || height == null) break;
+
+			areasReversed.push({
+				x: x,
+				y: y,
+				width: width,
+				height: height,
+				strength: strength ?? 1.0,
+			});
+
+			// Follow pipeline_in to the previous Set Area in the chain
+			const setAreaInputs = setAreaNode.inputs;
+			if (!Array.isArray(setAreaInputs)) break;
+
+			const pipelineInInput = setAreaInputs.find(inp => inp.name === "pipeline_in");
+			if (!pipelineInInput || pipelineInInput.link == null) break;
+
+			currentLinkId = pipelineInInput.link;
+		}
+
+		// Reverse to restore chronological order (first area first)
+		areasReversed.reverse();
+		return areasReversed;
+	} catch (_e) {
+		// Fail gracefully — never propagate errors from a graph traversal
+		return [];
+	}
+}
+
+/**
  * Render pose JSON to a data URL for node preview.
  * @param {string|object} poseJson - JSON string or parsed pose data
  * @param {number} previewWidth - Preview canvas width
@@ -1983,6 +2074,17 @@ class OpenPosePanel {
         this.updateRemoveState();
     }
 
+    /**
+     * Push conditioning area data into the editor canvas overlay.
+     * Safe to call at any time; no-op when no renderer is available.
+     * @param {Array} areas - Array of {x, y, width, height, strength} (normalized 0-1)
+     */
+    setConditioningAreas(areas) {
+        if (this.renderer && typeof this.renderer.setConditioningAreas === "function") {
+            this.renderer.setConditioningAreas(Array.isArray(areas) ? areas : []);
+        }
+    }
+
 
 }
 
@@ -2009,6 +2111,15 @@ app.registerExtension({
             node.properties.savedPose = poseJson;
             if (node.jsonWidget) node.jsonWidget.value = poseJson;
             if (typeof node.updatePreview === "function") node.updatePreview();
+            // Post-execution: refresh area overlay in any open editor panel
+            if (node.openPosePanel && typeof node.openPosePanel.setConditioningAreas === "function") {
+                try {
+                    const _postExecAreas = collectAreasFromGraph(node);
+                    node.openPosePanel.setConditioningAreas(_postExecAreas);
+                } catch (_e) {
+                    // ignore
+                }
+            }
         });
     },
 
@@ -2077,6 +2188,18 @@ app.registerExtension({
 
                     this.openPosePanel = new OpenPosePanel(panel, this);
                     document.body.appendChild(this.openPosePanel.panel);
+
+                    // Pre-execution: collect conditioning areas directly from the graph
+                    // and push them into the editor canvas overlay immediately on open.
+                    try {
+                        const _preExecAreas = collectAreasFromGraph(this);
+                        if (_preExecAreas.length > 0) {
+                            this.openPosePanel.setConditioningAreas(_preExecAreas);
+                        }
+                    } catch (_e) {
+                        // ignore — overlay is optional
+                    }
+
                     const _originalClose = panel.close.bind(panel);
 					panel.close = function() {
 						if (panel.classList.contains("ope-is-closing") || panel.classList.contains("ope-openpose-modal-closing")) { return; }

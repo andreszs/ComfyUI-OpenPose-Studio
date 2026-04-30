@@ -210,5 +210,9 @@
   "toast.removed": "已移除",
   "toast.right_hand_removed": "右手已移除",
   "toast.coco17_edit_disabled": "要编辑 COCO17 姿势，请使用此扩展：comfyui-ultralytics-editor",
-  "toast.coco18_edit_disabled": "要编辑 COCO18 姿势，请使用此扩展：comfyui-openpose-studio"
+  "toast.coco18_edit_disabled": "要编辑 COCO18 姿势，请使用此扩展：comfyui-openpose-studio",
+  "pose_editor.areas.toggle.show_title": "显示条件区域",
+  "pose_editor.areas.toggle.hide_title": "隐藏条件区域",
+  "pose_editor.areas.no_source.title": "未连接条件区域",
+  "pose_editor.areas.no_source.body": "要在编辑器中查看条件区域，请将此节点的 \"areas\" 输入连接到 andreszs 的 ComfyUI-LoRA-Pipeline 扩展中 Conditioning Pipeline (Combine) 节点的 \"areas_out\" 输出。\n\n是否立即安装 ComfyUI-LoRA-Pipeline？"
 }

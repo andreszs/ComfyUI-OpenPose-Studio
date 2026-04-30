@@ -26,6 +26,7 @@ OpenPose Studio is an advanced ComfyUI extension for creating, editing, previewi
 - 🖼️ [Gallery & Pose Management](#gallery--pose-management)
 - 🔀 [Pose Merger](#pose-merger)
 - 🖼️ [Background Reference](#background-reference)
+- 🗺️ [Areas Input](#areas-input)
 - ⚠️ [Known Limitations](#known-limitations)
 - 🔍 [Troubleshooting](#troubleshooting)
 - 🤝 [Contributing](#contributing)
@@ -117,6 +118,8 @@ If you have an idea for a new feature, I would love to hear it — we may be abl
 **Category:** `image`
 
 - **Input:** `Pose JSON` (STRING) — standard OpenPose-style JSON.
+- **Optional Inputs:**
+  - `areas` (`CONDITIONING_AREAS`) — area overlay data; connect the `areas_out` output of a [Conditioning Pipeline (Combine)](https://github.com/andreszs/comfyui-lora-pipeline) node to visualize conditioning regions on the canvas
 - **Options:**
   - `render body` — include body in the rendered preview/output image
   - `render hands` — include hands in the rendered preview/output image (if present in the JSON)
@@ -161,6 +164,20 @@ Load reference images (e.g., anatomy guides, photo references) as non-destructiv
 
 > [!NOTE]
 > Background images persist during the ComfyUI session but are **not** saved in workflows.
+
+### Areas Input
+
+The **areas** input is an **optional** connection that overlays conditioning area boundaries on the canvas during pose editing.
+
+Connect the `areas_out` output of the [**Conditioning Pipeline (Combine)**](https://github.com/andreszs/comfyui-lora-pipeline) node from the [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) repository to visualize which regions each area targets while you position your poses.
+
+Each area is displayed as a labeled badge on the canvas. Click any badge to **enable or disable** that area individually, letting you focus on the regions relevant to your current pose.
+
+![Areas Input](../locales/en/openpose-studio-areas.png)
+
+This combination is particularly useful when building multi-character workflows: [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) handles the per-area conditioning and LoRA assignment, while OpenPose Studio keeps the pose placement accurate within each region. The result is a straightforward, non-destructive setup where both per-area and per-pose LoRAs can be applied simultaneously without interference. If you are not yet familiar with area-based conditioning, the [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) extension is designed exactly for this kind of workflow and pairs well with this node.
+
+For a real-world example of all three repos working together — area conditioning, OpenPose control, and style layering — see this [step-by-step workflow guide](https://www.andreszsogon.com/building-a-multi-character-comfyui-workflow-with-area-conditioning-openpose-control-and-style-layering/).
 
 ---
 

@@ -26,6 +26,36 @@ const HAND_KEYPOINT_COLORS = [
 
 const EXTRA_KEYPOINT_EPSILON = 0.5;
 
+// Palette for conditioning area overlays.  Colors are distinct and legible on
+// both dark and light backgrounds, and chosen to avoid clashing with the red/
+// green/blue OpenPose skeleton colors.
+const AREA_OVERLAY_COLORS = [
+	[41,  121, 255],  // Blue
+	[255, 140,   0],  // Orange
+	[0,   200,  80],  // Green
+	[220,  50, 220],  // Magenta
+	[0,   200, 230],  // Cyan
+	[210, 180,   0],  // Gold
+];
+
+/**
+ * Draw a rounded rectangle path on ctx.
+ * Falls back to a plain rect when r === 0 or the dimensions are too small.
+ */
+function _drawRoundRect(ctx, x, y, w, h, r) {
+	r = Math.min(Math.max(0, r), Math.min(w, h) / 2);
+	if (r < 0.5) {
+		ctx.rect(x, y, w, h);
+		return;
+	}
+	ctx.moveTo(x + r, y);
+	ctx.arcTo(x + w, y,     x + w, y + h, r);
+	ctx.arcTo(x + w, y + h, x,     y + h, r);
+	ctx.arcTo(x,     y + h, x,     y,     r);
+	ctx.arcTo(x,     y,     x + w, y,     r);
+	ctx.closePath();
+}
+
 const isCanvas2DDebugEnabled = () => {
 	if (typeof globalThis === "undefined") {
 		return false;
@@ -74,7 +104,17 @@ export class OpenPoseCanvas2D {
 		this.preselectionPoseIndex = null; // Track which pose would be selected on click (hover preselection)
 		this.activeFormatId = DEFAULT_FORMAT_ID; // Track the active format
 		this.keypointEdits = false;
-		
+
+		// Conditioning area overlays (set from OpenPosePanel, not serialized)
+		this.conditioningAreas = [];
+		this.conditioningAreasVisible = true;
+		// Per-area hidden state: Set of area indices (0-based) individually toggled off
+		this.conditioningAreaHidden = new Set();
+		// Hit-rects for the badge row — populated each draw, used for pointer hit-test
+		this._areaBadgeHitRects = [];
+		// True while the pointer is hovering any badge in the badge row
+		this.isHoveringBadge = false;
+
 		// Canvas hover debouncing
 		this.canvasHoverDebounceTimer = null;
 		this.pendingCanvasHoverId = null;
@@ -122,6 +162,9 @@ export class OpenPoseCanvas2D {
 		this.onSelectionChangeCallback = null;
 		this.onHoverChangeCallback = null;
 		
+		// Drag-to-delete trash target state
+		this.trashTargetHovered = false;
+
 		// Dirty flag for efficient rendering
 		this.isDirty = true;
 		this.animationFrameId = null;
@@ -504,6 +547,10 @@ export class OpenPoseCanvas2D {
 		else if (this.hoveredKeypointId !== null) {
 			this.canvas.style.cursor = 'crosshair';
 		}
+		// When hovering a conditioning area badge, show pointer
+		else if (this.isHoveringBadge) {
+			this.canvas.style.cursor = 'pointer';
+		}
 		// Otherwise, default cursor
 		else {
 			this.canvas.style.cursor = 'default';
@@ -873,6 +920,15 @@ export class OpenPoseCanvas2D {
 				       this.drawBackground();
 				       debugLog('[OpenPoseCanvas2D] Background image drawn');
 			       }
+			       // Draw conditioning area overlays (above background/grid, below poses)
+			       if (this.conditioningAreasVisible && this.conditioningAreas && this.conditioningAreas.length > 0) {
+				       this.drawConditioningAreaOverlays();
+			       }
+			       // Draw drag-to-delete trash target beneath poses so dragged
+			       // keypoints and skeleton lines always render on top of it.
+			       if (this.activeDragMode === 'dragKeypoint') {
+				       this.drawTrashTarget();
+			       }
 			       // Draw poses
 			       if (this.poses.length > 0) {
 				       debugLog('[OpenPoseCanvas2D] Drawing', this.poses.length, 'poses');
@@ -916,12 +972,150 @@ export class OpenPoseCanvas2D {
 			       if (this.marqueeRect !== null) {
 				       this.drawMarqueeRect();
 			       }
-			
+		
 		} catch (error) {
 			console.error('[OpenPoseCanvas2D] ERROR in render():', error);
 		}
 	}
-	
+
+	/**
+	 * Update the conditioning area overlay data and request a redraw.
+	 * Resets per-area hidden state when the area list is replaced.
+	 * @param {Array} areas - Array of {x, y, width, height, strength} (normalized 0-1)
+	 */
+	setConditioningAreas(areas) {
+		this.conditioningAreas = Array.isArray(areas) ? areas : [];
+		this.conditioningAreaHidden = new Set();
+		this._areaBadgeHitRects = [];
+		this.requestRedraw();
+	}
+
+	/**
+	 * Show or hide the conditioning area overlay without discarding the data.
+	 * @param {boolean} visible
+	 */
+	setConditioningAreasVisible(visible) {
+		this.conditioningAreasVisible = !!visible;
+		this.requestRedraw();
+	}
+
+	/**
+	 * Draw semi-transparent filled rectangles for each visible conditioning area,
+	 * plus a compact horizontal badge row at the very top of the canvas.
+	 *
+	 * Badge row layout: badges are placed left-to-right starting at BADGE_ROW_X,
+	 * BADGE_ROW_Y — independent of each area's position.
+	 *
+	 * Click hit-rects are stored in this._areaBadgeHitRects for handlePointerDown.
+	 *
+	 * Per-area visibility is tracked in this.conditioningAreaHidden (Set of indices).
+	 * The global this.conditioningAreasVisible guard is applied in render() before
+	 * this method is called — so when the global toggle is off, this is never called.
+	 */
+	drawConditioningAreaOverlays() {
+		if (!this.conditioningAreas || this.conditioningAreas.length === 0) return;
+
+		const ctx  = this.ctx;
+		const W    = this.logicalWidth;
+		const H    = this.logicalHeight;
+		const RADIUS = 3;
+
+		// ── Pass 1: area fills (only visible areas) ──────────────────────────────
+		for (let i = 0; i < this.conditioningAreas.length; i++) {
+			if (this.conditioningAreaHidden.has(i)) continue;
+			const area  = this.conditioningAreas[i];
+			const color = AREA_OVERLAY_COLORS[i % AREA_OVERLAY_COLORS.length];
+			const rx = Math.round(area.x * W);
+			const ry = Math.round(area.y * H);
+			const rw = Math.round(area.width * W);
+			const rh = Math.round(area.height * H);
+			if (rw < 1 || rh < 1) continue;
+			ctx.save();
+			ctx.fillStyle = `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.12)`;
+			ctx.beginPath();
+			_drawRoundRect(ctx, rx, ry, rw, rh, RADIUS);
+			ctx.fill();
+			ctx.restore();
+		}
+
+		// ── Pass 2: area borders (only visible areas) ─────────────────────────────
+		for (let i = 0; i < this.conditioningAreas.length; i++) {
+			if (this.conditioningAreaHidden.has(i)) continue;
+			const area  = this.conditioningAreas[i];
+			const color = AREA_OVERLAY_COLORS[i % AREA_OVERLAY_COLORS.length];
+			const rx = Math.round(area.x * W);
+			const ry = Math.round(area.y * H);
+			const rw = Math.round(area.width * W);
+			const rh = Math.round(area.height * H);
+			if (rw < 1 || rh < 1) continue;
+			ctx.save();
+			ctx.strokeStyle = `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.82)`;
+			ctx.lineWidth = 2;
+			ctx.beginPath();
+			_drawRoundRect(ctx, rx, ry, rw, rh, RADIUS);
+			ctx.stroke();
+			ctx.restore();
+		}
+
+		// ── Pass 3: badge row at top of canvas ────────────────────────────────────
+		const FONT_SIZE    = 11;
+		const PAD_H        = 5;
+		const PAD_V        = 3;
+		const BADGE_GAP    = 4;
+		const BADGE_ROW_X  = 6;   // left inset from canvas edge
+		const BADGE_ROW_Y  = 6;   // top inset from canvas edge
+		const BADGE_RADIUS = 3;
+		const BORDER_W     = 1.5; // outline width for hidden badges
+
+		this._areaBadgeHitRects = [];
+
+		ctx.save();
+		ctx.font          = `bold ${FONT_SIZE}px sans-serif`;
+		ctx.textBaseline  = "top";
+		ctx.textAlign     = "left";
+
+		let cursorX = BADGE_ROW_X;
+
+		for (let i = 0; i < this.conditioningAreas.length; i++) {
+			const color   = AREA_OVERLAY_COLORS[i % AREA_OVERLAY_COLORS.length];
+			const label   = `A${i + 1}`;
+			const hidden  = this.conditioningAreaHidden.has(i);
+
+			const textW   = ctx.measureText(label).width;
+			const badgeW  = Math.ceil(textW + PAD_H * 2);
+			const badgeH  = FONT_SIZE + PAD_V * 2;
+			const bx      = cursorX;
+			const by      = BADGE_ROW_Y;
+
+			// Store hit rect for pointer handling (logical coords)
+			this._areaBadgeHitRects.push({ x: bx, y: by, w: badgeW, h: badgeH, index: i });
+
+			if (hidden) {
+				// Outline style: transparent fill, colored border, colored text
+				ctx.strokeStyle = `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.85)`;
+				ctx.lineWidth   = BORDER_W;
+				ctx.fillStyle   = "rgba(0, 0, 0, 0)"; // transparent
+				ctx.beginPath();
+				_drawRoundRect(ctx, bx, by, badgeW, badgeH, BADGE_RADIUS);
+				ctx.stroke();
+				ctx.fillStyle = `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.90)`;
+				ctx.fillText(label, bx + PAD_H, by + PAD_V);
+			} else {
+				// Filled style: colored fill, white text
+				ctx.fillStyle = `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.72)`;
+				ctx.beginPath();
+				_drawRoundRect(ctx, bx, by, badgeW, badgeH, BADGE_RADIUS);
+				ctx.fill();
+				ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+				ctx.fillText(label, bx + PAD_H, by + PAD_V);
+			}
+
+			cursorX += badgeW + BADGE_GAP;
+		}
+
+		ctx.restore();
+	}
+
 	drawGrid() {
 		const ctx = this.ctx;
 		const centerX = this.logicalWidth / 2;
@@ -1567,6 +1761,107 @@ export class OpenPoseCanvas2D {
 	}
 
 	/**
+	 * Returns the radius (logical canvas units) of the quarter-circle trash
+	 * drop-zone anchored flush to the top-right corner.
+	 */
+	_getTrashTargetRadius() {
+		return 76;
+	}
+
+	/**
+	 * Draw the drag-to-delete trash target as a quarter-circle sector anchored
+	 * flush to the top-right corner of the canvas.  The shape is always a
+	 * portion of a full circle whose centre sits exactly at the corner, so
+	 * no gap exists between the canvas edge and the visible shape.
+	 *
+	 * Called only while a keypoint is being actively dragged.
+	 */
+	drawTrashTarget() {
+		const ctx = this.ctx;
+		const R = this._getTrashTargetRadius();
+		const hovered = this.trashTargetHovered;
+
+		// Corner of the canvas (circle centre)
+		const cornerX = this.logicalWidth;
+		const cornerY = 0;
+
+		// Quarter-circle sector: arc from angle π/2 (pointing down) to π
+		// (pointing left), sweeping clockwise — this traces exactly the
+		// portion of the circle that sits inside the canvas.
+		ctx.save();
+		ctx.beginPath();
+		ctx.moveTo(cornerX, cornerY);
+		ctx.arc(cornerX, cornerY, R, Math.PI / 2, Math.PI, false);
+		ctx.closePath();
+
+		ctx.fillStyle = hovered
+			? 'rgba(195, 30, 30, 0.82)'
+			: 'rgba(20, 20, 20, 0.52)';
+		ctx.fill();
+
+		// Icon centre: place it along the 45° bisector of the quarter circle,
+		// at 40% of R from the corner.  This sits within the filled sector and
+		// reads as the visual centre of the drop zone.
+		const ICON_OFFSET = R * 0.40; // distance from corner along each axis
+		const icx = cornerX - ICON_OFFSET;
+		const icy = cornerY + ICON_OFFSET;
+
+		const iconSize = 22; // logical units — trash-can proportions base
+		const iconColor  = hovered ? 'rgba(255, 110, 110, 0.97)' : 'rgba(215, 215, 215, 0.90)';
+		const stripeColor = hovered ? 'rgba(160, 25, 25, 0.90)' : 'rgba(20, 20, 20, 0.62)';
+
+		// Lid bar
+		const lidW = iconSize * 0.88;
+		const lidH = iconSize * 0.13;
+		const lidX = icx - lidW / 2;
+		const lidY = icy - iconSize * 0.54;
+
+		// Handle nub
+		const nubW = iconSize * 0.32;
+		const nubH = iconSize * 0.14;
+		const nubX = icx - nubW / 2;
+		const nubY = lidY - nubH;
+
+		// Body
+		const bodyW = iconSize * 0.70;
+		const bodyH = iconSize * 0.60;
+		const bodyX = icx - bodyW / 2;
+		const bodyY = lidY + lidH + iconSize * 0.06;
+
+		ctx.fillStyle = iconColor;
+
+		// Nub
+		ctx.beginPath();
+		_drawRoundRect(ctx, nubX, nubY, nubW, nubH, 2);
+		ctx.fill();
+
+		// Lid bar
+		ctx.beginPath();
+		_drawRoundRect(ctx, lidX, lidY, lidW, lidH, 2);
+		ctx.fill();
+
+		// Body
+		ctx.beginPath();
+		_drawRoundRect(ctx, bodyX, bodyY, bodyW, bodyH, 3);
+		ctx.fill();
+
+		// 3 vertical stripe cutouts inside the body
+		const stripeCount = 3;
+		const stripeSpacing = bodyW / (stripeCount + 1);
+		const stripeInset = bodyH * 0.12;
+		const sw = 1.6;
+		ctx.fillStyle = stripeColor;
+		for (let s = 1; s <= stripeCount; s++) {
+			const sx = bodyX + stripeSpacing * s;
+			const sy = bodyY + stripeInset;
+			const sh = bodyH - stripeInset * 2;
+			ctx.fillRect(sx - sw / 2, sy, sw, sh);
+		}
+
+		ctx.restore();
+	}
+
+	/**
 	 * Draw the live marquee selection rectangle during drag.
 	 */
 	drawMarqueeRect() {
@@ -1601,6 +1896,27 @@ export class OpenPoseCanvas2D {
 		const pointer = this.screenToLogical(evt.clientX, evt.clientY);
 		this.dragStartPointer = pointer;
 		const isShift = evt.shiftKey;
+
+		// ── 0. Area badge row hit-test (highest priority, primary button only) ──
+		// Only active when conditioning areas are globally visible and data exists.
+		if (!isShift && evt.button === 0
+			&& this.conditioningAreasVisible
+			&& this._areaBadgeHitRects && this._areaBadgeHitRects.length > 0) {
+			for (const rect of this._areaBadgeHitRects) {
+				if (pointer.x >= rect.x && pointer.x <= rect.x + rect.w
+					&& pointer.y >= rect.y && pointer.y <= rect.y + rect.h) {
+					// Toggle per-area visibility
+					if (this.conditioningAreaHidden.has(rect.index)) {
+						this.conditioningAreaHidden.delete(rect.index);
+					} else {
+						this.conditioningAreaHidden.add(rect.index);
+					}
+					this.requestRedraw();
+					evt.stopPropagation();
+					return;
+				}
+			}
+		}
 
 		// ── 1. Multi-keypoint selection bbox scale handles (active pose only) ──
 		if (!isShift && this.selectedPoseIndex !== null && this.selectedKeypointIds.size > 0) {
@@ -1805,7 +2121,36 @@ export class OpenPoseCanvas2D {
 	
 	handlePointerMove(evt) {
 		const pointer = this.screenToLogical(evt.clientX, evt.clientY);
-		
+
+		// ── Badge row hover: pointer cursor and tooltip ──
+		{
+			const wasBadge = this.isHoveringBadge;
+			let hitBadge = null;
+			if (this.conditioningAreasVisible && this._areaBadgeHitRects && this._areaBadgeHitRects.length > 0) {
+				for (const br of this._areaBadgeHitRects) {
+					if (pointer.x >= br.x && pointer.x <= br.x + br.w &&
+					    pointer.y >= br.y && pointer.y <= br.y + br.h) {
+						hitBadge = br;
+						break;
+					}
+				}
+			}
+			if (hitBadge) {
+				this.isHoveringBadge = true;
+				const area = this.conditioningAreas[hitBadge.index];
+				if (area) {
+					const n = hitBadge.index + 1;
+					this.canvas.title = `A${n}  x: ${area.x.toFixed(2)}  y: ${area.y.toFixed(2)}  w: ${area.width.toFixed(2)}  h: ${area.height.toFixed(2)}`;
+				}
+			} else {
+				this.isHoveringBadge = false;
+				this.canvas.title = '';
+			}
+			if (wasBadge !== this.isHoveringBadge) {
+				this.updateCursor();
+			}
+		}
+
 		// Always detect canvas hover, even when not dragging
 		let hoveredKeypointId = null;
 		let hoveredPoseIndex = null;
@@ -1989,6 +2334,16 @@ export class OpenPoseCanvas2D {
 				x: Math.max(0, Math.min(this.logicalWidth, pointer.x)),
 				y: Math.max(0, Math.min(this.logicalHeight, pointer.y))
 			};
+			// Update trash target hover state (radial hit-test against quarter-circle)
+			const R = this._getTrashTargetRadius();
+			const wasHovered = this.trashTargetHovered;
+			const dx = this.logicalWidth - pointer.x;
+			const dy = pointer.y;
+			this.trashTargetHovered = (dx * dx + dy * dy <= R * R);
+			if (wasHovered !== this.trashTargetHovered) {
+				this.requestRedraw();
+				return;
+			}
 			this.requestRedraw();
 		}
 		else if (this.activeDragMode === 'moveSelectedKeypoints') {
@@ -2261,6 +2616,28 @@ export class OpenPoseCanvas2D {
 	}
 	
 	handlePointerUp(evt) {
+		// ── Drag-to-delete: drop on trash target deletes the keypoint ──
+		if (this.activeDragMode === 'dragKeypoint' && this.trashTargetHovered && this.dragStartKeypoint) {
+			const { poseIndex, keypointId } = this.dragStartKeypoint;
+			// Restore keypoint to start position before clearing (so we nullify cleanly)
+			const pose = this.poses[poseIndex];
+			if (pose && pose.keypoints) {
+				pose.keypoints[keypointId] = null;
+				this.markKeypointEdited();
+			}
+			// Reset all drag state
+			this.trashTargetHovered = false;
+			this.activeDragMode = 'none';
+			this.activeKeypointId = null;
+			this.dragStartPointer = null;
+			this.dragStartKeypoint = null;
+			this.canvas.releasePointerCapture(evt.pointerId);
+			this.notifyChange('geometry');
+			this.updateCursor();
+			this.requestRedraw();
+			return;
+		}
+
 		if (this.activeDragMode === 'dragKeypoint' && this.dragStartKeypoint) {
 			const pose = this.poses[this.dragStartKeypoint.poseIndex];
 			const kp = pose ? pose.keypoints[this.dragStartKeypoint.keypointId] : null;
@@ -2309,6 +2686,7 @@ export class OpenPoseCanvas2D {
 			this.notifyChange('geometry');
 		}
 		
+		this.trashTargetHovered = false;
 		this.activeDragMode = 'none';
 		this.activeKeypointId = null;
 		this.activeScaleHandle = null;
@@ -2333,6 +2711,9 @@ export class OpenPoseCanvas2D {
 		this.selectionBoxHovered = false;
 		this.hoveredHandle = null;
 		this.preselectionPoseIndex = null;
+		// Clear badge hover state
+		this.isHoveringBadge = false;
+		this.canvas.title = '';
 		if (needsRedraw) {
 			this.requestRedraw();
 		}

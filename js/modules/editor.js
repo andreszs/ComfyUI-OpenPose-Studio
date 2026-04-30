@@ -367,6 +367,31 @@ export const poseEditorCanvasWorkflow = {
 		container.querySelector('[data-action="clear-bg"]').addEventListener("click", () => {
 			this.clearBackground();
 		});
+		const toggleAreasBtn = container.querySelector('[data-action="toggle-areas"]');
+		if (toggleAreasBtn) {
+			this.toggleAreasButton = toggleAreasBtn;
+			toggleAreasBtn.addEventListener("click", async () => {
+				const hasAreas = this.renderer.conditioningAreas && this.renderer.conditioningAreas.length > 0;
+				if (!hasAreas) {
+					// No areas source connected — show install prompt instead of toggling
+					const confirmed = await showConfirm(
+						t("pose_editor.areas.no_source.title"),
+						t("pose_editor.areas.no_source.body"),
+					);
+					if (confirmed) {
+						window.open("https://github.com/andreszs/ComfyUI-Lora-Pipeline", "_blank", "noopener,noreferrer");
+					}
+					return;
+				}
+				// Normal toggle: areas are available
+				const nowVisible = !this.renderer.conditioningAreasVisible;
+				this.renderer.setConditioningAreasVisible(nowVisible);
+				toggleAreasBtn.style.opacity = nowVisible ? "1" : "0.45";
+				toggleAreasBtn.title = nowVisible
+					? t("pose_editor.areas.toggle.hide_title")
+					: t("pose_editor.areas.toggle.show_title");
+			});
+		}
 		this.bgFileInput.addEventListener("change", (e) => {
 			this.onLoadBackground(e);
 		});
@@ -3029,6 +3054,7 @@ function buildPoseEditorOverlayHtml() {
                 <div class="openpose-bg-buttons-row">
                     <button class="openpose-btn" data-action="load-bg">${t("pose_editor.btn.load")}</button>
                     <button class="openpose-btn" data-action="clear-bg">${t("pose_editor.btn.bg_remove")}</button>
+                    <button class="openpose-btn openpose-btn-icon" data-action="toggle-areas" title="${t("pose_editor.areas.toggle.hide_title")}" style="flex: 0 0 auto;">${UiIcons.svg('eye', { size: 14, className: 'openpose-ui-icon' })}</button>
                 </div>
             </div>
             <div class="openpose-bg-mode-row">

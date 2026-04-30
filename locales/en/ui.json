@@ -212,5 +212,9 @@
     "toast.remove_distal_first":  "Remove distal points first.",
     "toast.removed":  "removed",
     "toast.right_hand_removed":  "Right hand removed",
-    "toast.no_pose_selected":  "Select a pose before placing a keypoint."
+    "toast.no_pose_selected":  "Select a pose before placing a keypoint.",
+    "pose_editor.areas.toggle.show_title":  "Show conditioning areas",
+    "pose_editor.areas.toggle.hide_title":  "Hide conditioning areas",
+    "pose_editor.areas.no_source.title":  "No conditioning areas connected",
+    "pose_editor.areas.no_source.body":  "To see conditioning areas in the editor, connect this node's \"areas\" input to the \"areas_out\" output of the Conditioning Pipeline (Combine) node from the ComfyUI-LoRA-Pipeline extension by andreszs.\n\nDo you want to install ComfyUI-LoRA-Pipeline now?"
 }

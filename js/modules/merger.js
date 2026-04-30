@@ -40,7 +40,7 @@ export function buildPresetsMergerOverlayHtml() {
         <div class="openpose-alert openpose-alert-warning">
             <div class="openpose-alert-icon">⚠️</div>
             <div class="openpose-alert-body">
-                <p>${t("pose_merger.warning.experimental_body", { issuesUrl: "https://github.com/huchenlei/comfyui-openpose-studio/issues" })}</p>
+                <p>${t("pose_merger.warning.experimental_body", { issuesUrl: "https://github.com/andreszs/comfyui-openpose-studio/issues" })}</p>
             </div>
             <button class="openpose-alert-close" aria-label="${t("pose_merger.warning.dismiss")}" title="${t("pose_merger.warning.dismiss")}">×</button>
         </div>

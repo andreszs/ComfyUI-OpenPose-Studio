@@ -21,6 +21,9 @@ const ICON_PATHS = {
   canvas: `<rect x="4" y="4" width="16" height="16" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 9h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 20V4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`,
   image: `<rect x="3" y="5" width="18" height="14" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 13l3-3 4 4 3-2 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 9.5h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>`,
 
+  // Visibility toggle (show / hide conditioning area overlays)
+  eye: `<path d="M1 12C1 12 5 4 12 4C19 4 23 12 23 12C23 12 19 20 12 20C5 20 1 12 1 12Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/>`,
+
   // Right sidebar module icons
   // “Explore Gallery”
   grid: `<rect x="4" y="4" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="4" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><rect x="4" y="13" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="13" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>`,

@@ -26,6 +26,7 @@ OpenPose Studio は、洗練された使いやすいインターフェースで 
 - 🖼️ [ギャラリーとポーズ管理](#ギャラリーとポーズ管理)
 - 🔀 [ポーズマージャー](#pose-merger)
 - 🖼️ [背景リファレンス](#背景リファレンス)
+- 🗺️ [エリア入力](#エリア入力)
 - ⚠️ [既知の制限事項](#既知の制限事項)
 - 🔍 [トラブルシューティング](#トラブルシューティング)
 - 🤝 [貢献](#貢献)
@@ -116,6 +117,8 @@ OpenPose Studio は、洗練された使いやすいインターフェースで 
 **カテゴリ:** `image`
 
 - **入力:** `Pose JSON` (STRING) — OpenPose 標準形式の JSON。  
+- **オプション入力:**
+  - `areas` (`CONDITIONING_AREAS`) — エリアオーバーレイデータ；[Conditioning Pipeline (Combine)](https://github.com/andreszs/comfyui-lora-pipeline) ノードの `areas_out` 出力を接続すると、Canvas 上でコンディショニング領域を視覚化できます  
 - **オプション:**
   - `render body` — プレビュー/レンダリング出力に Body を含める  
   - `render hands` — プレビュー/レンダリング出力に Hands を含める（JSON に存在する場合）  
@@ -306,6 +309,20 @@ COCO-18 は **18 個の body キーポイント** を使用します。ポーズ
 
 > [!NOTE]
 > 背景画像は ComfyUI セッション中は保持されますが、ワークフローには保存されません。
+
+## エリア入力
+
+**areas** 入力は、ポーズ編集中にコンディショニング領域の境界を Canvas 上にオーバーレイ表示する**オプション**の接続です。
+
+[ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) リポジトリの [**Conditioning Pipeline (Combine)**](https://github.com/andreszs/comfyui-lora-pipeline) ノードの `areas_out` 出力を接続することで、ポーズを配置しながら各エリアが対象とする領域を視覚的に確認できます。
+
+各エリアはラベル付きバッジとして Canvas 上に表示されます。バッジをクリックすることで、そのエリアを個別に**有効または無効**に切り替えられ、現在のポーズに関連する領域に集中できます。
+
+![Areas Input](../locales/en/openpose-studio-areas.png)
+
+この組み合わせは、マルチキャラクターのワークフロー構築に特に役立ちます。[ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) がエリアごとのコンディショニングと LoRA の割り当てを担い、OpenPose Studio は各領域内でのポーズ配置の精度を維持します。結果として、エリアごとの LoRA とポーズごとの LoRA を同時に干渉なく適用できる、シンプルで非破壊的なセットアップが実現します。エリアベースのコンディショニングをまだご存知でない方には、[ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) 拡張がこのようなワークフローのために設計されており、このノードと相性よく組み合わせて使えます。
+
+3 つのリポジトリを連携させた実践的な例 — エリアコンディショニング、OpenPose コントロール、スタイルのレイヤリング — は、こちらの[ステップバイステップのワークフローガイド](https://www.andreszsogon.com/building-a-multi-character-comfyui-workflow-with-area-conditioning-openpose-control-and-style-layering/)をご覧ください。
 
 ---
 

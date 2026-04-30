@@ -210,5 +210,9 @@
   "toast.removed": "削除済み",
   "toast.right_hand_removed": "右手を削除しました",
   "toast.coco17_edit_disabled": "COCO17のポーズを編集するには、この拡張機能を使用してください: comfyui-ultralytics-editor",
-  "toast.coco18_edit_disabled": "COCO18のポーズを編集するには、この拡張機能を使用してください: comfyui-openpose-studio"
+  "toast.coco18_edit_disabled": "COCO18のポーズを編集するには、この拡張機能を使用してください: comfyui-openpose-studio",
+  "pose_editor.areas.toggle.show_title": "コンディショニングエリアを表示",
+  "pose_editor.areas.toggle.hide_title": "コンディショニングエリアを非表示",
+  "pose_editor.areas.no_source.title": "コンディショニングエリアが接続されていません",
+  "pose_editor.areas.no_source.body": "エディターでコンディショニングエリアを表示するには、このノードの \"areas\" 入力を、andreszs の ComfyUI-LoRA-Pipeline 拡張機能の Conditioning Pipeline (Combine) ノードの \"areas_out\" 出力に接続してください。\n\nComfyUI-LoRA-Pipeline を今すぐインストールしますか？"
 }

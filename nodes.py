@@ -791,6 +791,7 @@ class OpenPoseStudio:
             },
             "optional": {
                 "pose_keypoint": ("POSE_KEYPOINT", {}),
+                "areas": ("CONDITIONING_AREAS", {}),
             }
         }
 

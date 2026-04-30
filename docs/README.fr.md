@@ -26,6 +26,7 @@ OpenPose Studio est une extension avancée pour ComfyUI permettant de créer, mo
 - 🖼️ [Galerie et gestion des poses](#galerie-et-gestion-des-poses)
 - 🔀 [Pose Merger](#pose-merger)
 - 🖼️ [Référence d'arrière-plan](#background-reference)
+- 🗺️ [Areas Input](#areas-input)
 - ⚠️ [Limitations connues](#limitations-connues)
 - 🔍 [Dépannage](#dépannage)
 - 🤝 [Contribuer](#contribuer)
@@ -117,6 +118,8 @@ Si vous avez une idée pour une nouvelle fonctionnalité, je serais ravi de l'en
 **Catégorie :** `image`
 
 - **Entrée :** `Pose JSON` (STRING) — JSON standard de style OpenPose.
+- **Entrées optionnelles :**
+  - `areas` (`CONDITIONING_AREAS`) — données d'overlay de zones ; connecter la sortie `areas_out` d'un node [Conditioning Pipeline (Combine)](https://github.com/andreszs/comfyui-lora-pipeline) pour visualiser les régions de conditionnement sur le canvas
 - **Options :**
   - `render body` — inclure le body dans l'image de prévisualisation/sortie rendue
   - `render hands` — inclure les hands dans l'image de prévisualisation/sortie rendue (si présentes dans le JSON)
@@ -161,6 +164,20 @@ Charger des images de référence (ex. guides anatomiques, références photo) c
 
 > [!NOTE]
 > Les images d'arrière-plan persistent pendant la session ComfyUI mais ne sont **pas** sauvegardées dans les workflows.
+
+### Areas Input
+
+L'entrée **areas** est une connexion **optionnelle** qui superpose les limites des zones de conditionnement sur le canvas pendant l'édition des poses.
+
+Connectez la sortie `areas_out` du node [**Conditioning Pipeline (Combine)**](https://github.com/andreszs/comfyui-lora-pipeline) du dépôt [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) pour visualiser les régions ciblées par chaque zone pendant le positionnement des poses.
+
+Chaque zone est affichée sous forme de badge étiqueté sur le canvas. Cliquez sur un badge pour **activer ou désactiver** cette zone individuellement, ce qui vous permet de vous concentrer sur les régions pertinentes pour la pose en cours.
+
+![Areas Input](../locales/en/openpose-studio-areas.png)
+
+Cette combinaison est particulièrement utile pour les workflows multi-personnages : [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) gère le conditionnement par zone et l'assignation des LoRA, tandis qu'OpenPose Studio maintient le positionnement précis des poses dans chaque région. Le résultat est une configuration simple et non destructive où les LoRA par zone et par pose peuvent être appliqués simultanément sans interférence. Si vous ne connaissez pas encore le conditionnement par zones, l'extension [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) est conçue exactement pour ce type de workflow et s'intègre très bien avec ce node.
+
+Pour un exemple concret des trois dépôts utilisés ensemble — conditionnement par zones, contrôle OpenPose et application de styles en couches — consultez ce [guide pas-à-pas du workflow](https://www.andreszsogon.com/building-a-multi-character-comfyui-workflow-with-area-conditioning-openpose-control-and-style-layering/).
 
 ---
 

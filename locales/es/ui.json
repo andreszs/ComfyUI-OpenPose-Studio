@@ -210,5 +210,9 @@
   "toast.removed": "eliminado",
   "toast.right_hand_removed": "Mano derecha eliminada",
   "toast.coco17_edit_disabled": "Para editar poses COCO17, usá esta extensión: comfyui-ultralytics-editor",
-  "toast.coco18_edit_disabled": "Para editar poses COCO18, usá esta extensión: comfyui-openpose-studio"
+  "toast.coco18_edit_disabled": "Para editar poses COCO18, usá esta extensión: comfyui-openpose-studio",
+  "pose_editor.areas.toggle.show_title": "Mostrar áreas de condicionamiento",
+  "pose_editor.areas.toggle.hide_title": "Ocultar áreas de condicionamiento",
+  "pose_editor.areas.no_source.title": "No hay áreas de condicionamiento conectadas",
+  "pose_editor.areas.no_source.body": "Para ver las áreas de condicionamiento en el editor, conecta la entrada \"areas\" de este nodo a la salida \"areas_out\" del nodo Conditioning Pipeline (Combine) de la extensión ComfyUI-LoRA-Pipeline de andreszs.\n\n¿Querés instalar ComfyUI-LoRA-Pipeline ahora?"
 }
