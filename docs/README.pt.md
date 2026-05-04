@@ -171,9 +171,11 @@ A entrada **areas** é uma conexão **opcional** que sobrepõe os limites das á
 
 Conecte a saída `areas_out` do node [**Conditioning Pipeline (Combine)**](https://github.com/andreszs/comfyui-lora-pipeline) do repositório [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) para visualizar quais regiões cada área visa enquanto posiciona suas poses.
 
+![Conexão da entrada areas — areas_out de Conditioning Pipeline (Combine) conectado à entrada areas do OpenPose Studio](../locales/en/openpose-studio-areas-input.png)
+
 Cada área é exibida como um badge rotulado no canvas. Clique em qualquer badge para **habilitar ou desabilitar** essa área individualmente, permitindo que você se concentre nas regiões relevantes para a pose atual.
 
-![Areas Input](../locales/en/openpose-studio-areas.png)
+![Areas Input](../locales/pt/openpose-studio-areas.png)
 
 Essa combinação é particularmente útil ao construir workflows com múltiplos personagens: o [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) gerencia o condicionamento por área e a atribuição de LoRA, enquanto o OpenPose Studio mantém o posicionamento preciso das poses dentro de cada região. O resultado é uma configuração direta e não destrutiva onde LoRAs por área e por pose podem ser aplicados simultaneamente sem interferência. Se você ainda não conhece o condicionamento baseado em áreas, a extensão [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) foi projetada exatamente para esse tipo de workflow e se integra bem com este node.
 

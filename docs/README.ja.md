@@ -316,9 +316,11 @@ COCO-18 は **18 個の body キーポイント** を使用します。ポーズ
 
 [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) リポジトリの [**Conditioning Pipeline (Combine)**](https://github.com/andreszs/comfyui-lora-pipeline) ノードの `areas_out` 出力を接続することで、ポーズを配置しながら各エリアが対象とする領域を視覚的に確認できます。
 
+![areas入力の接続 — Conditioning Pipeline (Combine) の areas_out を OpenPose Studio の areas 入力に接続](../locales/en/openpose-studio-areas-input.png)
+
 各エリアはラベル付きバッジとして Canvas 上に表示されます。バッジをクリックすることで、そのエリアを個別に**有効または無効**に切り替えられ、現在のポーズに関連する領域に集中できます。
 
-![Areas Input](../locales/en/openpose-studio-areas.png)
+![Areas Input](../locales/ja/openpose-studio-areas.png)
 
 この組み合わせは、マルチキャラクターのワークフロー構築に特に役立ちます。[ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) がエリアごとのコンディショニングと LoRA の割り当てを担い、OpenPose Studio は各領域内でのポーズ配置の精度を維持します。結果として、エリアごとの LoRA とポーズごとの LoRA を同時に干渉なく適用できる、シンプルで非破壊的なセットアップが実現します。エリアベースのコンディショニングをまだご存知でない方には、[ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) 拡張がこのようなワークフローのために設計されており、このノードと相性よく組み合わせて使えます。
 

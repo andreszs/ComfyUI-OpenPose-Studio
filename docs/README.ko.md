@@ -171,9 +171,11 @@ OpenPose Studio는 간결하고 편리한 인터페이스로 OpenPose 포즈를 
 
 [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) 리포지토리의 [**Conditioning Pipeline (Combine)**](https://github.com/andreszs/comfyui-lora-pipeline) 노드의 `areas_out` 출력을 연결하면 포즈를 배치하는 동안 각 에리어가 대상으로 하는 영역을 시각화할 수 있습니다.
 
+![areas 입력 연결 — Conditioning Pipeline (Combine)의 areas_out을 OpenPose Studio의 areas 입력에 연결](../locales/en/openpose-studio-areas-input.png)
+
 각 에리어는 Canvas에 레이블이 붙은 배지로 표시됩니다. 배지를 클릭하면 해당 에리어를 개별적으로 **활성화 또는 비활성화**할 수 있어 현재 포즈에 관련된 영역에 집중할 수 있습니다.
 
-![Areas Input](../locales/en/openpose-studio-areas.png)
+![Areas Input](../locales/ko/openpose-studio-areas.png)
 
 이 조합은 멀티 캐릭터 워크플로를 구축할 때 특히 유용합니다: [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline)이 에리어별 콘디셔닝과 LoRA 할당을 처리하는 동안, OpenPose Studio는 각 영역 내에서 포즈 배치의 정확성을 유지합니다. 결과적으로 에리어별 LoRA와 포즈별 LoRA를 간섭 없이 동시에 적용할 수 있는 간단하고 비파괴적인 설정이 만들어집니다. 에리어 기반 콘디셔닝에 아직 익숙하지 않다면, [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) 확장이 정확히 이러한 유형의 워크플로를 위해 설계되었으며 이 노드와 잘 어울립니다.
 

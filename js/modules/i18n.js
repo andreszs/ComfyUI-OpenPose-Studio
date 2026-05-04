@@ -17,7 +17,11 @@ const STORAGE_KEY_SOURCE = "openpose_editor_lang_source"; // "auto" | "manual"
 
 const AVAILABLE_LANGS = [
   { code: "en", label: "English" },
+  { code: "de", label: "Deutsch" },
   { code: "es", label: "Español" },
+  { code: "fr", label: "Français" },
+  { code: "pt", label: "Português" },
+  { code: "ru", label: "Русский" },
   { code: "zh", label: "中文（简体）" },
   { code: "zh-TW", label: "中文（繁體）" },
   { code: "ja", label: "日本語" },

@@ -1213,7 +1213,7 @@ ${tabsSectionHtml}
 			// Determine presence
 			const keypointId = i;
 			const isPresent = !isDisabled && displayKeypoints[keypointId] != null;
-			const isMissing = !isDisabled && !isPresent;
+			const isMissing = canEdit && !isDisabled && !isPresent;
 			
 			// Debug: log when adding rows for indices 16 and 17
 			if (i === 16 || i === 17) {
@@ -1295,9 +1295,12 @@ ${tabsSectionHtml}
 			} else if (isPresent) {
 				statusIcon.textContent = "";
 				statusIcon.classList.add("is-present");
-			} else {
+			} else if (isMissing) {
 				statusIcon.textContent = "";
 				statusIcon.classList.add("is-missing");
+			} else {
+				// No pose selected and keypoint absent from fallback display — treat as non-editable
+				statusIcon.classList.add("is-disabled");
 			}
 
 			const rightContent = document.createElement("div");
@@ -1310,23 +1313,14 @@ ${tabsSectionHtml}
 			rightContent.style.justifyContent = "flex-end";
 			rightContent.appendChild(statusIcon);
 
-			if (isPresent) {
+			if (isPresent && canEdit) {
 				const removeControl = createRemoveControl();
 				const keypointLabel = keypoint.name || `Keypoint ${keypointId}`;
-				const removable = canEdit && isKeypointRemovable(keypointId, activeKeypoints);
-				if (!canEdit) {
-					removeControl.dataset.removeDisabled = "1";
-					removeControl.dataset.removeBaseOpacity = "0.25";
-					removeControl.style.opacity = "0.25";
-					removeControl.style.cursor = "not-allowed";
-					removeControl.title = "Select a pose to edit.";
-				} else {
-					removeControl.dataset.removeDisabled = "0";
-					removeControl.dataset.removeBaseOpacity = "0.7";
-					removeControl.style.opacity = "0.7";
-					removeControl.style.cursor = "pointer";
-					removeControl.title = `Remove ${keypointLabel}`;
-				}
+				removeControl.dataset.removeDisabled = "0";
+				removeControl.dataset.removeBaseOpacity = "0.7";
+				removeControl.style.opacity = "0.7";
+				removeControl.style.cursor = "pointer";
+				removeControl.title = `Remove ${keypointLabel}`;
 				removeControl.addEventListener("click", (event) => {
 					event.stopPropagation();
 					const activeIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
@@ -1374,7 +1368,7 @@ ${tabsSectionHtml}
 					}
 					this.refreshCocoKeypointRowStyles();
 				});
-			} else if (isMissing) {
+			} else if (isMissing && canEdit) {
 				item.style.cursor = "grab";
 				item.setAttribute("draggable", "true");
 				item.addEventListener("dragstart", (event) => {
@@ -1584,11 +1578,12 @@ ${tabsSectionHtml}
 		}
 		
 		const noPoses = poses.length === 0;
-		// Sidebar is disabled ONLY when there are no poses at all
-		const isDisabled = noPoses;
+		const canEdit = selectedIndex != null && selectedIndex >= 0;
+		// Sidebar rows are non-editable when there are no poses at all OR when no pose is selected
+		const isDisabled = noPoses || !canEdit;
 		
-		// For displaying keypoint presence, use selected pose or fallback to first pose
-		const displayKeypoints = selectedKeypoints || (poses.length > 0 ? poses[0].keypoints : []);
+		// Display keypoint presence only from the selected pose; never fall back to first pose
+		const displayKeypoints = selectedKeypoints || [];
 		
 		for (const [keypointId, { item, name, statusIcon }] of this.cocoKeypointRowElements) {
 			// Debug: detailed logging for indices 16 and 17

@@ -27,6 +27,7 @@ OpenPose Studio is an advanced ComfyUI extension for creating, editing, previewi
 - 🔀 [Pose Merger](#pose-merger)
 - 🖼️ [Background Reference](#background-reference)
 - 🗺️ [Areas Input](#areas-input)
+- 🔗 [Pose Keypoint Input](#pose-keypoint-input)
 - ⚠️ [Known Limitations](#known-limitations)
 - 🔍 [Troubleshooting](#troubleshooting)
 - 🤝 [Contributing](#contributing)
@@ -120,6 +121,7 @@ If you have an idea for a new feature, I would love to hear it — we may be abl
 - **Input:** `Pose JSON` (STRING) — standard OpenPose-style JSON.
 - **Optional Inputs:**
   - `areas` (`CONDITIONING_AREAS`) — area overlay data; connect the `areas_out` output of a [Conditioning Pipeline (Combine)](https://github.com/andreszs/comfyui-lora-pipeline) node to visualize conditioning regions on the canvas
+  - `pose_keypoint` (`POSE_KEYPOINT`) — detected pose data; connect the output of a **DWPose Estimator** node to load upstream-detected poses directly into the editor
 - **Options:**
   - `render body` — include body in the rendered preview/output image
   - `render hands` — include hands in the rendered preview/output image (if present in the JSON)
@@ -171,6 +173,8 @@ The **areas** input is an **optional** connection that overlays conditioning are
 
 Connect the `areas_out` output of the [**Conditioning Pipeline (Combine)**](https://github.com/andreszs/comfyui-lora-pipeline) node from the [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) repository to visualize which regions each area targets while you position your poses.
 
+![Areas input connection — areas_out from Conditioning Pipeline (Combine) wired to the areas input of OpenPose Studio](../locales/en/openpose-studio-areas-input.png)
+
 Each area is displayed as a labeled badge on the canvas. Click any badge to **enable or disable** that area individually, letting you focus on the regions relevant to your current pose.
 
 ![Areas Input](../locales/en/openpose-studio-areas.png)
@@ -178,6 +182,14 @@ Each area is displayed as a labeled badge on the canvas. Click any badge to **en
 This combination is particularly useful when building multi-character workflows: [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) handles the per-area conditioning and LoRA assignment, while OpenPose Studio keeps the pose placement accurate within each region. The result is a straightforward, non-destructive setup where both per-area and per-pose LoRAs can be applied simultaneously without interference. If you are not yet familiar with area-based conditioning, the [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) extension is designed exactly for this kind of workflow and pairs well with this node.
 
 For a real-world example of all three repos working together — area conditioning, OpenPose control, and style layering — see this [step-by-step workflow guide](https://www.andreszsogon.com/building-a-multi-character-comfyui-workflow-with-area-conditioning-openpose-control-and-style-layering/).
+
+### <a id="pose-keypoint-input"></a>Pose Keypoint Input
+
+The **pose_keypoint** input is an **optional** connection that lets OpenPose Studio consume pose data detected upstream in your workflow.
+
+Connect the output of a **DWPose Estimator** node to this input. The detected keypoints are loaded directly into the editor, where you can inspect, refine, or extend them before rendering.
+
+![Pose keypoint input connection — DWPose Estimator output wired to the pose_keypoint input of OpenPose Studio](../locales/en/openpose-studio-pose_keypoint-input.png)
 
 ---
 

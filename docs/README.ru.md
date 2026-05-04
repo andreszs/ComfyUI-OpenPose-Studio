@@ -171,9 +171,11 @@ OpenPose Studio — это продвинутое расширение для Co
 
 Подключите выход `areas_out` ноды [**Conditioning Pipeline (Combine)**](https://github.com/andreszs/comfyui-lora-pipeline) из репозитория [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline), чтобы визуализировать целевые регионы каждой области при позиционировании поз.
 
+![Подключение входа areas — выход areas_out Conditioning Pipeline (Combine) подключён к входу areas OpenPose Studio](../locales/en/openpose-studio-areas-input.png)
+
 Каждая область отображается в виде подписанного значка на canvas. Нажмите на значок, чтобы **включить или отключить** соответствующую область отдельно, что позволяет сосредоточиться на регионах, важных для текущей позы.
 
-![Areas Input](../locales/en/openpose-studio-areas.png)
+![Areas Input](../locales/ru/openpose-studio-areas.png)
 
 Эта комбинация особенно полезна при создании workflows с несколькими персонажами: [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) управляет кондиционированием по областям и назначением LoRA, тогда как OpenPose Studio обеспечивает точное позиционирование поз в каждом регионе. В результате получается простая и неразрушающая конфигурация, в которой LoRA как по областям, так и по позам могут применяться одновременно без взаимных помех. Если вы ещё не знакомы с кондиционированием на основе областей, расширение [ComfyUI-LoRA-Pipeline](https://github.com/andreszs/comfyui-lora-pipeline) создано именно для такого типа workflow и отлично сочетается с этой нодой.
 
