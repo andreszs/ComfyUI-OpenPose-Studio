@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.7.0] - 2026-05-07
+
+### Fixed
+- Fixed the OpenPose Studio node preview to work correctly with ComfyUI Nodes 2.0, restoring full preview functionality for users on the new node system.
+- Preserved backward compatibility so the preview continues to work with classic ComfyUI nodes.
+- Fixed direct `Pose JSON` widget edits not refreshing the preview; changes to the widget value now immediately update the displayed pose.
+
+---
+
 ## [1.6.0] - 2026-05-04
 
 ### Added

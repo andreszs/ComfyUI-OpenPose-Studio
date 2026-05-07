@@ -2224,192 +2224,44 @@ app.registerExtension({
                     });
                 };
 
-                // Add preview image widget at the end (like Load Image node)
-                this.previewWidget = this.addCustomWidget({
-                    name: "preview",
-                    type: "image",
-                    value: null,
-                    draw: function(ctx, node, widgetWidth, y, widgetHeight) {
-                        const margin = 10;
-                        const size = Math.min(widgetWidth - margin * 2, 180);
-                        const x = (widgetWidth - size) / 2;
+                // Add preview widget – DOM-based so it works in both classic
+                // mode and Nodes 2.0.
+                const previewNode = this;
+                const previewContainer = document.createElement("div");
+                previewContainer.className = "ope-preview-widget";
+                previewContainer.style.cssText = "width:100%; height:100%; position:relative; cursor:pointer; overflow:hidden; box-sizing:border-box;";
 
-                        const theme = getComfyThemeSafe();
-                        const smokedGlass = getSmokedGlassCanvasStyle(theme);
-                        const previewSurface = smokedGlass.surface;
-                        const previewBorder = smokedGlass.border;
-                        const shadowSpec = smokedGlass.shadowSpec;
-                        const shadowColor = smokedGlass.shadowColor;
+                const previewImgEl = document.createElement("img");
+                previewImgEl.style.cssText = "width:100%; height:100%; object-fit:contain; display:none;";
 
-                        if (previewSurface) {
-                            ctx.fillStyle = previewSurface;
-                            ctx.fillRect(x, y, size, size);
-                        }
-                        if (previewSurface && shadowSpec && shadowColor) {
-                            ctx.save();
-                            ctx.shadowColor = shadowColor;
-                            ctx.shadowBlur = shadowSpec.blur;
-                            ctx.shadowOffsetX = shadowSpec.x;
-                            ctx.shadowOffsetY = shadowSpec.y;
-                            const inset = Math.max(1, Math.round(shadowSpec.blur / 7));
-                            ctx.fillStyle = previewSurface;
-                            ctx.fillRect(x + inset, y + inset, size - inset * 2, size - inset * 2);
-                            ctx.restore();
-                        }
-                        const isPreviewHovered = !!node?._openposePreviewHover;
-                        const previewHoverBorder = theme?.primaryBg || "#2f8cff";
+                const previewPlaceholder = document.createElement("div");
+                previewPlaceholder.className = "ope-preview-placeholder";
+                previewPlaceholder.textContent = "No pose";
+                previewPlaceholder.style.cssText = "position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#888; font:12px Arial,sans-serif; pointer-events:none;";
 
-                        // Draw image if available
-                        if (this.image && this.image.complete) {
-                            ctx.drawImage(this.image, x, y, size, size);
-                        } else {
-                            // Draw placeholder text
-                            ctx.fillStyle = "#555";
-                            ctx.font = "12px Arial";
-                            ctx.textAlign = "center";
-                            ctx.textBaseline = "middle";
-                            ctx.fillText("No pose", x + size / 2, y + size / 2);
-                        }
+                const editIconEl = document.createElement("div");
+                editIconEl.className = "ope-preview-edit-icon";
+                editIconEl.textContent = "✎";
+                editIconEl.style.cssText = "position:absolute; bottom:6px; right:6px; background:rgba(255,255,255,0.22); color:rgba(0,0,0,0.8); border-radius:3px; padding:2px 5px; font-size:13px; pointer-events:none;";
 
-                        // Subtle edit affordance overlay (always visible)
-                        const iconPadding = Math.round(Math.max(8, size * 0.05));
-                        const iconSize = Math.round(Math.max(12, size * 0.12));
-                        const iconInset = Math.round(Math.max(4, iconSize * 0.25));
-                        const iconBox = iconSize + iconInset * 2;
-                        const iconX = x + size - iconPadding - iconBox;
-                        const iconY = y + size - iconPadding - iconBox;
-                        const iconBg = theme.isLight ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.22)";
-                        const iconFg = theme.isLight ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.78)";
-                        const roundRect = (rc, rx, ry, rw, rh, rr) => {
-                            const r = Math.min(rr, rw / 2, rh / 2);
-                            rc.beginPath();
-                            rc.moveTo(rx + r, ry);
-                            rc.arcTo(rx + rw, ry, rx + rw, ry + rh, r);
-                            rc.arcTo(rx + rw, ry + rh, rx, ry + rh, r);
-                            rc.arcTo(rx, ry + rh, rx, ry, r);
-                            rc.arcTo(rx, ry, rx + rw, ry, r);
-                            rc.closePath();
-                        };
+                previewContainer.appendChild(previewImgEl);
+                previewContainer.appendChild(previewPlaceholder);
+                previewContainer.appendChild(editIconEl);
 
-                        ctx.save();
-                        ctx.shadowColor = theme.isLight ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.35)";
-                        ctx.shadowBlur = 4;
-                        roundRect(ctx, iconX, iconY, iconBox, iconBox, Math.round(iconBox * 0.22));
-                        ctx.fillStyle = iconBg;
-                        ctx.fill();
-                        ctx.shadowBlur = 0;
-                        ctx.fillStyle = iconFg;
-                        ctx.font = `${iconSize}px "Segoe UI Symbol", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
-                        ctx.textAlign = "center";
-                        ctx.textBaseline = "middle";
-                        ctx.fillText("✎", iconX + iconBox / 2, iconY + iconBox / 2 + 0.5);
-                        ctx.restore();
+                previewContainer.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    if (typeof previewNode.openOpenPoseEditor === "function") {
+                        previewNode.openOpenPoseEditor();
+                    }
+                });
 
-                        // Border drawn last so hover color is visible over preview image.
-                        if (previewBorder) {
-                            ctx.strokeStyle = isPreviewHovered ? previewHoverBorder : previewBorder;
-                            ctx.lineWidth = 1;
-                            ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
-                        }
-                    },
-                    computeSize: function() {
-                        return [200, 190];
-                    },
+                this.previewWidget = this.addDOMWidget("preview", "image", previewContainer, {
+                    computeSize: () => [200, 190],
                     serialize: false
                 });
-                this.previewWidget.image = null;
-                this.previewWidget.onPointerDown = (pointer, node, canvas) => {
-                    if (!node || typeof node.openOpenPoseEditor !== "function") {
-                        return false;
-                    }
-                    pointer.onClick = () => {
-                        debugLog("[OpenPose Studio] Preview click -> open editor", {
-                            nodeId: node.id
-                        });
-                        node.openOpenPoseEditor();
-                    };
-                    return true;
-                };
-
-                const previewNode = this;
-                const setPreviewCursor = (active, canvas) => {
-                    if (!canvas || !canvas.canvas) {
-                        return;
-                    }
-                    if (previewNode._openposePreviewHover !== active) {
-                        previewNode._openposePreviewHover = active;
-                        previewNode.setDirtyCanvas?.(true);
-                    }
-                    if (active) {
-                        if (!previewNode._openposePreviewCursorActive) {
-                            previewNode._openposePreviewCursorActive = true;
-                            previewNode._openposePreviewCanvas = canvas;
-                            if (canvas.state && previewNode._openposePreviewPrevCursorState === undefined) {
-                                previewNode._openposePreviewPrevCursorState = canvas.state.shouldSetCursor;
-                                canvas.state.shouldSetCursor = false;
-                            }
-                        }
-                        canvas.canvas.style.cursor = "pointer";
-                    } else if (previewNode._openposePreviewCursorActive) {
-                        previewNode._openposePreviewCursorActive = false;
-                        if (previewNode._openposePreviewCanvas?.state) {
-                            previewNode._openposePreviewCanvas.state.shouldSetCursor =
-                                previewNode._openposePreviewPrevCursorState !== undefined
-                                    ? previewNode._openposePreviewPrevCursorState
-                                    : true;
-                        }
-                        previewNode._openposePreviewPrevCursorState = undefined;
-                        previewNode._openposePreviewCanvas = null;
-                    }
-                };
-
-                const bindPreviewElement = (element) => {
-                    if (!element || element.dataset?.openposePreviewBound) {
-                        return;
-                    }
-                    element.dataset.openposePreviewBound = "1";
-                    element.style.pointerEvents = "auto";
-                    element.style.cursor = "pointer";
-                    element.addEventListener("click", (event) => {
-                        event.stopPropagation();
-                        debugLog("[OpenPose Studio] Preview element click -> open editor", {
-                            nodeId: previewNode.id
-                        });
-                        if (typeof previewNode.openOpenPoseEditor === "function") {
-                            previewNode.openOpenPoseEditor();
-                        }
-                    });
-                };
-
-                if (this.previewWidget.element) {
-                    bindPreviewElement(this.previewWidget.element);
-                }
-
-                const onMouseMove = this.onMouseMove;
-                this.onMouseMove = function(e, pos, canvas) {
-                    if (typeof onMouseMove === "function") {
-                        onMouseMove.apply(this, arguments);
-                    }
-                    if (!canvas || typeof canvas.getWidgetAtCursor !== "function" || !this.previewWidget) {
-                        return;
-                    }
-                    const overWidget = canvas.getWidgetAtCursor(this);
-                    setPreviewCursor(overWidget === this.previewWidget, canvas);
-                };
-
-                const onMouseLeave = this.onMouseLeave;
-                this.onMouseLeave = function(e) {
-                    setPreviewCursor(false, this._openposePreviewCanvas || LiteGraph.LGraphCanvas.active_canvas);
-                    if (typeof onMouseLeave === "function") {
-                        return onMouseLeave.apply(this, arguments);
-                    }
-                };
 
                 // Method to update preview
                 this.updatePreview = () => {
-                    if (this.previewWidget?.element) {
-                        bindPreviewElement(this.previewWidget.element);
-                    }
                     if (!this.jsonWidget && Array.isArray(this.widgets)) {
                         this.jsonWidget = this.widgets.find(w => w.name === "pose_json");
                     }
@@ -2418,24 +2270,41 @@ app.registerExtension({
                         ? widgetValue
                         : this.properties.savedPose;
                     if (!poseJson) {
-                        this.previewWidget.image = null;
-                        this.setDirtyCanvas(true);
+                        previewImgEl.src = "";
+                        previewImgEl.style.display = "none";
+                        previewPlaceholder.style.display = "flex";
                         return;
                     }
 
                     const dataUrl = renderPoseToDataURL(poseJson);
                     if (dataUrl) {
-                        const img = new Image();
-                        img.onload = () => {
-                            this.previewWidget.image = img;
-                            this.setDirtyCanvas(true);
-                        };
-                        img.src = dataUrl;
+                        previewImgEl.src = dataUrl;
+                        previewImgEl.style.display = "block";
+                        previewPlaceholder.style.display = "none";
                     } else {
-                        this.previewWidget.image = null;
-                        this.setDirtyCanvas(true);
+                        previewImgEl.src = "";
+                        previewImgEl.style.display = "none";
+                        previewPlaceholder.style.display = "flex";
                     }
                 };
+
+                // In Nodes 2.0, inline widget edits call widget.callback directly
+                // instead of routing through node.onWidgetChanged. Patch the callback
+                // so both modes trigger a preview refresh on pose_json changes.
+                if (this.jsonWidget) {
+                    const origCallback = this.jsonWidget.callback;
+                    const node = this;
+                    this.jsonWidget.callback = function(value) {
+                        if (origCallback) origCallback.call(this, value);
+                        if (!node.properties) node.properties = {};
+                        if (typeof value === "string") {
+                            node.properties.savedPose = value;
+                        } else if (value && typeof value === "object") {
+                            try { node.properties.savedPose = JSON.stringify(value); } catch {}
+                        }
+                        if (typeof node.updatePreview === "function") node.updatePreview();
+                    };
+                }
 
                 // Sync incoming connected Pose JSON back into widget state and preview
                 // after each server-side execution. Handled globally in the extension
