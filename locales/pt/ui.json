@@ -99,6 +99,7 @@
   "render_style.summary.title": "Renderização",
   "render_style.summary.description": "Configurar o estilo visual para renderização",
   "render_style.intro": "Personalize como as poses são renderizadas na tela.",
+  "render_style.storage_note": "As configurações de renderização são salvas localmente neste navegador, não no workflow.",
   "render_style.btn.reset": "Restaurar padrões",
   "render_style.section.body": "Corpo",
   "render_style.section.hands": "Mãos",

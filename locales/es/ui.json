@@ -1,4 +1,4 @@
-﻿{
+{
   "about.summary.title": "Acerca de",
   "about.summary.description": "Busca actualizaciones y apoya el proyecto",
   "about.version.title": "Versión actual del plugin",
@@ -97,6 +97,7 @@
   "render_style.summary.title": "Render",
   "render_style.summary.description": "Configura el estilo visual para el renderizado",
   "render_style.intro": "Personaliza cómo se renderizan las poses en el lienzo.",
+  "render_style.storage_note": "Los ajustes de render se guardan localmente en este navegador, no en el workflow.",
   "render_style.btn.reset": "Restablecer",
   "render_style.section.body": "Cuerpo",
   "render_style.section.hands": "Manos",

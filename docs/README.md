@@ -25,6 +25,7 @@ OpenPose Studio is an advanced ComfyUI extension for creating, editing, previewi
 - 📋 [Format Specifications](#format-specifications)
 - 🖼️ [Gallery & Pose Management](#gallery--pose-management)
 - 🔀 [Pose Merger](#pose-merger)
+- 🎨 [Render](#render)
 - 🖼️ [Background Reference](#background-reference)
 - 🗺️ [Areas Input](#areas-input)
 - 🔗 [Pose Keypoint Input](#pose-keypoint-input)
@@ -340,6 +341,16 @@ The **Pose Merger** tab consolidates multiple individual pose JSON files into or
 - **Individual Files**: One file per pose (for compatibility)
 
 Both output formats are automatically picked up by Gallery and Pose Selector.
+
+---
+
+## Render
+
+The **Render** module lets you customize how the OpenPose stickman is rendered when the workflow executes. It includes body, hands, and face styling controls such as line width, keypoint radius, and keypoint color for hands/face.
+
+Render settings are saved locally in this browser's local storage, not in the workflow. Changing them affects subsequent workflow executions.
+
+![OpenPose Studio Render module](../locales/en/openpose-studio-render.png)
 
 ---
 

@@ -1,12 +1,12 @@
 import { t } from "./i18n.js";
 import { registerModule } from "./index.js";
 import { applySidebarButtonStyles } from "../utils.js";
-import { getFormat, DEFAULT_FORMAT_ID } from "../formats/index.js";
 import { getPersistedJSON, setPersistedJSON } from "../utils.js";
 import { UiIcons } from "../ui-icons.js";
 
 const RENDER_STYLE_STORAGE_KEY = "render_style";
-const RENDER_STYLE_VERSION = 1;
+const RENDER_STYLE_VERSION = 2;
+const RENDER_STYLE_SYNC_URL = "/openpose/render_style";
 
 const RENDER_STYLE_KEYS = {
 	version: "comfyui_openpose_editor.renderer.version",
@@ -29,6 +29,11 @@ const RENDER_STYLE_KEYS = {
 
 const LINE_WIDTH_RANGE = { min: 0, max: 12 };
 const KEYPOINT_RADIUS_RANGE = { min: 0, max: 24 };
+const DISPLAY_COLOR_FALLBACKS = {
+	body: [255, 0, 0, 255],
+	hands: [0, 0, 255, 255],
+	face: [255, 255, 255, 255]
+};
 
 export function buildRenderStylePanelHtml() {
   return `
@@ -38,7 +43,7 @@ export function buildRenderStylePanelHtml() {
 				<div class="openpose-render-style-header">
 					<div class="openpose-render-style-intro">${t("render_style.intro")}</div>
 					<div class="openpose-render-style-actions">
-						<button class="openpose-btn openpose-render-style-reset" data-action="render-style-reset" disabled>\u{267B}\u{FE0F} ${t("render_style.btn.reset")}</button>
+						<button class="openpose-btn openpose-render-style-reset" data-action="render-style-reset">\u{267B}\u{FE0F} ${t("render_style.btn.reset")}</button>
 					</div>
 				</div>
 				<div class="openpose-render-style-controls-wrapper">
@@ -47,7 +52,7 @@ export function buildRenderStylePanelHtml() {
 							<div class="openpose-render-style-section-title">${t("render_style.section.body")}</div>
 						<div class="openpose-render-style-grid">
 							<label class="openpose-render-style-label">${t("render_style.field.line_width")}</label>
-							<div class="openpose-render-style-input-row"><input class="openpose-input openpose-render-style-number" type="number" min="0" max="12" step="1" data-render-field="line_width" disabled /><span class="openpose-render-style-unit">${t("render_style.unit.px")}</span></div>
+							<div class="openpose-render-style-input-row"><input class="openpose-input openpose-render-style-number" type="number" min="0" max="12" step="1" data-render-field="line_width" /><span class="openpose-render-style-unit">${t("render_style.unit.px")}</span></div>
 							<label class="openpose-render-style-label">${t("render_style.field.keypoint_radius")}</label>
 							<div class="openpose-render-style-input-row"><input class="openpose-input openpose-render-style-number" type="number" min="0" max="24" step="1" data-render-field="keypoint_radius" /><span class="openpose-render-style-unit">${t("render_style.unit.px")}</span></div>
 						</div>
@@ -56,27 +61,27 @@ export function buildRenderStylePanelHtml() {
 						<div class="openpose-render-style-section-title">${t("render_style.section.hands")}</div>
 						<div class="openpose-render-style-grid">
 							<label class="openpose-render-style-label">${t("render_style.field.line_width")}</label>
-							<div class="openpose-render-style-input-row"><input class="openpose-input openpose-render-style-number" type="number" min="0" max="12" step="1" data-render-field="line_width" disabled /><span class="openpose-render-style-unit">${t("render_style.unit.px")}</span></div>
+							<div class="openpose-render-style-input-row"><input class="openpose-input openpose-render-style-number" type="number" min="0" max="12" step="1" data-render-field="line_width" /><span class="openpose-render-style-unit">${t("render_style.unit.px")}</span></div>
 							<label class="openpose-render-style-label">${t("render_style.field.keypoint_radius")}</label>
 							<div class="openpose-render-style-input-row"><input class="openpose-input openpose-render-style-number" type="number" min="0" max="24" step="1" data-render-field="keypoint_radius" /><span class="openpose-render-style-unit">${t("render_style.unit.px")}</span></div>
 							<label class="openpose-render-style-label">${t("render_style.field.keypoint_color")}</label>
 							<div class="openpose-render-style-color-row">
-								<input class="openpose-render-style-color" type="color" data-render-field="color_picker" disabled />
+								<input class="openpose-render-style-color" type="color" data-render-field="color_picker" />
 								<div class="openpose-render-style-channel">
 									<span class="openpose-render-style-channel-label">R</span>
-									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="r" disabled />
+									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="r" />
 								</div>
 								<div class="openpose-render-style-channel">
 									<span class="openpose-render-style-channel-label">G</span>
-									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="g" disabled />
+									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="g" />
 								</div>
 								<div class="openpose-render-style-channel">
 									<span class="openpose-render-style-channel-label">B</span>
-									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="b" disabled />
+									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="b" />
 								</div>
 								<div class="openpose-render-style-channel">
 									<span class="openpose-render-style-channel-label">A</span>
-									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="a" disabled />
+									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="a" />
 								</div>
 							</div>
 						</div>
@@ -85,38 +90,33 @@ export function buildRenderStylePanelHtml() {
 						<div class="openpose-render-style-section-title">${t("render_style.section.face")}</div>
 						<div class="openpose-render-style-grid">
 							<label class="openpose-render-style-label">${t("render_style.field.line_width")}</label>
-							<div class="openpose-render-style-input-row"><input class="openpose-input openpose-render-style-number" type="number" min="0" max="12" step="1" data-render-field="line_width" disabled /><span class="openpose-render-style-unit">${t("render_style.unit.px")}</span></div>
+							<div class="openpose-render-style-input-row"><input class="openpose-input openpose-render-style-number" type="number" min="0" max="12" step="1" data-render-field="line_width" /><span class="openpose-render-style-unit">${t("render_style.unit.px")}</span></div>
 							<label class="openpose-render-style-label">${t("render_style.field.keypoint_radius")}</label>
 							<div class="openpose-render-style-input-row"><input class="openpose-input openpose-render-style-number" type="number" min="0" max="24" step="1" data-render-field="keypoint_radius" /><span class="openpose-render-style-unit">${t("render_style.unit.px")}</span></div>
 							<label class="openpose-render-style-label">${t("render_style.field.keypoint_color")}</label>
 							<div class="openpose-render-style-color-row">
-								<input class="openpose-render-style-color" type="color" data-render-field="color_picker" disabled />
+								<input class="openpose-render-style-color" type="color" data-render-field="color_picker" />
 								<div class="openpose-render-style-channel">
 									<span class="openpose-render-style-channel-label">R</span>
-									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="r" disabled />
+									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="r" />
 								</div>
 								<div class="openpose-render-style-channel">
 									<span class="openpose-render-style-channel-label">G</span>
-									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="g" disabled />
+									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="g" />
 								</div>
 								<div class="openpose-render-style-channel">
 									<span class="openpose-render-style-channel-label">B</span>
-									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="b" disabled />
+									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="b" />
 								</div>
 								<div class="openpose-render-style-channel">
 									<span class="openpose-render-style-channel-label">A</span>
-									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="a" disabled />
+									<input class="openpose-input openpose-render-style-channel-input" type="number" min="0" max="255" step="1" data-render-channel="a" />
 								</div>
 							</div>
 						</div>
 					</div>
 				</div>
-			</div>
-			<div class="openpose-alert openpose-alert-warning">
-				<div class="openpose-alert-icon">⚠️</div>
-				<div class="openpose-alert-body">
-					<p>${t("feature.not_available_yet")}</p>
-				</div>
+				<div class="openpose-render-style-note">${t("render_style.storage_note")}</div>
 			</div>
 		</div>
 	</div>
@@ -133,6 +133,9 @@ function clampNumber(value, min, max, fallback) {
 }
 
 function normalizeColorArray(value, fallback) {
+	if (value === null && fallback === null) {
+		return null;
+	}
 	const source = Array.isArray(value) ? value : [];
 	const base = Array.isArray(fallback) ? fallback : [0, 0, 0, 255];
 	const output = [];
@@ -147,60 +150,80 @@ function normalizeColorArray(value, fallback) {
 function normalizeSectionSettings(payload, defaults, keyMap) {
 	const rawLineWidth = payload[keyMap.lineWidth];
 	const rawKeypointRadius = payload[keyMap.keypointRadius];
-	return {
+	const settings = {
 		lineWidth: Math.round(clampNumber(rawLineWidth, LINE_WIDTH_RANGE.min, LINE_WIDTH_RANGE.max, defaults.lineWidth)),
 		keypointColor: normalizeColorArray(payload[keyMap.keypointColor], defaults.keypointColor),
 		keypointRadius: Math.round(clampNumber(rawKeypointRadius, KEYPOINT_RADIUS_RANGE.min, KEYPOINT_RADIUS_RANGE.max, defaults.keypointRadius))
 	};
+	if (settings.lineWidth <= 0 && settings.keypointRadius <= 0) {
+		settings.lineWidth = defaults.lineWidth;
+		settings.keypointRadius = defaults.keypointRadius;
+	}
+	return settings;
 }
 
 function buildPayload(settings) {
 	return {
 		[RENDER_STYLE_KEYS.version]: settings.version,
 		[RENDER_STYLE_KEYS.body.lineWidth]: settings.body.lineWidth,
-		[RENDER_STYLE_KEYS.body.keypointColor]: settings.body.keypointColor.slice(),
+		[RENDER_STYLE_KEYS.body.keypointColor]: Array.isArray(settings.body.keypointColor) ? settings.body.keypointColor.slice() : null,
 		[RENDER_STYLE_KEYS.body.keypointRadius]: settings.body.keypointRadius,
 		[RENDER_STYLE_KEYS.hands.lineWidth]: settings.hands.lineWidth,
-		[RENDER_STYLE_KEYS.hands.keypointColor]: settings.hands.keypointColor.slice(),
+		[RENDER_STYLE_KEYS.hands.keypointColor]: Array.isArray(settings.hands.keypointColor) ? settings.hands.keypointColor.slice() : null,
 		[RENDER_STYLE_KEYS.hands.keypointRadius]: settings.hands.keypointRadius,
 		[RENDER_STYLE_KEYS.face.lineWidth]: settings.face.lineWidth,
-		[RENDER_STYLE_KEYS.face.keypointColor]: settings.face.keypointColor.slice(),
+		[RENDER_STYLE_KEYS.face.keypointColor]: Array.isArray(settings.face.keypointColor) ? settings.face.keypointColor.slice() : null,
 		[RENDER_STYLE_KEYS.face.keypointRadius]: settings.face.keypointRadius
 	};
 }
 
 function buildDefaultSettings(openpose) {
-	const renderer = openpose?.renderer;
-	const format = getFormat(renderer?.activeFormatId || DEFAULT_FORMAT_ID) || getFormat(DEFAULT_FORMAT_ID);
-	const bodyColor = (format?.keypointColors && format.keypointColors[0]) || format?.keypoints?.[0]?.rgb || [255, 0, 0];
+	void openpose;
 	return {
 		version: RENDER_STYLE_VERSION,
 		body: {
-			lineWidth: Number.isFinite(renderer?.lineWidth) ? renderer.lineWidth : 10,
-			keypointColor: normalizeColorArray(bodyColor, [255, 0, 0, 255]),
-			keypointRadius: Number.isFinite(renderer?.keypointRadius) ? renderer.keypointRadius : 5
+			lineWidth: 4,
+			keypointColor: null,
+			keypointRadius: 4
 		},
 		hands: {
-			lineWidth: Number.isFinite(renderer?.handLineWidth) ? renderer.handLineWidth : 3,
-			keypointColor: [0, 0, 255, 255],
-			keypointRadius: Number.isFinite(renderer?.keypointRadius) ? renderer.keypointRadius : 5
+			lineWidth: 2,
+			keypointColor: null,
+			keypointRadius: 4
 		},
 		face: {
-			lineWidth: 1,
+			lineWidth: 0,
 			keypointColor: [255, 255, 255, 255],
-			keypointRadius: Number.isFinite(renderer?.faceKeypointRadius) ? renderer.faceKeypointRadius : 2
+			keypointRadius: 4
 		}
 	};
 }
 
 function buildSettingsFromPayload(payload, defaults) {
 	const safePayload = payload && typeof payload === "object" ? payload : {};
+	const version = Number(safePayload[RENDER_STYLE_KEYS.version]);
+	if (version !== RENDER_STYLE_VERSION) {
+		return JSON.parse(JSON.stringify(defaults));
+	}
 	return {
-		version: clampNumber(safePayload[RENDER_STYLE_KEYS.version], 1, 9999, defaults.version),
+		version: RENDER_STYLE_VERSION,
 		body: normalizeSectionSettings(safePayload, defaults.body, RENDER_STYLE_KEYS.body),
 		hands: normalizeSectionSettings(safePayload, defaults.hands, RENDER_STYLE_KEYS.hands),
 		face: normalizeSectionSettings(safePayload, defaults.face, RENDER_STYLE_KEYS.face)
 	};
+}
+
+function ensureVisibleSections(settings, defaults) {
+	["body", "hands", "face"].forEach((section) => {
+		if (!settings?.[section] || !defaults?.[section]) {
+			return;
+		}
+		if (settings[section].lineWidth <= 0 && settings[section].keypointRadius <= 0) {
+			settings[section].lineWidth = defaults[section].lineWidth;
+			settings[section].keypointRadius = defaults[section].keypointRadius;
+		}
+	});
+	return settings;
 }
 
 function rgbToHex(color) {
@@ -238,10 +261,33 @@ const renderStyleState = {
 	isUpdating: false
 };
 
+export function getRenderStylePayload() {
+	const defaults = buildDefaultSettings(null);
+	const stored = getPersistedJSON(RENDER_STYLE_STORAGE_KEY, null);
+	return buildPayload(buildSettingsFromPayload(stored, defaults));
+}
+
+export async function syncRenderStyleToServer(payload = getRenderStylePayload()) {
+	try {
+		await fetch(RENDER_STYLE_SYNC_URL, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(payload),
+			cache: "no-store"
+		});
+		return true;
+	} catch (error) {
+		return false;
+	}
+}
+
 function setRenderStyleState(settings) {
+	const defaults = renderStyleState.defaults || buildDefaultSettings(null);
+	settings = ensureVisibleSections(settings, defaults);
 	renderStyleState.settings = settings;
 	renderStyleState.payload = buildPayload(settings);
 	setPersistedJSON(RENDER_STYLE_STORAGE_KEY, renderStyleState.payload);
+	void syncRenderStyleToServer(renderStyleState.payload);
 	if (renderStyleState.openpose) {
 		renderStyleState.openpose.renderStyleSettings = settings;
 		renderStyleState.openpose.renderStylePayload = renderStyleState.payload;
@@ -253,21 +299,22 @@ function updateColorControls(section, color) {
 	if (!controls) {
 		return;
 	}
+	const displayColor = Array.isArray(color) ? color : DISPLAY_COLOR_FALLBACKS[section];
 	if (controls.colorInput) {
-		controls.colorInput.value = rgbToHex(color);
+		controls.colorInput.value = rgbToHex(displayColor);
 	}
 	if (controls.channelInputs) {
 		if (controls.channelInputs.r) {
-			controls.channelInputs.r.value = color[0];
+			controls.channelInputs.r.value = displayColor[0];
 		}
 		if (controls.channelInputs.g) {
-			controls.channelInputs.g.value = color[1];
+			controls.channelInputs.g.value = displayColor[1];
 		}
 		if (controls.channelInputs.b) {
-			controls.channelInputs.b.value = color[2];
+			controls.channelInputs.b.value = displayColor[2];
 		}
 		if (controls.channelInputs.a) {
-			controls.channelInputs.a.value = color[3];
+			controls.channelInputs.a.value = displayColor[3];
 		}
 	}
 }
@@ -329,6 +376,7 @@ function handleNumberChange(section, field, value, inputEl) {
 	settings[section][field] = clamped;
 	updateNumberInput(inputEl, clamped);
 	setRenderStyleState(settings);
+	applySettingsToUI(renderStyleState.settings);
 	renderStyleState.isUpdating = false;
 }
 
@@ -362,12 +410,12 @@ function bindSectionHandlers(section, controls) {
 		if (!rgb) {
 			return;
 		}
-		const current = renderStyleState.settings?.[section]?.keypointColor || [0, 0, 0, 255];
+		const current = renderStyleState.settings?.[section]?.keypointColor || DISPLAY_COLOR_FALLBACKS[section] || [0, 0, 0, 255];
 		handleColorChange(section, [rgb[0], rgb[1], rgb[2], current[3]]);
 	});
 	Object.entries(controls.channelInputs || {}).forEach(([channel, input]) => {
 		input?.addEventListener("change", (event) => {
-			const current = renderStyleState.settings?.[section]?.keypointColor || [0, 0, 0, 255];
+			const current = renderStyleState.settings?.[section]?.keypointColor || DISPLAY_COLOR_FALLBACKS[section] || [0, 0, 0, 255];
 			const next = current.slice();
 			const indexMap = { r: 0, g: 1, b: 2, a: 3 };
 			const channelIndex = indexMap[channel];
@@ -467,6 +515,14 @@ export function setupRenderStyleStyles(container) {
 		intro.style.opacity = "0.85";
 		intro.style.color = "var(--openpose-text-muted)";
 		intro.style.flex = "1 1 auto";
+	}
+
+	const note = container.querySelector(".openpose-render-style-note");
+	if (note) {
+		note.style.fontSize = "11px";
+		note.style.lineHeight = "1.35";
+		note.style.color = "var(--openpose-text-muted)";
+		note.style.opacity = "0.72";
 	}
 
 	container.querySelectorAll(".openpose-render-style-sections").forEach((section) => {

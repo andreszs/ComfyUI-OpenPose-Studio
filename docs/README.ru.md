@@ -25,6 +25,7 @@ OpenPose Studio — это продвинутое расширение для Co
 - 📋 [Спецификации формата](#спецификации-формата)
 - 🖼️ [Галерея и управление позами](#галерея-и-управление-позами)
 - 🔀 [Pose Merger](#pose-merger)
+- 🎨 [Render](#render)
 - 🖼️ [Фоновое изображение](#background-reference)
 - 🗺️ [Areas Input](#areas-input)
 - ⚠️ [Известные ограничения](#известные-ограничения)
@@ -330,6 +331,16 @@ Gallery поддерживает три режима отображения:
 - **Individual Files**: Один файл на позу (для совместимости)
 
 Оба формата вывода автоматически подхватываются Gallery и Pose Selector.
+
+---
+
+## Render
+
+Модуль **Render** позволяет настраивать, как OpenPose stickman отрисовывается при выполнении workflow. Он включает настройки стиля для body, hands и face, такие как толщина линий, радиус keypoint и цвет keypoint для hands/face.
+
+Настройки Render сохраняются локально в local storage этого браузера, а не в workflow. Их изменение влияет на последующие выполнения workflow.
+
+![OpenPose Studio Render module](../locales/en/openpose-studio-render.png)
 
 ---
 

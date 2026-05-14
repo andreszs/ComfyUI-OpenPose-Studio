@@ -25,6 +25,7 @@ OpenPose Studio est une extension avancée pour ComfyUI permettant de créer, mo
 - 📋 [Spécifications de format](#spécifications-de-format)
 - 🖼️ [Galerie et gestion des poses](#galerie-et-gestion-des-poses)
 - 🔀 [Pose Merger](#pose-merger)
+- 🎨 [Render](#render)
 - 🖼️ [Référence d'arrière-plan](#background-reference)
 - 🗺️ [Areas Input](#areas-input)
 - ⚠️ [Limitations connues](#limitations-connues)
@@ -330,6 +331,16 @@ L'onglet **Pose Merger** consolide plusieurs fichiers JSON de poses individuelle
 - **Individual Files** : Un fichier par pose (pour la compatibilité)
 
 Les deux formats de sortie sont automatiquement détectés par Gallery et Pose Selector.
+
+---
+
+## Render
+
+Le module **Render** permet de personnaliser le rendu du stickman OpenPose lors de l'exécution du workflow. Il inclut des contrôles de style pour body, hands et face, comme la largeur de ligne, le rayon des keypoints et la couleur des keypoints pour hands/face.
+
+Les paramètres Render sont enregistrés localement dans le local storage de ce navigateur, pas dans le workflow. Les modifier affecte les exécutions suivantes du workflow.
+
+![OpenPose Studio Render module](../locales/en/openpose-studio-render.png)
 
 ---
 

@@ -25,6 +25,7 @@ OpenPose Studio ist eine fortschrittliche ComfyUI-Erweiterung zum Erstellen, Bea
 - 📋 [Formatspezifikationen](#formatspezifikationen)
 - 🖼️ [Galerie und Pose-Verwaltung](#galerie-und-pose-verwaltung)
 - 🔀 [Pose Merger](#pose-merger)
+- 🎨 [Render](#render)
 - 🖼️ [Hintergrundreeferenz](#background-reference)
 - 🗺️ [Areas Input](#areas-input)
 - ⚠️ [Bekannte Einschränkungen](#bekannte-einschränkungen)
@@ -330,6 +331,16 @@ Die **Pose Merger**-Registerkarte fasst mehrere einzelne Pose-JSON-Dateien in or
 - **Individual Files**: Eine Datei pro Pose (für Kompatibilität)
 
 Beide Ausgabeformate werden automatisch von Gallery und Pose Selector erkannt.
+
+---
+
+## Render
+
+Das **Render**-Modul lässt dich anpassen, wie der OpenPose-Stickman beim Ausführen des Workflows gerendert wird. Es bietet Stiloptionen für body, hands und face, darunter Linienbreite, Keypoint-Radius und Keypoint-Farbe für hands/face.
+
+Render-Einstellungen werden lokal im local storage dieses Browsers gespeichert, nicht im Workflow. Änderungen wirken sich auf nachfolgende Workflow-Ausführungen aus.
+
+![OpenPose Studio Render module](../locales/en/openpose-studio-render.png)
 
 ---
 

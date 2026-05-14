@@ -20,7 +20,7 @@ from server import PromptServer
 # ---------------------------------------------------------------------------
 # Local
 # ---------------------------------------------------------------------------
-from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS, set_runtime_render_style
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -160,6 +160,20 @@ async def list_poses(request):
     """List available pose files."""
     files = get_pose_files()
     return web.json_response({"files": files})
+
+
+@PromptServer.instance.routes.post("/openpose/render_style")
+async def update_render_style(request):
+    """Receive browser-local render settings for the current runtime."""
+    try:
+        payload = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    if not set_runtime_render_style(payload):
+        return web.json_response({"error": "Invalid render style"}, status=400)
+
+    return web.json_response({"ok": True})
 
 
 @PromptServer.instance.routes.get("/openpose/poses/{filepath:.*}")

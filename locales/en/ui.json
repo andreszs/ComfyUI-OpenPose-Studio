@@ -1,4 +1,4 @@
-﻿{
+{
     "about.summary.title":  "About",
     "about.summary.description":  "Check for updates and support the project",
     "about.version.title":  "Current plugin version",
@@ -99,6 +99,7 @@
     "render_style.summary.title":  "Render",
     "render_style.summary.description":  "Configure visual style for rendering",
     "render_style.intro":  "Customize how poses are rendered on the canvas.",
+    "render_style.storage_note":  "Render settings are saved locally in this browser, not in the workflow.",
     "render_style.btn.reset":  "Reset to defaults",
     "render_style.section.body":  "Body",
     "render_style.section.hands":  "Hands",

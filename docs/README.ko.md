@@ -25,6 +25,7 @@ OpenPose Studio는 간결하고 편리한 인터페이스로 OpenPose 포즈를 
 - 📋 [포맷 사양](#포맷-사양)
 - 🖼️ [갤러리 및 포즈 관리](#갤러리-및-포즈-관리)
 - 🔀 [포즈 병합기](#포즈-병합기)
+- 🎨 [Render](#render)
 - 🖼️ [배경 레퍼런스](#배경-레퍼런스)
 - 🗺️ [에리어 입력](#에리어-입력)
 - ⚠️ [알려진 제한 사항](#알려진-제한-사항)
@@ -330,6 +331,16 @@ Gallery는 세 가지 표시 모드를 지원합니다:
 - **Individual Files**: 포즈당 하나의 파일(호환성 목적)
 
 두 출력 형식 모두 Gallery와 Pose Selector에서 자동으로 인식됩니다.
+
+---
+
+## Render
+
+**Render** 모듈에서는 workflow 실행 시 OpenPose stickman이 렌더링되는 방식을 사용자 지정할 수 있습니다. body, hands, face 스타일을 위한 선 두께, keypoint 반경, hands/face의 keypoint 색상 같은 설정을 제공합니다.
+
+Render 설정은 workflow가 아니라 이 브라우저의 local storage에 로컬로 저장됩니다. 설정을 변경하면 이후 workflow 실행에 반영됩니다.
+
+![OpenPose Studio Render module](../locales/en/openpose-studio-render.png)
 
 ---
 

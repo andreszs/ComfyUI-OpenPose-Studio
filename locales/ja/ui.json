@@ -1,4 +1,4 @@
-﻿{
+{
   "about.summary.title": "概要",
   "about.summary.description": "更新の確認とプロジェクトの支援",
   "about.version.title": "現在のプラグインバージョン",
@@ -97,6 +97,7 @@
   "render_style.summary.title": "レンダー",
   "render_style.summary.description": "レンダリングの視覚スタイルを設定",
   "render_style.intro": "キャンバス上でのポーズのレンダリング方法をカスタマイズします。",
+  "render_style.storage_note": "レンダー設定はこのブラウザーのローカルストレージに保存され、ワークフローには保存されません。",
   "render_style.btn.reset": "デフォルトに戻す",
   "render_style.section.body": "身体",
   "render_style.section.hands": "手",

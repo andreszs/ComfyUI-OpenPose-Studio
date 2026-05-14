@@ -99,6 +99,7 @@
   "render_style.summary.title": "Rendu",
   "render_style.summary.description": "Configurer le style visuel du rendu",
   "render_style.intro": "Personnalisez la façon dont les poses sont rendues sur le canevas.",
+  "render_style.storage_note": "Les paramètres de rendu sont enregistrés localement dans ce navigateur, pas dans le workflow.",
   "render_style.btn.reset": "Réinitialiser par défaut",
   "render_style.section.body": "Corps",
   "render_style.section.hands": "Mains",

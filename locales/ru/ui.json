@@ -99,6 +99,7 @@
   "render_style.summary.title": "Отрисовка",
   "render_style.summary.description": "Настройка визуального стиля отрисовки",
   "render_style.intro": "Настройте способ отображения поз на холсте.",
+  "render_style.storage_note": "Настройки отрисовки сохраняются локально в этом браузере, а не в workflow.",
   "render_style.btn.reset": "Сбросить к значениям по умолчанию",
   "render_style.section.body": "Тело",
   "render_style.section.hands": "Руки",

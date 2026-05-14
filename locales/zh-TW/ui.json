@@ -1,4 +1,4 @@
-﻿{
+{
   "about.summary.title": "關於",
   "about.summary.description": "檢查更新並支援本專案",
   "about.version.title": "目前外掛版本",
@@ -97,6 +97,7 @@
   "render_style.summary.title": "渲染",
   "render_style.summary.description": "設定渲染的視覺風格",
   "render_style.intro": "自訂姿勢在畫布上的渲染方式。",
+  "render_style.storage_note": "渲染設定會儲存在此瀏覽器的本機儲存空間中，不會存入工作流程。",
   "render_style.btn.reset": "重設為預設值",
   "render_style.section.body": "身體",
   "render_style.section.hands": "手部",

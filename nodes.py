@@ -117,6 +117,47 @@ HAND_KEYPOINT_COLORS = [
 
 DEBUG_RENDER = os.environ.get("OPENPOSE_EDITOR_DEBUG", "").strip().lower() in ("1", "true", "yes", "on")
 
+RENDER_STYLE_VERSION = 2
+RENDER_STYLE_KEYS = {
+    "version": "comfyui_openpose_editor.renderer.version",
+    "body": {
+        "line_width": "comfyui_openpose_editor.renderer.body.line_width",
+        "keypoint_color": "comfyui_openpose_editor.renderer.body.keypoint_color",
+        "keypoint_radius": "comfyui_openpose_editor.renderer.body.keypoint_radius",
+    },
+    "hands": {
+        "line_width": "comfyui_openpose_editor.renderer.hands.line_width",
+        "keypoint_color": "comfyui_openpose_editor.renderer.hands.keypoint_color",
+        "keypoint_radius": "comfyui_openpose_editor.renderer.hands.keypoint_radius",
+    },
+    "face": {
+        "line_width": "comfyui_openpose_editor.renderer.face.line_width",
+        "keypoint_color": "comfyui_openpose_editor.renderer.face.keypoint_color",
+        "keypoint_radius": "comfyui_openpose_editor.renderer.face.keypoint_radius",
+    },
+}
+
+DEFAULT_RENDER_STYLE = {
+    "version": RENDER_STYLE_VERSION,
+    "body": {
+        "line_width": 4,
+        "keypoint_color": None,
+        "keypoint_radius": 4,
+    },
+    "hands": {
+        "line_width": 2,
+        "keypoint_color": None,
+        "keypoint_radius": 4,
+    },
+    "face": {
+        "line_width": 0,
+        "keypoint_color": [255, 255, 255, 255],
+        "keypoint_radius": 4,
+    },
+}
+
+_runtime_render_style = None
+
 
 def _debug_log(message, detail=None):
     if not DEBUG_RENDER:
@@ -125,6 +166,99 @@ def _debug_log(message, detail=None):
         print(f"[OpenPose Studio] {message}")
     else:
         print(f"[OpenPose Studio] {message}: {detail}")
+
+
+def _clamp_number(value, min_value, max_value, fallback):
+    try:
+        num = float(value)
+    except Exception:
+        return fallback
+    if not math.isfinite(num):
+        return fallback
+    return min(max_value, max(min_value, num))
+
+
+def _normalize_style_color(value, fallback=None):
+    if value is None and fallback is None:
+        return None
+    base = fallback if isinstance(fallback, list) else [0, 0, 0, 255]
+    if value is None or not isinstance(value, list):
+        value = base
+    output = []
+    for index in range(4):
+        default = base[index] if index < len(base) else (255 if index == 3 else 0)
+        output.append(int(round(_clamp_number(value[index] if index < len(value) else default, 0, 255, default))))
+    return output
+
+
+def _read_render_style_section(payload, section, defaults):
+    key_map = RENDER_STYLE_KEYS[section]
+    settings = {
+        "line_width": int(round(_clamp_number(
+            payload.get(key_map["line_width"]),
+            0,
+            12,
+            defaults["line_width"],
+        ))),
+        "keypoint_color": _normalize_style_color(
+            payload.get(key_map["keypoint_color"]),
+            defaults["keypoint_color"],
+        ),
+        "keypoint_radius": int(round(_clamp_number(
+            payload.get(key_map["keypoint_radius"]),
+            0,
+            24,
+            defaults["keypoint_radius"],
+        ))),
+    }
+    if settings["line_width"] <= 0 and settings["keypoint_radius"] <= 0:
+        settings["line_width"] = defaults["line_width"]
+        settings["keypoint_radius"] = defaults["keypoint_radius"]
+    return settings
+
+
+def _normalize_render_style_payload(payload):
+    if not isinstance(payload, dict):
+        return None
+    version = int(round(_clamp_number(
+        payload.get(RENDER_STYLE_KEYS["version"]),
+        RENDER_STYLE_VERSION,
+        RENDER_STYLE_VERSION,
+        RENDER_STYLE_VERSION,
+    )))
+    return {
+        "version": version,
+        "body": _read_render_style_section(payload, "body", DEFAULT_RENDER_STYLE["body"]),
+        "hands": _read_render_style_section(payload, "hands", DEFAULT_RENDER_STYLE["hands"]),
+        "face": _read_render_style_section(payload, "face", DEFAULT_RENDER_STYLE["face"]),
+    }
+
+
+def set_runtime_render_style(payload):
+    global _runtime_render_style
+    _runtime_render_style = _normalize_render_style_payload(payload)
+    return _runtime_render_style is not None
+
+
+def get_runtime_render_style():
+    if not isinstance(_runtime_render_style, dict):
+        return DEFAULT_RENDER_STYLE
+    return _runtime_render_style
+
+
+def get_runtime_render_style_fingerprint():
+    try:
+        return json.dumps(get_runtime_render_style(), sort_keys=True, separators=(",", ":"))
+    except Exception:
+        return "default"
+
+
+def _style_rgb(color, fallback):
+    normalized = _normalize_style_color(color, fallback)
+    if not normalized:
+        return fallback
+    alpha = normalized[3] / 255.0 if len(normalized) > 3 else 1.0
+    return [int(round(channel * alpha)) for channel in normalized[:3]]
 
 
 def _normalize_keypoints_for_render(keypoints):
@@ -413,7 +547,7 @@ def _coerce_pose_json_string(value):
     return None
 
 
-def draw_bodypose(canvas: np.ndarray, keypoints: list, limb_seq=LIMB_SEQ, limb_colors=LIMB_COLORS, keypoint_colors=KEYPOINT_COLORS, keypoint_radius: int = 4) -> np.ndarray:
+def draw_bodypose(canvas: np.ndarray, keypoints: list, limb_seq=LIMB_SEQ, limb_colors=LIMB_COLORS, keypoint_colors=KEYPOINT_COLORS, keypoint_radius: int = 4, line_width: int = 4, keypoint_color=None) -> np.ndarray:
     """
     Draw body pose on canvas.
 
@@ -424,43 +558,44 @@ def draw_bodypose(canvas: np.ndarray, keypoints: list, limb_seq=LIMB_SEQ, limb_c
     Returns:
         Modified canvas with drawn pose
     """
-    stickwidth = 4
+    stickwidth = max(0, int(line_width))
 
     # Draw limbs
-    for i, (k1_idx, k2_idx) in enumerate(limb_seq):
-        if k1_idx >= len(keypoints) or k2_idx >= len(keypoints):
-            continue
+    if stickwidth > 0:
+        for i, (k1_idx, k2_idx) in enumerate(limb_seq):
+            if k1_idx >= len(keypoints) or k2_idx >= len(keypoints):
+                continue
 
-        kp1 = keypoints[k1_idx]
-        kp2 = keypoints[k2_idx]
+            kp1 = keypoints[k1_idx]
+            kp2 = keypoints[k2_idx]
 
-        if kp1 is None or kp2 is None:
-            continue
+            if kp1 is None or kp2 is None:
+                continue
 
-        x1, y1 = int(kp1[0]), int(kp1[1])
-        x2, y2 = int(kp2[0]), int(kp2[1])
+            x1, y1 = int(kp1[0]), int(kp1[1])
+            x2, y2 = int(kp2[0]), int(kp2[1])
 
-        # Skip invalid keypoints
-        if x1 <= 0 or y1 <= 0 or x2 <= 0 or y2 <= 0:
-            continue
+            # Skip invalid keypoints
+            if x1 <= 0 or y1 <= 0 or x2 <= 0 or y2 <= 0:
+                continue
 
-        # Get color for this limb
-        color = limb_colors[i] if i < len(limb_colors) else [255, 255, 255]
-        # Convert RGB to BGR for OpenCV, apply 0.6 factor like original
-        color_bgr = [int(c * 0.6) for c in color[::-1]]
+            # Get color for this limb
+            color = limb_colors[i] if i < len(limb_colors) else [255, 255, 255]
+            # Convert RGB to BGR for OpenCV, apply 0.6 factor like original
+            color_bgr = [int(c * 0.6) for c in color[::-1]]
 
-        # Draw limb as ellipse polygon (like original OpenPose)
-        mX = (x1 + x2) / 2
-        mY = (y1 + y2) / 2
-        length = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
-        angle = math.degrees(math.atan2(y1 - y2, x1 - x2))
+            # Draw limb as ellipse polygon (like original OpenPose)
+            mX = (x1 + x2) / 2
+            mY = (y1 + y2) / 2
+            length = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+            angle = math.degrees(math.atan2(y1 - y2, x1 - x2))
 
-        polygon = cv2.ellipse2Poly(
-            (int(mX), int(mY)),
-            (int(length / 2), stickwidth),
-            int(angle), 0, 360, 1
-        )
-        cv2.fillConvexPoly(canvas, polygon, color_bgr)
+            polygon = cv2.ellipse2Poly(
+                (int(mX), int(mY)),
+                (int(length / 2), stickwidth),
+                int(angle), 0, 360, 1
+            )
+            cv2.fillConvexPoly(canvas, polygon, color_bgr)
 
     # Draw keypoints
     if keypoint_radius > 0:
@@ -472,14 +607,14 @@ def draw_bodypose(canvas: np.ndarray, keypoints: list, limb_seq=LIMB_SEQ, limb_c
             if x <= 0 or y <= 0:
                 continue
 
-            color = keypoint_colors[i] if i < len(keypoint_colors) else [255, 255, 255]
+            color = _style_rgb(keypoint_color, keypoint_colors[i] if i < len(keypoint_colors) else [255, 255, 255])
             color_bgr = color[::-1]  # RGB to BGR
             cv2.circle(canvas, (x, y), keypoint_radius, color_bgr, thickness=-1)
 
     return canvas
 
 
-def draw_face_keypoints(canvas: np.ndarray, keypoints: list, radius: int = 2) -> np.ndarray:
+def draw_face_keypoints(canvas: np.ndarray, keypoints: list, radius: int = 2, keypoint_color=None, line_width: int = 0) -> np.ndarray:
     if not isinstance(keypoints, list):
         return canvas
     if radius <= 0:
@@ -490,12 +625,17 @@ def draw_face_keypoints(canvas: np.ndarray, keypoints: list, radius: int = 2) ->
         x, y = int(kp[0]), int(kp[1])
         if x <= 0 or y <= 0:
             continue
-        cv2.circle(canvas, (x, y), radius, (255, 255, 255), thickness=-1)
+        if line_width > 0:
+            cv2.circle(canvas, (x, y), radius + int(line_width), (0, 0, 0), thickness=-1)
+        cv2.circle(canvas, (x, y), radius, _style_rgb(keypoint_color, [255, 255, 255])[::-1], thickness=-1)
     return canvas
 
 
-def draw_hand_keypoints(canvas: np.ndarray, keypoints: list) -> np.ndarray:
+def draw_hand_keypoints(canvas: np.ndarray, keypoints: list, line_width: int = 2, keypoint_color=None) -> np.ndarray:
     if not isinstance(keypoints, list) or len(keypoints) == 0:
+        return canvas
+    line_width = max(0, int(line_width))
+    if line_width <= 0:
         return canvas
 
     for edge in HAND_EDGES:
@@ -510,9 +650,9 @@ def draw_hand_keypoints(canvas: np.ndarray, keypoints: list) -> np.ndarray:
         x2, y2 = int(kp_b[0]), int(kp_b[1])
         if x1 <= 0 or y1 <= 0 or x2 <= 0 or y2 <= 0:
             continue
-        color = HAND_KEYPOINT_COLORS[b] if b < len(HAND_KEYPOINT_COLORS) else [255, 255, 255]
+        color = _style_rgb(keypoint_color, HAND_KEYPOINT_COLORS[b] if b < len(HAND_KEYPOINT_COLORS) else [255, 255, 255])
         color_bgr = color[::-1]
-        cv2.line(canvas, (x1, y1), (x2, y2), color_bgr, thickness=2)
+        cv2.line(canvas, (x1, y1), (x2, y2), color_bgr, thickness=line_width)
 
     return canvas
 
@@ -521,12 +661,12 @@ def _hand_joint_dot_radius(canvas_width, canvas_height):
     return 2
 
 
-def draw_hand_joint_dots(canvas: np.ndarray, keypoints: list, radius: int) -> np.ndarray:
+def draw_hand_joint_dots(canvas: np.ndarray, keypoints: list, radius: int, keypoint_color=None) -> np.ndarray:
     if not isinstance(keypoints, list) or len(keypoints) == 0:
         return canvas
     if radius <= 0:
         return canvas
-    dot_color_bgr = (255, 0, 0)
+    dot_color_bgr = _style_rgb(keypoint_color, [0, 0, 255])[::-1]
     for kp in keypoints:
         if kp is None or len(kp) < 2:
             continue
@@ -698,10 +838,13 @@ def render_pose_image(pose_json: str, show_body=True, show_face=True, show_hands
     height = normalized.get("height", 512)
     schema = normalized.get("schema", "unknown")
     poses = normalized.get("poses", [])
+    render_style = get_runtime_render_style()
+    body_style = render_style["body"]
+    hands_style = render_style["hands"]
+    face_style = render_style["face"]
 
     # Create black canvas (RGB)
     canvas = np.zeros((height, width, 3), dtype=np.uint8)
-    hand_dot_radius = keypoint_radius
 
     if not show_body:
         canvas_rgb = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
@@ -756,23 +899,51 @@ def render_pose_image(pose_json: str, show_body=True, show_face=True, show_hands
             limb_seq=limb_seq,
             limb_colors=limb_colors,
             keypoint_colors=keypoint_colors,
-            keypoint_radius=keypoint_radius
+            keypoint_radius=body_style["keypoint_radius"],
+            line_width=body_style["line_width"],
+            keypoint_color=body_style["keypoint_color"],
         )
 
         if schema == "standard":
             if show_face:
                 face_keypoints = pose.get("face_keypoints") if isinstance(pose, dict) else None
                 if _has_nonzero_keypoints(face_keypoints):
-                    canvas = draw_face_keypoints(canvas, face_keypoints, keypoint_radius)
+                    canvas = draw_face_keypoints(
+                        canvas,
+                        face_keypoints,
+                        face_style["keypoint_radius"],
+                        face_style["keypoint_color"],
+                        face_style["line_width"],
+                    )
             if show_hands:
                 hand_left_keypoints = pose.get("hand_left_keypoints") if isinstance(pose, dict) else None
                 hand_right_keypoints = pose.get("hand_right_keypoints") if isinstance(pose, dict) else None
                 if _has_nonzero_keypoints(hand_left_keypoints):
-                    canvas = draw_hand_keypoints(canvas, hand_left_keypoints)
-                    canvas = draw_hand_joint_dots(canvas, hand_left_keypoints, hand_dot_radius)
+                    canvas = draw_hand_keypoints(
+                        canvas,
+                        hand_left_keypoints,
+                        hands_style["line_width"],
+                        hands_style["keypoint_color"],
+                    )
+                    canvas = draw_hand_joint_dots(
+                        canvas,
+                        hand_left_keypoints,
+                        hands_style["keypoint_radius"],
+                        hands_style["keypoint_color"],
+                    )
                 if _has_nonzero_keypoints(hand_right_keypoints):
-                    canvas = draw_hand_keypoints(canvas, hand_right_keypoints)
-                    canvas = draw_hand_joint_dots(canvas, hand_right_keypoints, hand_dot_radius)
+                    canvas = draw_hand_keypoints(
+                        canvas,
+                        hand_right_keypoints,
+                        hands_style["line_width"],
+                        hands_style["keypoint_color"],
+                    )
+                    canvas = draw_hand_joint_dots(
+                        canvas,
+                        hand_right_keypoints,
+                        hands_style["keypoint_radius"],
+                        hands_style["keypoint_color"],
+                    )
 
     # Convert BGR to RGB and normalize to 0-1
     canvas_rgb = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB)
@@ -799,6 +970,10 @@ class OpenPoseStudio:
     RETURN_NAMES = ("IMAGE", "JSON", "KPS")
     FUNCTION = "render"
     CATEGORY = "OpenPose Studio"
+
+    @classmethod
+    def IS_CHANGED(s, pose_json, render_body, render_hand, render_face, **kwargs):
+        return get_runtime_render_style_fingerprint()
 
     def render(self, pose_json, render_body, render_hand, render_face, **kwargs):
         """

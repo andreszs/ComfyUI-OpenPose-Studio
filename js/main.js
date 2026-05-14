@@ -3,6 +3,7 @@ import { ComfyWidgets } from "/scripts/widgets.js";
 import "./comfy-theme-colors.js";
 import { createModuleManager } from "./modules/index.js";
 import { t } from "./modules/i18n.js";
+import { syncRenderStyleToServer } from "./modules/render.js";
 import {
 	poseEditorOverlay,
 	poseEditorPresetWorkflow,
@@ -2101,6 +2102,17 @@ app.registerExtension({
     // a connected POSE_KEYPOINT link (the Python side serialises POSE_KEYPOINT
     // to JSON and echoes it back through the UI dict in all cases).
     async setup(app) {
+        const queuePrompt = app?.queuePrompt;
+        if (typeof queuePrompt === "function" && !app.__openPoseRenderStyleQueuePatched) {
+            app.__openPoseRenderStyleQueuePatched = true;
+            app.queuePrompt = async function(...args) {
+                await syncRenderStyleToServer();
+                return queuePrompt.apply(this, args);
+            };
+        } else {
+            void syncRenderStyleToServer();
+        }
+
         app.api.addEventListener("executed", ({ detail }) => {
             const nodeId = detail.display_node || detail.node;
             const node = app.graph.getNodeById(nodeId);

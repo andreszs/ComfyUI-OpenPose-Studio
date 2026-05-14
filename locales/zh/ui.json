@@ -1,4 +1,4 @@
-﻿{
+{
   "about.summary.title": "关于",
   "about.summary.description": "检查更新并支持本项目",
   "about.version.title": "当前插件版本",
@@ -97,6 +97,7 @@
   "render_style.summary.title": "渲染",
   "render_style.summary.description": "配置渲染的视觉风格",
   "render_style.intro": "自定义姿势在画布上的渲染方式。",
+  "render_style.storage_note": "渲染设置会保存在此浏览器的本地存储中，不会存入工作流。",
   "render_style.btn.reset": "重置为默认值",
   "render_style.section.body": "身体",
   "render_style.section.hands": "手部",

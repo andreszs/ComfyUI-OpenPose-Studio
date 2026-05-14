@@ -1,4 +1,4 @@
-﻿{
+{
   "about.summary.title": "정보",
   "about.summary.description": "업데이트 확인 및 프로젝트 후원",
   "about.version.title": "현재 플러그인 버전",
@@ -98,6 +98,7 @@
   "render_style.summary.title": "렌더",
   "render_style.summary.description": "렌더링을 위한 시각적 스타일 구성",
   "render_style.intro": "캔버스에서 포즈가 렌더링되는 방식을 사용자 정의합니다.",
+  "render_style.storage_note": "렌더 설정은 이 브라우저의 로컬 저장소에 저장되며 워크플로에는 저장되지 않습니다.",
   "render_style.btn.reset": "기본값으로 재설정",
   "render_style.section.body": "몸",
   "render_style.section.hands": "손",

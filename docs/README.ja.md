@@ -25,6 +25,7 @@ OpenPose Studio は、洗練された使いやすいインターフェースで 
 - 📋 [フォーマット仕様](#フォーマット仕様)
 - 🖼️ [ギャラリーとポーズ管理](#ギャラリーとポーズ管理)
 - 🔀 [ポーズマージャー](#pose-merger)
+- 🎨 [Render](#render)
 - 🖼️ [背景リファレンス](#背景リファレンス)
 - 🗺️ [エリア入力](#エリア入力)
 - ⚠️ [既知の制限事項](#既知の制限事項)
@@ -296,6 +297,16 @@ COCO-18 は **18 個の body キーポイント** を使用します。ポーズ
 - **Individual Files**: ポーズごとに 1 ファイル（互換性のため）  
 
 どちらの出力形式も Gallery と Pose Selector が自動検出します。
+
+---
+
+## Render
+
+**Render** モジュールでは、workflow 実行時に OpenPose の stickman をどのようにレンダリングするかをカスタマイズできます。body、hands、face のスタイル設定として、線の太さ、keypoint 半径、hands/face の keypoint 色を調整できます。
+
+Render 設定は workflow ではなく、このブラウザーの local storage にローカル保存されます。変更内容は以降の workflow 実行に反映されます。
+
+![OpenPose Studio Render module](../locales/en/openpose-studio-render.png)
 
 ---
 

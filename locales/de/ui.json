@@ -99,6 +99,7 @@
   "render_style.summary.title": "Rendering",
   "render_style.summary.description": "Visuellen Stil für das Rendering konfigurieren",
   "render_style.intro": "Passen Sie an, wie Posen auf der Arbeitsfläche gerendert werden.",
+  "render_style.storage_note": "Render-Einstellungen werden lokal in diesem Browser gespeichert, nicht im Workflow.",
   "render_style.btn.reset": "Standardwerte wiederherstellen",
   "render_style.section.body": "Körper",
   "render_style.section.hands": "Hände",
