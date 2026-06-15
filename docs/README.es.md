@@ -346,8 +346,8 @@ Los ajustes de Render se guardan localmente en el local storage de este navegado
 
 ## Limitaciones conocidas
 
-> [!WARNING]
-> Nodes 2.0 actualmente no está soportado. Por favor desactiva Nodes 2.0 por ahora.
+> [!NOTE]
+> Nodes 2.0 está soportado. Si falta el canvas de preview o el botón del editor, revisa la caché del navegador, la carga del frontend y los logs de instalación.
 
 ### Limitaciones actuales y workarounds
 
@@ -362,10 +362,9 @@ Los ajustes de Render se guardan localmente en el local storage de este navegado
   - Workaround: Pre-escala las poses a la resolución objetivo antes de importar
 
 3. **Compatibilidad con Nodes 2.0**
-  - Problema: El nodo no se comporta correctamente cuando ComfyUI "Nodes 2.0" está habilitado.
-  - Estado: Fix planificado, pero es un refactor grande y que consume mucho tiempo.
-  - Nota: Este proyecto se desarrolla usando agentes de IA pagos. Una vez que haya financiamiento para comprar tokens de IA adicionales, tengo la intención de priorizar el soporte de Nodes 2.0.
-  - Workaround: Desactiva Nodes 2.0 por ahora.
+  - Estado: Soportado en las versiones actuales.
+  - Nota: Si la UI del editor no aparece, las causas más probables son caché vieja del navegador, fallo al cargar módulos del frontend o una instalación incompleta.
+  - Diagnóstico: Reinicia ComfyUI por completo, fuerza la recarga del navegador y revisa la consola del navegador junto con el log de inicio de ComfyUI.
 
 ### Recuperación de errores
 

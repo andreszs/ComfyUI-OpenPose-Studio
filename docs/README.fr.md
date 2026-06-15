@@ -346,8 +346,8 @@ Les paramètres Render sont enregistrés localement dans le local storage de ce 
 
 ## Limitations connues
 
-> [!WARNING]
-> Nodes 2.0 n'est actuellement pas pris en charge. Veuillez désactiver Nodes 2.0 pour l'instant.
+> [!NOTE]
+> Nodes 2.0 est pris en charge. Si le canvas de prévisualisation ou le bouton de l'éditeur manque, vérifiez le cache du navigateur, le chargement du frontend et les logs d'installation.
 
 ### Limitations actuelles et solutions de contournement
 
@@ -362,10 +362,9 @@ Les paramètres Render sont enregistrés localement dans le local storage de ce 
   - Solution : Pré-mettre à l'échelle les poses à la résolution cible avant l'import
 
 3. **Compatibilité Nodes 2.0**
-  - Problème : Le node ne se comporte pas correctement quand ComfyUI « Nodes 2.0 » est activé.
-  - Statut : Correction prévue, mais c'est un refactoring important et chronophage.
-  - Note : Ce projet est développé avec des agents IA payants. Une fois le financement disponible pour acheter des tokens IA supplémentaires, j'ai l'intention de prioriser le support Nodes 2.0.
-  - Solution : Désactiver Nodes 2.0 pour l'instant.
+  - Statut : Pris en charge dans les versions actuelles.
+  - Note : Si l'UI de l'éditeur n'apparaît pas, les causes les plus probables sont un cache navigateur obsolète, un échec de chargement des modules frontend ou une installation incomplète.
+  - Diagnostic : Redémarrez complètement ComfyUI, forcez l'actualisation du navigateur et vérifiez la console du navigateur ainsi que le log de démarrage de ComfyUI.
 
 ### Récupération d'erreurs
 
