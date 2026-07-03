@@ -25,6 +25,8 @@ Operational Rules for AI Coding Agents
 ## Version Tagging
 
 - When a commit bumps the version in `pyproject.toml`, create and push the matching Git tag targeting that exact commit before doing anything else.
+- The version-bump commit must have a user-facing release message that summarizes the actual changes in that version. Do not use a generic subject such as `Bump version to 1.0.7` by itself. Use a descriptive subject such as `Prepare 1.0.7 release with user-defined style indicators`.
+- New version tags must include a concise description of the changes shipped in that version. Create release tags as annotated tags with a title like `Release 1.0.7` and bullet-point notes summarizing the user-visible changes and important fixes. Users should be able to understand what changed from the tag page alone.
 - The tag name must exactly match the version string in `pyproject.toml` (e.g., `1.0.0`, `1.0.1`, `1.2.3`). **No `v` prefix, no other format.** This repo uses plain numeric tags only (e.g., `1.2.0`, never `v1.2.0`).
 - Before creating a release tag, inspect the existing tags in the repo (`git tag --list`) to confirm the naming convention in use. For this repo the required format is always plain numeric (e.g., `1.2.0`).
 - The README version badge (`shields.io github/v/tag`) may render the tag with a `v` prefix (e.g., display `v1.2.0`) even when the actual Git tag is `1.2.0`. This is normal shields.io display behaviour — do **not** create a `v`-prefixed tag to match the badge display.
