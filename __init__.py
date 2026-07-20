@@ -14,6 +14,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Third-party / ComfyUI
 # ---------------------------------------------------------------------------
+import folder_paths
 from aiohttp import web
 from server import PromptServer
 
@@ -35,6 +36,7 @@ WEB_DIRECTORY = "./js"
 _PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 
 POSES_DIR = os.path.join(_PLUGIN_DIR, "poses")
+POSES_FOLDER_KEY = "openpose_poses"
 ASSETS_DIR = os.path.join(_PLUGIN_DIR, "assets")
 LOCALES_DIR = os.path.join(_PLUGIN_DIR, "locales")
 PAYPAL_QR_CODE_PATH = os.path.join(ASSETS_DIR, "qr-paypal.svg")
@@ -43,6 +45,8 @@ BADGE_KOFI_PATH = os.path.join(ASSETS_DIR, "badge_kofi.svg")
 BADGE_PAYPAL_PATH = os.path.join(ASSETS_DIR, "badge_paypal.svg")
 BADGE_USDC_PATH = os.path.join(ASSETS_DIR, "badge_usdc.svg")
 OPENPOSE_EDITOR_CSS_PATH = os.path.join(ASSETS_DIR, "openpose_editor.css")
+
+folder_paths.add_model_folder_path(POSES_FOLDER_KEY, POSES_DIR, is_default=True)
 
 _TOML_PATH = os.path.join(_PLUGIN_DIR, "pyproject.toml")
 _FALLBACK_NAME = "comfyui-openpose-studio"
@@ -128,26 +132,72 @@ def _read_project_metadata():
     return _FALLBACK_NAME, _FALLBACK_VERSION
 
 
+def get_pose_roots():
+    """Return configured pose library roots with stable, non-sensitive labels."""
+    roots = []
+    seen = set()
+    label_counts = {}
+    builtin_path = os.path.normcase(os.path.realpath(POSES_DIR))
+
+    for directory in folder_paths.get_folder_paths(POSES_FOLDER_KEY):
+        real_directory = os.path.realpath(directory)
+        normalized_directory = os.path.normcase(real_directory)
+        if normalized_directory in seen:
+            continue
+        seen.add(normalized_directory)
+
+        base_label = (
+            "poses"
+            if normalized_directory == builtin_path
+            else os.path.basename(os.path.normpath(real_directory))
+        )
+        if not base_label:
+            base_label = "Pose Library"
+        label_counts[base_label] = label_counts.get(base_label, 0) + 1
+        label_index = label_counts[base_label]
+        label = base_label if label_index == 1 else f"{base_label} ({label_index})"
+
+        roots.append({
+            "id": len(roots),
+            "path": real_directory,
+            "name": label,
+        })
+
+    return roots
+
+
 def get_pose_files():
-    """Get list of JSON files in the poses directory, including subdirectories."""
-    if not os.path.isdir(POSES_DIR):
-        return []
-
+    """Get JSON pose files from all configured libraries and subdirectories."""
     files = []
-    for root, _dirs, filenames in os.walk(POSES_DIR):
-        rel_root = os.path.relpath(root, POSES_DIR)
+    for source in get_pose_roots():
+        root_dir = source["path"]
+        if not os.path.isdir(root_dir):
+            continue
 
-        for filename in filenames:
-            if filename.endswith(".json"):
+        for root, _dirs, filenames in os.walk(root_dir):
+            rel_root = os.path.relpath(root, root_dir)
+
+            for filename in filenames:
+                if not filename.lower().endswith(".json"):
+                    continue
                 if rel_root == ".":
-                    files.append(filename)
+                    relative_path = filename
+                    directory = ""
                 else:
                     # Use forward slashes for URL compatibility
-                    files.append(f"{rel_root}/{filename}".replace("\\", "/"))
+                    directory = rel_root.replace("\\", "/")
+                    relative_path = f"{directory}/{filename}"
+                files.append({
+                    "source": source["id"],
+                    "library": source["name"],
+                    "path": relative_path,
+                    "directory": directory,
+                    "filename": filename,
+                })
 
-    def sort_key(path):
-        has_subdir = "/" in path
-        return (has_subdir, path.lower())
+    def sort_key(entry):
+        has_subdir = bool(entry["directory"])
+        return (entry["source"], has_subdir, entry["path"].lower())
 
     return sorted(files, key=sort_key)
 
@@ -158,8 +208,9 @@ def get_pose_files():
 @PromptServer.instance.routes.get("/openpose/poses")
 async def list_poses(request):
     """List available pose files."""
-    files = get_pose_files()
-    return web.json_response({"files": files})
+    entries = get_pose_files()
+    legacy_files = [entry["path"] for entry in entries if entry["source"] == 0]
+    return web.json_response({"files": legacy_files, "entries": entries})
 
 
 @PromptServer.instance.routes.post("/openpose/render_style")
@@ -180,21 +231,25 @@ async def update_render_style(request):
 async def get_pose_file(request):
     """Return the contents of a specific pose file."""
     filepath = request.match_info.get("filepath", "")
+    try:
+        source_id = int(request.rel_url.query.get("source", "0"))
+    except (TypeError, ValueError):
+        return web.json_response({"error": "Invalid source"}, status=400)
 
-    # Security: prevent directory traversal
-    if ".." in filepath:
-        return web.json_response({"error": "Invalid path"}, status=400)
+    sources = {source["id"]: source for source in get_pose_roots()}
+    source = sources.get(source_id)
+    if source is None:
+        return web.json_response({"error": "Unknown source"}, status=404)
 
-    if not filepath.endswith(".json"):
+    if not filepath.lower().endswith(".json"):
         return web.json_response({"error": "Invalid file type"}, status=400)
 
-    normalized_path = filepath.replace("/", os.sep)
-    full_path = os.path.join(POSES_DIR, normalized_path)
+    normalized_path = filepath.replace("/", os.sep).replace("\\", os.sep)
+    root_dir = source["path"]
+    full_path = os.path.realpath(os.path.join(root_dir, normalized_path))
 
-    # Verify the resolved path is still within POSES_DIR
-    real_poses_dir = os.path.realpath(POSES_DIR)
-    real_file_path = os.path.realpath(full_path)
-    if not real_file_path.startswith(real_poses_dir):
+    # Verify the resolved path is still within its configured library root.
+    if not folder_paths.is_within_directory(root_dir, full_path):
         return web.json_response({"error": "Invalid path"}, status=400)
 
     if not os.path.isfile(full_path):

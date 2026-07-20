@@ -2493,6 +2493,9 @@ export const poseEditorPresetWorkflow = {
     },
 
     getPresetSourceId(preset) {
+        if (preset?.sourceFile && typeof preset.sourceFile === "string") {
+            return preset.sourceFile;
+        }
         if (!preset?.id || typeof preset.id !== "string") {
             return "Default";
         }

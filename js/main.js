@@ -1662,7 +1662,10 @@ class OpenPosePanel {
 			if (!listResponse.ok) {
 				throw new Error(`Failed to list pose files: ${listResponse.status}`);
 			}
-			const { files } = await listResponse.json();
+			const listPayload = await listResponse.json();
+			const files = Array.isArray(listPayload.entries)
+				? listPayload.entries
+				: (Array.isArray(listPayload.files) ? listPayload.files : []);
 
 			if (!files || !files.length) {
 				throw new Error("No pose files found.");
@@ -1674,13 +1677,37 @@ class OpenPosePanel {
 			let baseHeight = 512;
 			let firstFile = true;
 
-			for (const filename of files) {
+			for (const fileEntry of files) {
+				const filename = typeof fileEntry === "string" ? fileEntry : fileEntry.path;
+				const source = typeof fileEntry === "string" ? 0 : Number(fileEntry.source) || 0;
+				const library = typeof fileEntry === "string" ? "poses" : (fileEntry.library || "poses");
+				const slashIndex = filename ? filename.lastIndexOf("/") : -1;
+				const directory = typeof fileEntry === "string"
+					? (slashIndex === -1 ? "" : filename.substring(0, slashIndex))
+					: (fileEntry.directory || "");
+				const sourceFile = `${source}:${filename}`;
+				const galleryGroupKey = `${source}:${directory}`;
+				const galleryGroupTitle = directory ? `${library}/${directory}` : library;
+				const displayFilename = `${library}/${filename}`;
+				const encodedFilename = filename
+					.split("/")
+					.map((part) => encodeURIComponent(part))
+					.join("/");
+				const fileContext = {
+					filename,
+					sourceFile,
+					library,
+					directory,
+					galleryGroupKey,
+					galleryGroupTitle,
+					displayFilename
+				};
 				try {
-					const fileResponse = await fetch(POSES_FILE_URL + filename, { cache: "no-store" });
+					const fileResponse = await fetch(`${POSES_FILE_URL}${encodedFilename}?source=${source}`, { cache: "no-store" });
 					if (!fileResponse.ok) {
-						console.warn(`[OpenPose Studio] Failed to load ${filename}`);
+						console.warn(`[OpenPose Studio] Failed to load ${displayFilename}`);
 						this.moduleManager?.notifyPresetFileError?.({
-							filename,
+							...fileContext,
 							reason: "No poses found in this file. Try selecting another file. You can also verify it's valid JSON using an online validator like jsonlint.com"
 						});
 						continue;
@@ -1690,9 +1717,9 @@ class OpenPosePanel {
 					try {
 						payload = await fileResponse.json();
 					} catch (parseError) {
-						console.warn(`[OpenPose Studio] Invalid JSON in ${filename}:`, parseError);
+						console.warn(`[OpenPose Studio] Invalid JSON in ${displayFilename}:`, parseError);
 						this.moduleManager?.notifyPresetFileError?.({
-							filename,
+							...fileContext,
 							reason: "Invalid JSON format"
 						});
 						continue;
@@ -1708,12 +1735,12 @@ class OpenPosePanel {
 						} else if (payload && typeof payload === "object" && Object.keys(payload).length > 0) {
 							reason = "No valid poses found";
 						}
-						this.moduleManager?.notifyPresetFileError?.({ filename, reason });
-						console.warn(`[OpenPose Studio] Invalid preset file: ${filename} (${reason})`);
+						this.moduleManager?.notifyPresetFileError?.({ ...fileContext, reason });
+						console.warn(`[OpenPose Studio] Invalid preset file: ${displayFilename} (${reason})`);
 						continue;
 					}
 
-					const fileInfo = { filename, payload, normalized };
+					const fileInfo = { ...fileContext, payload, normalized };
 					this.moduleManager?.notifyPresetFileLoaded?.(fileInfo);
 
 					// Use first valid file's canvas size as base
@@ -1723,27 +1750,22 @@ class OpenPosePanel {
 						firstFile = false;
 					}
 
-					// Determine group based on path and format
-					let group;
-					const slashIndex = filename.lastIndexOf("/");
-
-					if (slashIndex !== -1) {
-						// File is in a subdirectory - use subdirectory path as group
-						group = filename.substring(0, slashIndex).replace(/[_-]/g, " ");
-					} else {
-						// File is in root - use filename for category, "User-defined" for OpenPose
-						const baseName = filename.replace(/\.json$/i, "").replace(/[_-]/g, " ");
-						group = normalized.format === "dictionary" ? baseName : "User-defined";
-					}
+					// Group presets by their library and relative directory.
+					const group = galleryGroupTitle.replace(/[_-]/g, " ");
 
 					for (const preset of normalized.presets) {
 						// Validate the preset data
 						const validationError = this.validatePresetData(preset.keypoints, preset.label);
 						
 						const presetEntry = {
-							id: `${filename}:${preset.id}`,
+							id: `${sourceFile}:${preset.id}`,
 							label: preset.label,
 							group,
+							sourceFile,
+							library,
+							galleryGroupKey,
+							galleryGroupTitle,
+							displayFilename,
 							keypoints: cloneKeypoints(preset.keypoints),
 							faceKeypoints: Array.isArray(preset.faceKeypoints)
 								? preset.faceKeypoints.map((group) => (
@@ -1768,9 +1790,9 @@ class OpenPosePanel {
 						allPresets.push(presetEntry);
 					}
 				} catch (fileError) {
-					console.warn(`[OpenPose Studio] Error loading ${filename}:`, fileError);
+					console.warn(`[OpenPose Studio] Error loading ${displayFilename}:`, fileError);
 					this.moduleManager?.notifyPresetFileError?.({
-						filename,
+						...fileContext,
 						reason: "Failed to process file"
 					});
 				}

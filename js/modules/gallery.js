@@ -145,17 +145,23 @@ class GalleryManager {
             }
             const separator = "▸";
             const formattedPath = rawTitle.split("/").join(` ${separator} `);
-            if (rawTitle.startsWith("poses/")) {
-                if (icon) {
-                    return `${icon} ${formattedPath}`;
-                }
-                return formattedPath;
+            if (icon) {
+                return `${icon} ${formattedPath}`;
             }
             return formattedPath;
         };
 
+        const explicitTitle = presets.find((preset) => preset?.galleryGroupTitle)?.galleryGroupTitle;
+        if (explicitTitle) {
+            return formatGalleryTitle(explicitTitle, "\u{1F4C1}");
+        }
+
         const sourceFiles = [];
         for (const preset of presets) {
+            if (preset?.sourceFile && typeof preset.sourceFile === "string") {
+                sourceFiles.push(preset.sourceFile);
+                continue;
+            }
             if (!preset?.id || typeof preset.id !== "string") {
                 continue;
             }
@@ -235,7 +241,7 @@ class GalleryManager {
         const previewSize = this.getPreviewSize();
 
         for (const preset of galleryPresets) {
-            const sourceId = op.getPresetSourceId(preset);
+            const sourceId = preset.galleryGroupKey || op.getPresetSourceId(preset);
             if (!groups.has(sourceId)) {
                 groups.set(sourceId, []);
                 order.push(sourceId);
@@ -257,7 +263,10 @@ class GalleryManager {
             titleText.className = "openpose-gallery-title-text";
             titleText.textContent = this.getGroupTitle(sourceId, presets);
             title.appendChild(titleText);
-            if (this.collectionFiles && this.collectionFiles.has(sourceId)) {
+            const sourceFiles = new Set(presets.map((preset) => preset.sourceFile).filter(Boolean));
+            const isSingleCollection = sourceFiles.size === 1
+                && this.collectionFiles.has(Array.from(sourceFiles)[0]);
+            if (isSingleCollection) {
                 const badge = document.createElement("span");
                 badge.className = "openpose-gallery-collection-pill";
                 badge.textContent = t("gallery.badge.collection");
@@ -271,6 +280,13 @@ class GalleryManager {
             presets.forEach((preset) => {
                 const item = document.createElement("div");
                 item.className = "openpose-gallery-item";
+                item.title = preset.displayFilename || preset.sourceFile || "";
+                if (preset.sourceFile) {
+                    item.dataset.sourceFile = preset.sourceFile;
+                }
+                if (preset.library) {
+                    item.dataset.library = preset.library;
+                }
                 const normalizedName = op.normalizePoseName(preset.label || preset.id || "Pose");
                 const faceCount = countExtraKeypoints(preset.faceKeypoints);
                 const leftHandCount = countExtraKeypoints(preset.handLeftKeypoints);
@@ -502,9 +518,9 @@ export const galleryOverlayHtml = `
             <div class="openpose-overlay-content openpose-gallery-wrapper">
                 <div class="openpose-gallery-header">
                     <div class="openpose-gallery-note-row">
-                        <div class="openpose-gallery-note">These poses are loaded from the <code>poses/</code> directory. Add new JSON files there to show them in the Gallery and Presets selector.</div>
+                        <div class="openpose-gallery-note">These poses are loaded from the configured pose libraries. Add JSON files to any configured library and reload to show them in the Gallery and Presets selector.</div>
                         <div class="openpose-gallery-actions">
-                            <span class="openpose-gallery-stats-badge openpose-gallery-header-ctrl">0 poses from 0 files</span>
+                            <span class="openpose-gallery-stats-badge openpose-gallery-header-ctrl">0 poses from 0 files in 0 libraries</span>
                             <button class="openpose-btn openpose-btn-small openpose-gallery-view-toggle openpose-gallery-header-ctrl" data-action="gallery-toggle-view-mode">View: Medium Icons</button>
                             <button class="openpose-btn openpose-btn-small openpose-refresh-btn openpose-gallery-header-ctrl" data-action="presets-reload" title="Reload presets">\u{1F504}</button>
                         </div>
@@ -1000,11 +1016,14 @@ function updateGalleryBadges(container) {
     // Update stats badge with pose and file counts
     const statsBadge = container.querySelector(".openpose-gallery-stats-badge");
     if (statsBadge) {
-        const items = container.querySelectorAll(".openpose-gallery-item");
-        const sections = container.querySelectorAll(".openpose-gallery-section");
+        const items = container.querySelectorAll(".openpose-gallery-item[data-source-file]");
+        const sourceFiles = new Set(Array.from(items, (item) => item.dataset.sourceFile).filter(Boolean));
+        const libraries = new Set(Array.from(items, (item) => item.dataset.library).filter(Boolean));
         const poseCount = items.length;
-        const fileCount = sections.length;
-        statsBadge.textContent = `${poseCount} poses from ${fileCount} files`;
+        const fileCount = sourceFiles.size;
+        const libraryCount = libraries.size;
+        const libraryText = libraryCount === 1 ? "library" : "libraries";
+        statsBadge.textContent = `${poseCount} poses from ${fileCount} files in ${libraryCount} ${libraryText}`;
     }
 
     // Update collection badges with pose counts
@@ -1061,7 +1080,7 @@ registerModule({
     onPresetFileError: (info) => {
         if (galleryState.manager && info?.filename) {
             galleryState.manager.emptyPoseFiles.push({
-                filename: info.filename,
+                filename: info.displayFilename || info.filename,
                 reason: info.reason || "Invalid file"
             });
         }
@@ -1073,25 +1092,27 @@ registerModule({
         const payload = info.payload;
         const isStandard = isStandardOpenPosePoseObject(payload);
         const isCollection = !isStandard && isStandardOpenPoseCollectionPayload(payload);
+        const sourceFile = info.sourceFile || info.filename;
         if (galleryState.manager && isCollection) {
-            galleryState.manager.collectionFiles.add(info.filename);
+            galleryState.manager.collectionFiles.add(sourceFile);
         }
         const badge = isStandard ? null : (isCollection ? "collection" : "nonstandard");
-        galleryState.fileMeta.set(info.filename, { badge });
+        galleryState.fileMeta.set(sourceFile, { badge });
     },
     decoratePreset: (preset, info) => {
         if (!preset || !info?.filename) {
             return;
         }
-        let meta = galleryState.fileMeta.get(info.filename);
+        const sourceFile = info.sourceFile || info.filename;
+        let meta = galleryState.fileMeta.get(sourceFile);
         if (!meta && info.payload) {
             const isStandard = isStandardOpenPosePoseObject(info.payload);
             const isCollection = !isStandard && isStandardOpenPoseCollectionPayload(info.payload);
             const badge = isStandard ? null : (isCollection ? "collection" : "nonstandard");
             meta = { badge };
-            galleryState.fileMeta.set(info.filename, meta);
+            galleryState.fileMeta.set(sourceFile, meta);
             if (galleryState.manager && isCollection) {
-                galleryState.manager.collectionFiles.add(info.filename);
+                galleryState.manager.collectionFiles.add(sourceFile);
             }
         }
         if (meta && meta.badge) {
