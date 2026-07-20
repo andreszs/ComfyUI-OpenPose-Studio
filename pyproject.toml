@@ -4,19 +4,20 @@ build-backend = "hatchling.build"
 
 [project]
 name = "comfyui-openpose-studio"
-version = "1.8.0"
-description = "OpenPose Studio node for ComfyUI workflows."
-readme = "README.md"
+version = "1.8.1"
+description = "Create and edit multi-person OpenPose poses visually, with presets and ControlNet-ready image, JSON, and keypoint outputs."
+readme = "docs/README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
 dependencies = []
 
 [project.urls]
 Repository = "https://github.com/andreszs/comfyui-openpose-studio"
-Documentation = "https://github.com/andreszs/comfyui-openpose-studio#readme"
+Documentation = "https://github.com/andreszs/comfyui-openpose-studio/blob/main/docs/README.md"
 "Bug Tracker" = "https://github.com/andreszs/comfyui-openpose-studio/issues"
 
 [tool.comfy]
 PublisherId = "andreszs"
 DisplayName = "OpenPose Studio"
 Icon = ""
+Banner = "https://raw.githubusercontent.com/andreszs/comfyui-openpose-studio/refs/heads/main/assets/registry_banner.gif"

@@ -72,11 +72,6 @@ OpenPose Studio는 간결하고 편리한 인터페이스로 OpenPose 포즈를 
 
 ---
 
-✨ **예정 기능 및 로드맵**
-
-> [!IMPORTANT]
-> 많은 예정 기능은 AI Token 자금 지원에 의존합니다. 전체 로드맵과 예정된 작업은 [TODO.md](../TODO.md)를 확인해 주세요.
-
 새 기능 아이디어가 있다면 꼭 들려주세요. 빠르게 구현할 수 있을지도 모릅니다. 피드백, 아이디어 또는 제안은 저장소 Issues 페이지로 제출해 주세요: https://github.com/andreszs/comfyui-openpose-studio/issues
 
 

@@ -73,11 +73,6 @@ OpenPose Studio is an advanced ComfyUI extension for creating, editing, previewi
 
 ---
 
-✨ **Planned Features & Roadmap**
-
-> [!IMPORTANT]
-> Many planned features depend on funding for AI tokens. For the full roadmap and upcoming work, please check [TODO.md](../TODO.md)..
-
 If you have an idea for a new feature, I would love to hear it — we may be able to implement it quickly. Please submit feedback, ideas, or suggestions via the repository Issues page: https://github.com/andreszs/comfyui-openpose-studio/issues
 
 

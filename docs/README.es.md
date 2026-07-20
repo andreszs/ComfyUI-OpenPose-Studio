@@ -72,11 +72,6 @@ OpenPose Studio es una extensión avanzada para ComfyUI que permite crear, edita
 
 ---
 
-✨ **Funciones planificadas y roadmap**
-
-> [!IMPORTANT]
-> Muchas funciones planificadas dependen de financiamiento para tokens de IA. Para el roadmap completo y el trabajo próximo, revisa [TODO.md](../TODO.md)..
-
 Si tienes una idea para una nueva función, me encantaría escucharla — quizá podamos implementarla rápidamente. Envía feedback, ideas o sugerencias mediante la página de Issues del repositorio: https://github.com/andreszs/comfyui-openpose-studio/issues
 
 

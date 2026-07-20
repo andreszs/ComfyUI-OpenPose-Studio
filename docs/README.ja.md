@@ -72,11 +72,6 @@ OpenPose Studio は、洗練された使いやすいインターフェースで 
 
 ---
 
-✨ **計画中の機能 / ロードマップ**
-
-> [!IMPORTANT]
-> 計画中の多くの機能は、AI Token の資金が必要です。完全なロードマップと直近の作業については [TODO.md](../TODO.md) を参照してください。
-
 新機能のアイデアがあれば、ぜひ聞かせてください。素早く実装できるかもしれません。フィードバック・アイデア・提案は、リポジトリの Issues から送ってください： https://github.com/andreszs/comfyui-openpose-studio/issues
 
 ## インストール

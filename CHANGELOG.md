@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.8.1] - 2026-07-20
+
+### Added
+- Added an animated Comfy Registry banner highlighting the OpenPose Studio node, visual editor, and multi-pose area workflow.
+
+### Changed
+- Replaced the generic Registry description with a concise summary of visual pose editing, presets, and ControlNet-ready outputs.
+- Updated all localized READMEs with current ComfyUI Nodes 2.0 compatibility and troubleshooting guidance.
+- Corrected the package metadata to reference the English README in `docs/`.
+
+### Removed
+- Removed the obsolete `TODO.md` file and its roadmap references from every localized README.
+
+---
+
 ## [1.7.0] - 2026-05-07
 
 ### Fixed
