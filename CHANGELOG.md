@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.2] - 2026-07-20
+
+### Changed
+- Refreshed the animated Comfy Registry banner with the standardized node screenshot and simplified node-to-editor sequence.
+- Versioned the banner filename as `banner_182.gif` to prevent stale CDN and browser caches from serving an older preview.
+
+---
+
 ## [1.8.1] - 2026-07-20
 
 ### Added
