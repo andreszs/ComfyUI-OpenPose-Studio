@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.0.0] - 2026-07-22
+
+### Added
+- Added a focused, transactional editor for the 21 keypoints of each imported OpenPose hand, with precise point dragging, hover feedback, cancel/confirm controls, and one undo entry per confirmed session.
+- Added whole-hand selection and controls for moving, resizing, rotating, mirroring, and opening the focused hand editor.
+- Added optional wrist-to-hand-anchor alignment so connected hands move together with their corresponding body wrists.
+- Added Gallery filtering by pose filename or library path.
+
+### Changed
+- Replaced the body keypoint sidebar with anatomical hand keypoint names while the focused hand editor is active.
+- Made the focused hand viewport square and kept contribution buttons available during hand editing.
+- Documented hand editing across all localized READMEs with new screenshots.
+
+---
+
 ## [1.8.3] - 2026-07-20
 
 ### Added

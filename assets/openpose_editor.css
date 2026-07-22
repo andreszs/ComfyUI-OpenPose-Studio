@@ -651,6 +651,120 @@
     box-sizing: border-box;
 }
 
+.ope-openpose-modal .openpose-hand-edit-actions {
+    position: absolute;
+    z-index: 5;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    padding: 9px 12px;
+    transform: translate(-50%, -100%);
+    border: 1px solid var(--openpose-border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--openpose-panel-bg-secondary) 94%, transparent);
+    box-shadow: 0 7px 20px rgba(0, 0, 0, 0.48);
+    backdrop-filter: blur(8px);
+}
+
+.ope-openpose-modal .openpose-hand-edit-actions::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 17px;
+    bottom: 17px;
+    width: 1px;
+    background: var(--openpose-border);
+    transform: translateX(-50%);
+}
+
+.ope-openpose-modal .openpose-canvas-glyph {
+    position: absolute;
+    z-index: 4;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    padding: 7px;
+    align-items: center;
+    justify-content: center;
+    transform: translate(-50%, -50%);
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    border-radius: 50%;
+    color: rgba(225, 232, 238, 0.95);
+    background: rgba(45, 50, 56, 0.9);
+    box-shadow: 0 2px 7px rgba(0, 0, 0, 0.38);
+    cursor: pointer;
+}
+
+.ope-openpose-modal .openpose-canvas-glyph svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+}
+
+.ope-openpose-modal .openpose-canvas-glyph:hover,
+.ope-openpose-modal .openpose-canvas-glyph:focus-visible {
+    color: #ffffff;
+    border-color: rgba(100, 200, 255, 0.95);
+    background: rgba(55, 75, 90, 0.96);
+    outline: none;
+}
+
+.ope-openpose-modal .openpose-hand-edit-actions .openpose-canvas-glyph {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    width: 50px;
+    min-width: 50px;
+    height: 50px;
+    padding: 12px;
+    transform: none;
+    border-radius: 50%;
+    box-sizing: border-box;
+    box-shadow: 0 3px 9px rgba(0, 0, 0, 0.38);
+    transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.ope-openpose-modal .openpose-hand-edit-actions .openpose-canvas-glyph:hover,
+.ope-openpose-modal .openpose-hand-edit-actions .openpose-canvas-glyph:focus-visible {
+    transform: translateY(-1px);
+    border-color: var(--openpose-border);
+}
+
+.ope-openpose-modal .openpose-hand-edit-actions .openpose-canvas-glyph svg {
+    width: 24px;
+    height: 24px;
+    stroke-width: 2.25;
+}
+
+.ope-openpose-modal .openpose-hand-edit-actions .openpose-hand-edit-cancel {
+    color: var(--openpose-text);
+    background: var(--openpose-btn-bg);
+    border-color: var(--openpose-border);
+}
+
+.ope-openpose-modal .openpose-hand-edit-actions .openpose-hand-edit-cancel:hover,
+.ope-openpose-modal .openpose-hand-edit-actions .openpose-hand-edit-cancel:focus-visible {
+    color: var(--openpose-text);
+    background: var(--openpose-btn-hover-bg);
+}
+
+.ope-openpose-modal .openpose-hand-edit-actions .openpose-hand-edit-confirm {
+    color: var(--openpose-primary-text);
+    background: var(--openpose-primary-bg);
+    border-color: var(--openpose-border);
+}
+
+.ope-openpose-modal .openpose-hand-edit-actions .openpose-hand-edit-confirm:hover,
+.ope-openpose-modal .openpose-hand-edit-actions .openpose-hand-edit-confirm:focus-visible {
+    color: var(--openpose-primary-text);
+    background: var(--openpose-primary-hover-bg);
+}
+
 .ope-openpose-modal .openpose-muted-icon {
     filter: grayscale(1) brightness(0.5);
     opacity: 0.7;
@@ -674,6 +788,27 @@
     font-family: Arial, sans-serif;
     color: var(--openpose-input-text);
     min-height: 20px;
+}
+
+.ope-openpose-modal .openpose-hand-keypoint-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1;
+}
+
+.ope-openpose-modal .openpose-hand-keypoint-number {
+    flex: 0 0 18px;
+    color: var(--openpose-text-muted);
+    font-size: 10px;
+    text-align: right;
+    opacity: 0.7;
+}
+
+.ope-openpose-modal .openpose-hand-keypoint-missing .openpose-coco-color-swatch {
+    filter: grayscale(1);
+    opacity: 0.45;
 }
 
 .ope-openpose-modal .openpose-coco-keypoint-item.openpose-keypoint-missing:hover {

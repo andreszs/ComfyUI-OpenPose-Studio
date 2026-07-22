@@ -20,6 +20,7 @@ OpenPose Studio ist eine fortschrittliche ComfyUI-Erweiterung zum Erstellen, Bea
 - ✨ [Funktionen](#funktionen)
 - 📦 [Installation](#installation)
 - 🎯 [Verwendung](#verwendung)
+- 🖐️ [Handbearbeitung](#handbearbeitung)
 - 🔧 [Nodes](#nodes)
 - ⌨️ [Editor-Steuerung und Tastenkürzel](#editor-steuerung-und-tastenkürzel)
 - 📋 [Formatspezifikationen](#formatspezifikationen)
@@ -40,6 +41,7 @@ OpenPose Studio ist eine fortschrittliche ComfyUI-Erweiterung zum Erstellen, Bea
 
 ✨ **Kernfunktionen**
 - Echtzeit-Bearbeitung von OpenPose-Keypoints mit visuellem Feedback
+- Individuelle Bearbeitung von Hand-Keypoints in einem fokussierten, vergrößerten Handeditor
 - Modernes natives Canvas-Rendering-Engine (schneller, flüssiger, weniger bewegliche Teile)
 - Interaktive Bearbeitungs-UX: klare aktive Auswahl + Pose-Hover-Vorauswahl
 - Eingeschränkte Transformationen, damit Keypoints nicht aus den Canvas-Grenzen driften
@@ -104,6 +106,16 @@ Wenn Sie eine Idee für eine neue Funktion haben, würde ich sie gerne hören �
 ### Editor-Vorschau
 
 ![OpenPose Studio UI](../locales/de/openpose-studio.png)
+
+### Handbearbeitung
+
+Importierte OpenPose-Hände können als Gruppe transformiert oder Keypoint für Keypoint verfeinert werden. Wählen Sie eine Hand auf der Canvas aus, um ihren Transformationsrahmen anzuzeigen. Mit den umgebenden Handles können Sie die Hand skalieren, drehen, spiegeln oder den fokussierten Handeditor öffnen.
+
+![Ausgewählte Hand mit Transformations- und Bearbeitungssteuerelementen](../locales/en/openpose-studio-hand-tools.png)
+
+Der fokussierte Editor lässt sich auch direkt über das Bleistift-Symbol neben **Left hand** oder **Right hand** in der Seitenleiste öffnen. Ziehen Sie in dieser Ansicht die Keypoints 1–20, um die Finger anzupassen; Keypoint 0 bleibt als Handanker gesperrt. Beim Überfahren eines Eintrags in der Seitenleiste wird der zugehörige Punkt hervorgehoben. Mit dem Häkchen wird die gesamte Handbearbeitung als eine rückgängig machbare Änderung übernommen. Mit dem Schließen-Symbol oder **Escape** werden die Änderungen verworfen.
+
+![Fokussierter Editor für Hand-Keypoints](../locales/en/openpose-studio-hand-editor.png)
 
 ---
 
@@ -181,9 +193,7 @@ Ein reales Beispiel, das alle drei Repos gemeinsam nutzt — Bereichskonditionie
 
 ## Formatspezifikationen
 
-Dieser Editor unterstützt vollständig die **OpenPose COCO-18 (body)**-Bearbeitung.
-
-Er unterstützt auch **OpenPose Face- und Hands-Daten** auf *Pass-Through*-Weise: Wenn Ihr JSON Face- und/oder Hand-Keypoints enthält, werden diese beibehalten (nicht entfernt) und der Python-Node kann sie korrekt rendern. **Die Bearbeitung von Face- und Hand-Keypoints ist jedoch noch nicht verfügbar** (für zukünftige Updates geplant).
+Dieser Editor unterstützt vollständig die **OpenPose COCO-18 (body)**-Bearbeitung und die individuelle Bearbeitung von **OpenPose-Hand-Keypoints**. Face-Keypoints werden beibehalten und gerendert, bleiben jedoch Pass-Through-Daten und können derzeit nicht einzeln bearbeitet werden.
 
 ### OpenPose COCO-18-Keypoints (body)
 
@@ -346,10 +356,8 @@ Render-Einstellungen werden lokal im local storage dieses Browsers gespeichert, 
 
 ### Aktuelle Einschränkungen und Workarounds
 
-1. **Hand- und Face-Bearbeitung**
-  - Problem: Editor derzeit auf Body-Keypoints (0-17) beschränkt
-  - Status: Für zukünftige Version geplant
-  - Workaround: Pose Merger verwenden, um Hand/Face-JSON vor dem Import manuell zu bearbeiten
+1. **Face-Bearbeitung**
+  - Face-Keypoints werden beibehalten und gerendert, können aber derzeit nicht einzeln auf der Canvas bearbeitet werden.
 
 2. **Auflösungskonsistenz**
   - Problem: Pose Merger vereinheitlicht die Auflösung bei Sammlungsexporten nicht automatisch

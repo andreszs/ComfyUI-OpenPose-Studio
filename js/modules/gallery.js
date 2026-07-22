@@ -7,6 +7,24 @@ import { UiIcons } from "../ui-icons.js";
 const GALLERY_VIEW_MODE_KEY = "openpose_editor.gallery.viewMode";
 const GALLERY_VIEW_MODES = new Set(["medium", "large", "tiles"]);
 
+function normalizeGallerySearch(value) {
+    return String(value || "")
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\\/g, "/")
+        .toLowerCase()
+        .trim();
+}
+
+function matchesGallerySearch(values, query) {
+    const normalizedQuery = normalizeGallerySearch(query);
+    if (!normalizedQuery) {
+        return true;
+    }
+    const haystack = normalizeGallerySearch(values.filter(Boolean).join(" "));
+    return normalizedQuery.split(/\s+/).every((token) => haystack.includes(token));
+}
+
 function isValidGalleryViewMode(mode) {
     return GALLERY_VIEW_MODES.has(mode);
 }
@@ -110,7 +128,45 @@ class GalleryManager {
         }
         this.collectionFiles = new Set();
         this.emptyPoseFiles = [];
+        this.searchQuery = "";
         this.setViewMode(this.viewMode);
+    }
+
+    setSearchQuery(value) {
+        const nextQuery = String(value || "").trim();
+        if (nextQuery === this.searchQuery) {
+            return;
+        }
+        this.searchQuery = nextQuery;
+        this.refresh();
+    }
+
+    matchesPresetSearch(preset) {
+        return matchesGallerySearch([
+            preset?.displayFilename,
+            preset?.sourceFile,
+            preset?.galleryGroupTitle,
+            preset?.library,
+            preset?.label
+        ], this.searchQuery);
+    }
+
+    updateStatsBadge(visiblePresets, totalPresets) {
+        const statsBadge = this.container.querySelector(".openpose-gallery-stats-badge");
+        if (!statsBadge) {
+            return;
+        }
+        const sourceFiles = new Set(visiblePresets.map((preset) => preset.sourceFile).filter(Boolean));
+        const libraries = new Set(visiblePresets.map((preset) => preset.library).filter(Boolean));
+        const visibleCount = visiblePresets.length;
+        const totalCount = totalPresets.length;
+        const poseText = totalCount === 1 ? "pose" : "poses";
+        const fileText = sourceFiles.size === 1 ? "file" : "files";
+        const libraryText = libraries.size === 1 ? "library" : "libraries";
+        const countText = this.searchQuery
+            ? `${visibleCount} of ${totalCount} ${poseText}`
+            : `${visibleCount} ${visibleCount === 1 ? "pose" : "poses"}`;
+        statsBadge.textContent = `${countText} from ${sourceFiles.size} ${fileText} in ${libraries.size} ${libraryText}`;
     }
 
     setViewMode(mode) {
@@ -230,9 +286,18 @@ class GalleryManager {
             this.renderEmpty(t("gallery.state.empty"));
             return;
         }
-        const galleryPresets = op.presets.filter((preset) => op.getPresetSourceId(preset) !== "Default");
-        if (galleryPresets.length === 0) {
+        const allGalleryPresets = op.presets.filter((preset) => op.getPresetSourceId(preset) !== "Default");
+        const galleryPresets = allGalleryPresets.filter((preset) => this.matchesPresetSearch(preset));
+        const filteredEmptyPoseFiles = (this.emptyPoseFiles || []).filter(({ filename }) => (
+            matchesGallerySearch([filename], this.searchQuery)
+        ));
+        if (allGalleryPresets.length === 0 && this.emptyPoseFiles.length === 0) {
             this.renderEmpty("No presets available.");
+            return;
+        }
+        if (galleryPresets.length === 0 && filteredEmptyPoseFiles.length === 0) {
+            this.renderEmpty(`No poses match "${this.searchQuery}".`);
+            this.updateStatsBadge([], allGalleryPresets);
             return;
         }
         this.galleryContainer.innerHTML = "";
@@ -392,7 +457,7 @@ class GalleryManager {
         });
 
         // Render invalid files in a single "Invalid Files" category
-        if (this.emptyPoseFiles && this.emptyPoseFiles.length > 0) {
+        if (filteredEmptyPoseFiles.length > 0) {
             const section = document.createElement("div");
             section.className = "openpose-gallery-section";
 
@@ -403,7 +468,7 @@ class GalleryManager {
 
             const carousel = document.createElement("div");
             carousel.className = "openpose-gallery-carousel";
-            for (const { filename, reason } of this.emptyPoseFiles) {
+            for (const { filename, reason } of filteredEmptyPoseFiles) {
                 const item = document.createElement("div");
                 item.className = "openpose-gallery-item";
                 item.title = `${filename}: ${reason}`;
@@ -463,6 +528,7 @@ class GalleryManager {
         }
 
         galleryOverlay.applyStyles(this.container);
+        this.updateStatsBadge(galleryPresets, allGalleryPresets);
     }
 
     refreshOnShow() {
@@ -477,6 +543,54 @@ export function setupGalleryManager(container, openposeInstance) {
 function setupGalleryControls(container, openposeInstance, galleryManager) {
     if (!container || !galleryManager) {
         return;
+    }
+
+    const searchInput = container.querySelector('[data-action="gallery-search"]');
+    const clearSearch = container.querySelector('[data-action="gallery-search-clear"]');
+    if (searchInput && clearSearch && !searchInput.dataset.gallerySearchReady) {
+        searchInput.dataset.gallerySearchReady = "1";
+        searchInput.value = galleryManager.searchQuery || "";
+        let searchTimer = null;
+        const updateClearButton = () => {
+            clearSearch.hidden = searchInput.value.length === 0;
+            clearSearch.style.display = clearSearch.hidden ? "none" : "inline-flex";
+        };
+        const applySearch = () => {
+            searchTimer = null;
+            galleryManager.setSearchQuery(searchInput.value);
+        };
+        searchInput.addEventListener("input", () => {
+            updateClearButton();
+            if (searchTimer !== null) {
+                clearTimeout(searchTimer);
+            }
+            searchTimer = setTimeout(applySearch, 140);
+        });
+        searchInput.addEventListener("keydown", (event) => {
+            if (event.key !== "Escape" || searchInput.value.length === 0) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            if (searchTimer !== null) {
+                clearTimeout(searchTimer);
+                searchTimer = null;
+            }
+            searchInput.value = "";
+            updateClearButton();
+            galleryManager.setSearchQuery("");
+        });
+        clearSearch.addEventListener("click", () => {
+            if (searchTimer !== null) {
+                clearTimeout(searchTimer);
+                searchTimer = null;
+            }
+            searchInput.value = "";
+            updateClearButton();
+            galleryManager.setSearchQuery("");
+            searchInput.focus();
+        });
+        updateClearButton();
     }
 
     const viewToggle = container.querySelector('[data-action="gallery-toggle-view-mode"]');
@@ -520,6 +634,10 @@ export const galleryOverlayHtml = `
                     <div class="openpose-gallery-note-row">
                         <div class="openpose-gallery-note">These poses are loaded from the configured pose libraries. Add JSON files to any configured library and reload to show them in the Gallery and Presets selector.</div>
                         <div class="openpose-gallery-actions">
+                            <div class="openpose-gallery-search">
+                                <input class="openpose-gallery-search-input openpose-gallery-header-ctrl" data-action="gallery-search" type="search" placeholder="Search filename or path…" aria-label="Search poses by filename or path" autocomplete="off" spellcheck="false" />
+                                <button class="openpose-gallery-search-clear" data-action="gallery-search-clear" type="button" title="Clear search" aria-label="Clear gallery search" hidden>${UiIcons.svg('x', { size: 14, className: 'openpose-ui-icon' })}</button>
+                            </div>
                             <span class="openpose-gallery-stats-badge openpose-gallery-header-ctrl">0 poses from 0 files in 0 libraries</span>
                             <button class="openpose-btn openpose-btn-small openpose-gallery-view-toggle openpose-gallery-header-ctrl" data-action="gallery-toggle-view-mode">View: Medium Icons</button>
                             <button class="openpose-btn openpose-btn-small openpose-refresh-btn openpose-gallery-header-ctrl" data-action="presets-reload" title="Reload presets">\u{1F504}</button>
@@ -669,6 +787,43 @@ export function setupGalleryOverlayStyles(container) {
         actions.style.gap = "6px";
         actions.style.marginLeft = "auto";
         actions.style.flexShrink = "0";
+    });
+
+    container.querySelectorAll(".openpose-gallery-search").forEach((search) => {
+        search.style.position = "relative";
+        search.style.display = "flex";
+        search.style.alignItems = "center";
+        search.style.width = "240px";
+        search.style.minWidth = "150px";
+    });
+
+    container.querySelectorAll(".openpose-gallery-search-input").forEach((input) => {
+        input.style.width = "100%";
+        input.style.padding = "0 30px 0 9px";
+        input.style.border = "1px solid var(--openpose-border)";
+        input.style.borderRadius = "4px";
+        input.style.background = "var(--openpose-input-bg)";
+        input.style.color = "var(--openpose-input-text)";
+        input.style.fontFamily = "Arial, sans-serif";
+        input.style.fontSize = "12px";
+        input.style.outline = "none";
+    });
+
+    container.querySelectorAll(".openpose-gallery-search-clear").forEach((button) => {
+        button.style.position = "absolute";
+        button.style.right = "5px";
+        button.style.top = "50%";
+        button.style.width = "20px";
+        button.style.height = "20px";
+        button.style.padding = "3px";
+        button.style.alignItems = "center";
+        button.style.justifyContent = "center";
+        button.style.transform = "translateY(-50%)";
+        button.style.border = "0";
+        button.style.borderRadius = "3px";
+        button.style.background = "transparent";
+        button.style.color = "var(--openpose-text-muted)";
+        button.style.cursor = "pointer";
     });
 
     container.querySelectorAll(".openpose-gallery-note").forEach((note) => {
@@ -1003,6 +1158,20 @@ export function setupGalleryOverlayStyles(container) {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+.openpose-gallery-search-input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+}
+.openpose-gallery-search-input:focus {
+    border-color: var(--openpose-primary-bg) !important;
+    box-shadow: 0 0 0 1px var(--openpose-primary-bg);
+}
+.openpose-gallery-search-clear:hover,
+.openpose-gallery-search-clear:focus-visible {
+    background: var(--openpose-btn-hover-bg) !important;
+    color: var(--openpose-text) !important;
+    outline: none;
 }
 `;
         container.appendChild(style);

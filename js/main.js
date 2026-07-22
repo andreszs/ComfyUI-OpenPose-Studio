@@ -659,6 +659,17 @@ class OpenPosePanel {
 		this.renderer.onHoverChange(() => {
 			this.refreshCocoKeypointRowStyles();
 		});
+		this.renderer.onHandEditModeChange((active) => {
+			this.container?.classList.toggle("openpose-hand-edit-active", active);
+			if (active) {
+				this.refreshCocoKeypointsPanel();
+				this.setSidebarControlsDisabled(true);
+			} else {
+				this.setSidebarControlsDisabled(false);
+				this.refreshCocoKeypointsPanel();
+			}
+			this.scheduleCanvasFit();
+		});
 		this.canvas = null; // Use this.renderer instead
         poseEditorOverlay.applyStyles(container, {
             sidebarWidth: this.sidebarWidth,
@@ -931,6 +942,7 @@ class OpenPosePanel {
 
 		this.panel.onClose = () => {
 			document.removeEventListener("keydown", keyHandler)
+			this.renderer?.cancelHandEditMode?.();
 			this.stopPanelDrag();
 			if (this.panelDragHandle && this._panelDragMouseDownHandler) {
 				this.panelDragHandle.removeEventListener("mousedown", this._panelDragMouseDownHandler);
@@ -1830,6 +1842,7 @@ class OpenPosePanel {
 	}
 
 	confirmAndClose() {
+		this.renderer?.cancelHandEditMode?.();
 		// Enable committing to node, save changes, and mark as confirmed
 		this.allowCommitToNode = true;
 		this.saveToNode(true);
@@ -1878,7 +1891,11 @@ class OpenPosePanel {
 		}
 		// Global shortcuts
 		if (e.key === "Escape") {
-			this.requestClose();
+			if (this.renderer?.isHandEditModeActive?.()) {
+				this.renderer.cancelHandEditMode();
+			} else {
+				this.requestClose();
+			}
 			e.preventDefault();
 			e.stopImmediatePropagation();
 			return;

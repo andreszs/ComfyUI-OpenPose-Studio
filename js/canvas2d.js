@@ -104,6 +104,13 @@ export class OpenPoseCanvas2D {
 		this.preselectionPoseIndex = null; // Track which pose would be selected on click (hover preselection)
 		this.activeFormatId = DEFAULT_FORMAT_ID; // Track the active format
 		this.keypointEdits = false;
+		this.handEditMode = null;
+		this.handEditHitRadius = 14;
+		this.wristFusionSnapRadius = 14;
+		this.wristFusionTargets = null;
+		this.selectedHand = null;
+		this.hoveredHand = null;
+		this.sidebarHoveredHand = null;
 
 		// Conditioning area overlays (set from OpenPosePanel, not serialized)
 		this.conditioningAreas = [];
@@ -133,12 +140,19 @@ export class OpenPoseCanvas2D {
 		this.backgroundFillStyle = options.backgroundFillStyle || '#1a1a1a';
 		
 		// Interaction state
-		this.activeDragMode = 'none'; // 'none' | 'movePose' | 'dragKeypoint' | 'scalePose' | 'rotatePose' | 'marquee' | 'moveSelectedKeypoints' | 'scaleSelectedKeypoints'
+		this.activeDragMode = 'none'; // 'none' | 'movePose' | 'moveHand' | 'scaleHand' | 'rotateHand' | 'dragKeypoint' | 'scalePose' | 'rotatePose' | 'marquee' | 'moveSelectedKeypoints' | 'scaleSelectedKeypoints'
 		this.activeKeypointId = null;
 		this.activeScaleHandle = null; // 'tl' | 'tr' | 'bl' | 'br'
+		this.hoveredHandHandle = null;
 		this.dragStartPointer = null;
 		this.dragStartPose = null;
 		this.dragStartKeypoint = null;
+		this.dragStartAttachedHands = null;
+		this.dragStartHandKeypoints = null;
+		this.handDragMoved = false;
+		this.handTransformPivot = null;
+		this.handScaleStartDistance = null;
+		this.handRotateStartAngle = null;
 		this.rotatePivot = null;
 		this.rotateStartAngle = null;
 
@@ -161,6 +175,7 @@ export class OpenPoseCanvas2D {
 		this.onChangeCallback = null;
 		this.onSelectionChangeCallback = null;
 		this.onHoverChangeCallback = null;
+		this.onHandEditModeChangeCallback = null;
 		
 		// Drag-to-delete trash target state
 		this.trashTargetHovered = false;
@@ -185,6 +200,16 @@ export class OpenPoseCanvas2D {
 		
 		// Initialize canvas dimensions with HiDPI support
 		this.initializeCanvasSize();
+		this.initializeHandEditControls();
+		this.canvasResizeObserver = typeof ResizeObserver !== 'undefined'
+			? new ResizeObserver(() => {
+				if (this.handEditMode) {
+					this.updateHandEditView();
+				}
+				this.updateHandEditControls();
+			})
+			: null;
+		this.canvasResizeObserver?.observe(this.canvas);
 		
 		// Initial render
 		this.requestRedraw();
@@ -208,18 +233,10 @@ export class OpenPoseCanvas2D {
 			       cssHeight
 		       });
 		
-		// Set physical canvas resolution for HiDPI
-		this.canvas.width = this.logicalWidth * dpr;
-		this.canvas.height = this.logicalHeight * dpr;
-		
 		// Set CSS display size
 		this.canvas.style.width = cssWidth + 'px';
 		this.canvas.style.height = cssHeight + 'px';
-		
-		// Reset and scale context for HiDPI
-		// This maps logical coordinates to physical pixels
-		this.ctx.resetTransform();
-		this.ctx.scale(dpr, dpr);
+		this.updateCanvasBackingStore();
 		
 		// Fill with dark background for visibility
 		this.clearAndFillBackground();
@@ -231,24 +248,38 @@ export class OpenPoseCanvas2D {
 			       canvasStyleHeight: this.canvas.style.height
 		       });
 	}
+
+	getViewportDimensions() {
+		const size = this.handEditMode?.viewportSize;
+		return size
+			? { width: size, height: size }
+			: { width: this.logicalWidth, height: this.logicalHeight };
+	}
+
+	updateCanvasBackingStore() {
+		const dpr = window.devicePixelRatio || 1;
+		const viewport = this.getViewportDimensions();
+		this.canvas.width = viewport.width * dpr;
+		this.canvas.height = viewport.height * dpr;
+		this.ctx.resetTransform();
+		this.ctx.scale(dpr, dpr);
+	}
 	
 	setSize(logicalWidth, logicalHeight, cssWidth, cssHeight) {
 		this.logicalWidth = logicalWidth;
 		this.logicalHeight = logicalHeight;
-		
-		// HiDPI rendering
-		const dpr = window.devicePixelRatio || 1;
-		this.canvas.width = logicalWidth * dpr;
-		this.canvas.height = logicalHeight * dpr;
+		if (this.handEditMode) {
+			this.handEditMode.viewportSize = Math.max(logicalWidth, logicalHeight);
+		}
+		this.updateCanvasBackingStore();
 		this.canvas.style.width = cssWidth + 'px';
 		this.canvas.style.height = cssHeight + 'px';
 		
-		// Reset and scale context for HiDPI
-		this.ctx.resetTransform();
-		this.ctx.scale(dpr, dpr);
-		
 		// Fill with dark background for visibility
 		this.clearAndFillBackground();
+		if (this.handEditMode) {
+			this.updateHandEditView();
+		}
 		
 		this.requestRedraw();
 	}
@@ -280,12 +311,559 @@ export class OpenPoseCanvas2D {
 		if (!this.ctx) {
 			return;
 		}
-		this.ctx.clearRect(0, 0, this.logicalWidth, this.logicalHeight);
+		const viewport = this.getViewportDimensions();
+		this.ctx.clearRect(0, 0, viewport.width, viewport.height);
 		if (!this.backgroundFillStyle) {
 			return;
 		}
 		this.ctx.fillStyle = this.backgroundFillStyle;
-		this.ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
+		this.ctx.fillRect(0, 0, viewport.width, viewport.height);
+	}
+
+	initializeHandEditControls() {
+		const parent = this.canvas.parentElement;
+		if (!parent) {
+			return;
+		}
+		const actions = document.createElement('div');
+		actions.className = 'openpose-hand-edit-actions';
+		actions.hidden = true;
+		actions.addEventListener('pointerdown', (event) => event.stopPropagation());
+		parent.appendChild(actions);
+		const createButton = (className, title, svg) => {
+			const button = document.createElement('button');
+			button.type = 'button';
+			button.className = `openpose-canvas-glyph ${className}`;
+			button.title = title;
+			button.setAttribute('aria-label', title);
+			button.innerHTML = svg;
+			button.addEventListener('pointerdown', (event) => event.stopPropagation());
+			actions.appendChild(button);
+			return button;
+		};
+		const checkSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg>';
+		const closeSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+		const cancel = createButton('openpose-hand-edit-cancel', 'Cancel hand edits', closeSvg);
+		const confirm = createButton('openpose-hand-edit-confirm', 'Confirm hand edits', checkSvg);
+		this.handEditButtons = {
+			actions,
+			confirm,
+			cancel
+		};
+		this.handEditButtons.confirm.addEventListener('click', () => this.confirmHandEditMode());
+		this.handEditButtons.cancel.addEventListener('click', () => this.cancelHandEditMode());
+	}
+
+	getHandSideConfig(side) {
+		return side === 'right'
+			? { property: 'handRightKeypoints', elbowIndex: 3, wristIndex: 4 }
+			: { property: 'handLeftKeypoints', elbowIndex: 6, wristIndex: 7 };
+	}
+
+	areHandWristsFused(bodyWrist, handWrist) {
+		return !!bodyWrist && !!handWrist && bodyWrist.x === handWrist.x && bodyWrist.y === handWrist.y;
+	}
+
+	getFusedHandWristColor(pose, side, handWrist) {
+		const config = this.getHandSideConfig(side);
+		const bodyWrist = pose?.keypoints?.[config.wristIndex];
+		if (!this.areHandWristsFused(bodyWrist, handWrist)) {
+			return null;
+		}
+		const formatId = pose.formatId || (pose.keypoints[1] == null ? 'coco17' : 'coco18');
+		const format = getFormat(formatId) || getFormat(DEFAULT_FORMAT_ID);
+		return this.getKeypointColor(config.wristIndex, format?.keypointColors, format?.keypoints);
+	}
+
+	isLooseHand(pose, side) {
+		const config = this.getHandSideConfig(side);
+		const handKeypoints = pose?.[config.property];
+		const handWrist = handKeypoints?.[0];
+		return Array.isArray(handKeypoints) && !!handWrist && handKeypoints.some((kp) => kp) &&
+			!this.areHandWristsFused(pose?.keypoints?.[config.wristIndex], handWrist);
+	}
+
+	isSelectableHand(pose, side) {
+		const { property } = this.getHandSideConfig(side);
+		const handKeypoints = pose?.[property];
+		return Array.isArray(handKeypoints) && !!handKeypoints[0] && handKeypoints.some((kp) => kp);
+	}
+
+	getHandBounds(handKeypoints) {
+		if (!Array.isArray(handKeypoints)) {
+			return null;
+		}
+		let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+		for (const kp of handKeypoints) {
+			if (!kp) {
+				continue;
+			}
+			minX = Math.min(minX, kp.x);
+			minY = Math.min(minY, kp.y);
+			maxX = Math.max(maxX, kp.x);
+			maxY = Math.max(maxY, kp.y);
+		}
+		return minX === Infinity ? null : { minX, minY, maxX, maxY };
+	}
+
+	getHandTransformHandles(bounds, padding = 10) {
+		const scaleHandles = this.getScaleHandles(bounds, padding);
+		const midY = (bounds.minY + bounds.maxY) / 2;
+		return {
+			nw: scaleHandles.nw,
+			ne: scaleHandles.ne,
+			sw: scaleHandles.sw,
+			se: scaleHandles.se,
+			rotate: this.getRotationHandle(bounds, padding),
+			mirrorV: this.getMirrorVHandle(bounds, padding),
+			mirrorH: this.getMirrorHHandle(bounds, padding),
+			edit: { x: Math.max(16, bounds.minX - padding - 28), y: midY }
+		};
+	}
+
+	getSelectedHandTransformData() {
+		const handRef = this.selectedHand;
+		const pose = handRef ? this.poses[handRef.poseIndex] : null;
+		if (!pose || !this.isSelectableHand(pose, handRef.side)) {
+			return null;
+		}
+		const config = this.getHandSideConfig(handRef.side);
+		const keypoints = pose[config.property];
+		const bounds = this.getHandBounds(keypoints);
+		return bounds ? { handRef, pose, config, keypoints, bounds } : null;
+	}
+
+	distanceToSegment(point, start, end) {
+		const dx = end.x - start.x;
+		const dy = end.y - start.y;
+		const lengthSquared = dx * dx + dy * dy;
+		if (lengthSquared === 0) {
+			return Math.hypot(point.x - start.x, point.y - start.y);
+		}
+		const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
+		return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
+	}
+
+	isPointOnHand(pointer, handKeypoints) {
+		for (const kp of handKeypoints) {
+			if (kp && Math.hypot(pointer.x - kp.x, pointer.y - kp.y) <= this.keypointHitRadius) {
+				return true;
+			}
+		}
+		const lineHitRadius = Math.max(6, this.handLineWidth + 3);
+		for (const [a, b] of HAND_EDGES) {
+			const start = handKeypoints[a];
+			const end = handKeypoints[b];
+			if (start && end && this.distanceToSegment(pointer, start, end) <= lineHitRadius) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	findHandAtPoint(pointer, includeSelectedBounds = true) {
+		if (includeSelectedBounds && this.selectedHand) {
+			const pose = this.poses[this.selectedHand.poseIndex];
+			const config = this.getHandSideConfig(this.selectedHand.side);
+			if (this.isSelectableHand(pose, this.selectedHand.side)) {
+				const bounds = this.getHandBounds(pose[config.property]);
+				const padding = 10;
+				if (bounds && pointer.x >= bounds.minX - padding && pointer.x <= bounds.maxX + padding &&
+					pointer.y >= bounds.minY - padding && pointer.y <= bounds.maxY + padding) {
+					return { ...this.selectedHand };
+				}
+			}
+		}
+		for (let poseIndex = this.poses.length - 1; poseIndex >= 0; poseIndex--) {
+			const pose = this.poses[poseIndex];
+			for (const side of ['right', 'left']) {
+				if (!this.isSelectableHand(pose, side)) {
+					continue;
+				}
+				const { property } = this.getHandSideConfig(side);
+				if (this.isPointOnHand(pointer, pose[property])) {
+					return { poseIndex, side };
+				}
+			}
+		}
+		return null;
+	}
+
+	getFusedHandRefForWrist(poseIndex, wristIndex) {
+		const side = wristIndex === 4 ? 'right' : (wristIndex === 7 ? 'left' : null);
+		const pose = side ? this.poses[poseIndex] : null;
+		if (!pose) {
+			return null;
+		}
+		const config = this.getHandSideConfig(side);
+		const bodyWrist = pose.keypoints?.[config.wristIndex];
+		const handWrist = pose[config.property]?.[0];
+		return this.areHandWristsFused(bodyWrist, handWrist) ? { poseIndex, side } : null;
+	}
+
+	getAttachedHandHints() {
+		if (this.activeDragMode === 'dragKeypoint' && this.dragStartKeypoint) {
+			const hint = this.getFusedHandRefForWrist(this.dragStartKeypoint.poseIndex, this.dragStartKeypoint.keypointId);
+			return hint ? [hint] : [];
+		}
+		if (this.activeDragMode === 'moveSelectedKeypoints' || this.activeDragMode === 'scaleSelectedKeypoints') {
+			const hints = [];
+			for (const wristIndex of [4, 7]) {
+				if (!this.selectedKeypointIds.has(wristIndex)) {
+					continue;
+				}
+				const hint = this.getFusedHandRefForWrist(this.selectedPoseIndex, wristIndex);
+				if (hint) {
+					hints.push(hint);
+				}
+			}
+			return hints;
+		}
+		if (this.activeDragMode === 'none' && this.canvasHoveredPoseIndex !== null) {
+			const hint = this.getFusedHandRefForWrist(this.canvasHoveredPoseIndex, this.canvasHoveredKeypointId);
+			return hint ? [hint] : [];
+		}
+		return [];
+	}
+
+	updateMovedHandFusionTarget(pose, side) {
+		const config = this.getHandSideConfig(side);
+		const bodyWrist = pose?.keypoints?.[config.wristIndex];
+		const handWrist = pose?.[config.property]?.[0];
+		if (!bodyWrist || !handWrist) {
+			this.wristFusionTargets = null;
+			return;
+		}
+		this.wristFusionTargets = [{
+			handWrist: bodyWrist,
+			isCandidate: this.handDragMoved && Math.hypot(bodyWrist.x - handWrist.x, bodyWrist.y - handWrist.y) <= this.wristFusionSnapRadius
+		}];
+	}
+
+	snapMovedHandToBodyWrist(pose, side) {
+		const target = this.wristFusionTargets?.[0];
+		if (!target?.isCandidate) {
+			return false;
+		}
+		const config = this.getHandSideConfig(side);
+		const bodyWrist = pose?.keypoints?.[config.wristIndex];
+		const handKeypoints = pose?.[config.property];
+		const handWrist = handKeypoints?.[0];
+		if (!bodyWrist || !handWrist) {
+			return false;
+		}
+		const dx = bodyWrist.x - handWrist.x;
+		const dy = bodyWrist.y - handWrist.y;
+		pose[config.property] = handKeypoints.map((kp) => kp ? { x: kp.x + dx, y: kp.y + dy } : null);
+		return true;
+	}
+
+	captureAttachedHands(pose, keypointIds) {
+		const selectedIds = new Set(keypointIds || []);
+		const attachments = [];
+		for (const side of ['left', 'right']) {
+			const config = this.getHandSideConfig(side);
+			const wrist = pose?.keypoints?.[config.wristIndex];
+			const handKeypoints = pose?.[config.property];
+			if (!selectedIds.has(config.wristIndex) || !wrist || !Array.isArray(handKeypoints) || !handKeypoints.some((kp) => kp)) {
+				continue;
+			}
+			attachments.push({
+				property: config.property,
+				wristIndex: config.wristIndex,
+				wristStart: { x: wrist.x, y: wrist.y },
+				fused: this.areHandWristsFused(wrist, handKeypoints[0]),
+				hasMoved: false,
+				keypoints: handKeypoints.map((kp) => kp ? { x: kp.x, y: kp.y } : null)
+			});
+		}
+		this.dragStartAttachedHands = attachments.length > 0 ? attachments : null;
+		this.updateWristFusionTargets(pose);
+	}
+
+	updateAttachedHands(pose) {
+		if (!pose || !this.dragStartAttachedHands) {
+			return;
+		}
+		for (const attachment of this.dragStartAttachedHands) {
+			if (!attachment.fused) {
+				continue;
+			}
+			const wrist = pose.keypoints?.[attachment.wristIndex];
+			if (!wrist) {
+				continue;
+			}
+			const dx = wrist.x - attachment.wristStart.x;
+			const dy = wrist.y - attachment.wristStart.y;
+			const translated = attachment.keypoints.map((kp) => kp ? {
+				x: kp.x + dx,
+				y: kp.y + dy
+			} : null);
+			if (attachment.fused && translated[0]) {
+				translated[0] = { x: wrist.x, y: wrist.y };
+			}
+			pose[attachment.property] = translated;
+		}
+	}
+
+	updateWristFusionTargets(pose) {
+		if (!pose || !this.dragStartAttachedHands) {
+			this.wristFusionTargets = null;
+			return;
+		}
+		const targets = [];
+		for (const attachment of this.dragStartAttachedHands) {
+			if (attachment.fused) {
+				continue;
+			}
+			const wrist = pose.keypoints?.[attachment.wristIndex];
+			const handWrist = pose[attachment.property]?.[0];
+			if (!wrist || !handWrist) {
+				continue;
+			}
+			attachment.hasMoved = attachment.hasMoved || wrist.x !== attachment.wristStart.x || wrist.y !== attachment.wristStart.y;
+			targets.push({
+				wristIndex: attachment.wristIndex,
+				property: attachment.property,
+				handWrist,
+				isCandidate: !!attachment.hasMoved && Math.hypot(wrist.x - handWrist.x, wrist.y - handWrist.y) <= this.wristFusionSnapRadius
+			});
+		}
+		this.wristFusionTargets = targets.length > 0 ? targets : null;
+	}
+
+	fuseBodyWristsAtHandTargets(pose) {
+		if (!pose || !this.wristFusionTargets) {
+			return false;
+		}
+		let changed = false;
+		for (const target of this.wristFusionTargets) {
+			if (!target.isCandidate) {
+				continue;
+			}
+			const handWrist = pose[target.property]?.[0];
+			if (!handWrist) {
+				continue;
+			}
+			pose.keypoints[target.wristIndex] = { x: handWrist.x, y: handWrist.y };
+			changed = true;
+		}
+		return changed;
+	}
+
+	restoreAttachedHands(pose) {
+		if (!pose || !this.dragStartAttachedHands) {
+			return;
+		}
+		for (const attachment of this.dragStartAttachedHands) {
+			pose[attachment.property] = attachment.keypoints.map((kp) => kp ? { x: kp.x, y: kp.y } : null);
+		}
+	}
+
+	hasEditableHand(pose, side) {
+		if (!pose) {
+			return false;
+		}
+		const { property } = this.getHandSideConfig(side);
+		const keypoints = pose[property];
+		return Array.isArray(keypoints) && keypoints.length >= 21 && keypoints.slice(1, 21).some((kp) => kp);
+	}
+
+	isHandEditModeActive() {
+		return !!this.handEditMode;
+	}
+
+	getHandEditModeInfo() {
+		const mode = this.handEditMode;
+		return mode ? {
+			poseIndex: mode.poseIndex,
+			side: mode.side,
+			keypoints: mode.keypoints,
+			hoveredKeypointId: mode.hoveredKeypointId,
+			activeKeypointId: mode.activeKeypointId
+		} : null;
+	}
+
+	setHoveredHandEditKeypointId(keypointId) {
+		const mode = this.handEditMode;
+		if (!mode) {
+			return;
+		}
+		const nextId = Number.isInteger(keypointId) && keypointId >= 0 && keypointId < mode.keypoints.length && mode.keypoints[keypointId]
+			? keypointId
+			: null;
+		if (mode.hoveredKeypointId === nextId) {
+			return;
+		}
+		mode.hoveredKeypointId = nextId;
+		this.onHoverChangeCallback?.();
+		this.updateCursor();
+		this.requestRedraw();
+	}
+
+	enterHandEditMode(poseIndex, side) {
+		if (side !== 'left' && side !== 'right') {
+			return false;
+		}
+		const pose = poseIndex != null ? this.poses[poseIndex] : null;
+		if (!this.hasEditableHand(pose, side)) {
+			return false;
+		}
+		if (this.handEditMode) {
+			this.cancelHandEditMode();
+		}
+		const { property } = this.getHandSideConfig(side);
+		const bufferedKeypoints = pose[property].map((kp) => kp ? { x: kp.x, y: kp.y } : null);
+		this.selectedPoseIndex = poseIndex;
+		this.selectedKeypointIds = new Set();
+		this.selectedHand = null;
+		this.sidebarHoveredHand = null;
+		this.handEditMode = {
+			poseIndex,
+			side,
+			keypoints: bufferedKeypoints,
+			hoveredKeypointId: null,
+			activeKeypointId: null,
+			viewportSize: Math.max(this.logicalWidth, this.logicalHeight),
+			view: null
+		};
+		this.activeDragMode = 'none';
+		this.updateCanvasBackingStore();
+		this.updateHandEditView();
+		this.notifySelectionChange();
+		this.notifyHandEditModeChange(true);
+		this.updateCursor();
+		this.requestRedraw();
+		return true;
+	}
+
+	confirmHandEditMode() {
+		const mode = this.handEditMode;
+		if (!mode) {
+			return false;
+		}
+		const pose = this.poses[mode.poseIndex];
+		const { property } = this.getHandSideConfig(mode.side);
+		const changed = !!pose && JSON.stringify(pose[property]) !== JSON.stringify(mode.keypoints);
+		if (changed) {
+			pose[property] = mode.keypoints.map((kp) => kp ? { x: kp.x, y: kp.y } : null);
+			this.markKeypointEdited();
+		}
+		this.finishHandEditMode();
+		if (changed) {
+			this.notifyChange('geometry');
+		}
+		return changed;
+	}
+
+	cancelHandEditMode() {
+		if (!this.handEditMode) {
+			return false;
+		}
+		this.finishHandEditMode();
+		return true;
+	}
+
+	finishHandEditMode() {
+		const pointerId = this.handEditMode?.pointerId;
+		if (pointerId != null && this.canvas.hasPointerCapture(pointerId)) {
+			this.canvas.releasePointerCapture(pointerId);
+		}
+		this.handEditMode = null;
+		this.updateCanvasBackingStore();
+		this.activeDragMode = 'none';
+		this.activeKeypointId = null;
+		this.dragStartPointer = null;
+		this.dragStartKeypoint = null;
+		this.dragStartAttachedHands = null;
+		this.wristFusionTargets = null;
+		this.notifyHandEditModeChange(false);
+		this.updateCursor();
+		this.requestRedraw();
+	}
+
+	updateHandEditView() {
+		const mode = this.handEditMode;
+		if (!mode) {
+			return;
+		}
+		const validPoints = mode.keypoints.filter((kp) => kp && Number.isFinite(kp.x) && Number.isFinite(kp.y));
+		if (validPoints.length === 0) {
+			mode.view = null;
+			return;
+		}
+		let minX = Math.min(...validPoints.map((kp) => kp.x));
+		let maxX = Math.max(...validPoints.map((kp) => kp.x));
+		let minY = Math.min(...validPoints.map((kp) => kp.y));
+		let maxY = Math.max(...validPoints.map((kp) => kp.y));
+		const minSpan = Math.max(24, Math.min(this.logicalWidth, this.logicalHeight) * 0.06);
+		if (maxX - minX < minSpan) {
+			const centerX = (minX + maxX) / 2;
+			minX = centerX - minSpan / 2;
+			maxX = centerX + minSpan / 2;
+		}
+		if (maxY - minY < minSpan) {
+			const centerY = (minY + maxY) / 2;
+			minY = centerY - minSpan / 2;
+			maxY = centerY + minSpan / 2;
+		}
+		const viewport = this.getViewportDimensions();
+		const margin = Math.max(36, Math.min(viewport.width, viewport.height) * 0.1);
+		const bottomMargin = Math.max(margin, 92);
+		const availableHeight = viewport.height - margin - bottomMargin;
+		const scale = Math.min(
+			(viewport.width - margin * 2) / (maxX - minX),
+			availableHeight / (maxY - minY)
+		);
+		const centerX = (minX + maxX) / 2;
+		const centerY = (minY + maxY) / 2;
+		mode.view = {
+			scale,
+			offsetX: viewport.width / 2 - centerX * scale,
+			offsetY: margin + availableHeight / 2 - centerY * scale
+		};
+	}
+
+	worldToHandView(point) {
+		const view = this.handEditMode?.view;
+		if (!point || !view) {
+			return null;
+		}
+		return {
+			x: point.x * view.scale + view.offsetX,
+			y: point.y * view.scale + view.offsetY
+		};
+	}
+
+	handViewToWorld(point) {
+		const view = this.handEditMode?.view;
+		if (!point || !view) {
+			return null;
+		}
+		return {
+			x: (point.x - view.offsetX) / view.scale,
+			y: (point.y - view.offsetY) / view.scale
+		};
+	}
+
+	updateHandEditControls() {
+		if (!this.handEditButtons) {
+			return;
+		}
+		const actions = this.handEditButtons.actions;
+		const canvasLeft = this.canvas.offsetLeft;
+		const canvasTop = this.canvas.offsetTop;
+		const canvasWidth = this.canvas.clientWidth;
+		const canvasHeight = this.canvas.clientHeight;
+		if (this.handEditMode) {
+			actions.hidden = false;
+			actions.style.display = 'inline-flex';
+			actions.style.left = `${canvasLeft + canvasWidth / 2}px`;
+			actions.style.top = `${canvasTop + canvasHeight - 14}px`;
+			return;
+		}
+		actions.hidden = true;
+		actions.style.display = 'none';
 	}
 	
 	setPoses(posesArray) {
@@ -299,6 +877,9 @@ export class OpenPoseCanvas2D {
 				handRightKeypoints: this.normalizeExtraKeypoints(pose.handRightKeypoints || pose.hand_right_keypoints_2d)
 			};
 		});
+		this.selectedHand = null;
+		this.hoveredHand = null;
+		this.sidebarHoveredHand = null;
 		this.keypointEdits = false;
 		this.requestRedraw();
 	}
@@ -320,6 +901,8 @@ export class OpenPoseCanvas2D {
 		       const resolvedFormatId = formatId !== null ? formatId : detectFormat(keypoints18);
 		       this.poses.push({ keypoints: keypoints18, formatId: resolvedFormatId, faceKeypoints, handLeftKeypoints, handRightKeypoints });
 		       this.selectedPoseIndex = this.poses.length - 1;
+		       this.selectedHand = null;
+		       this.sidebarHoveredHand = null;
 		       debugLog('[OpenPoseCanvas2D] addPose:', {
 			       poseIndex: this.selectedPoseIndex,
 			       keypointsCount: keypoints18.length,
@@ -409,6 +992,9 @@ export class OpenPoseCanvas2D {
 		
 		this.poses = [];
 		this.selectedPoseIndex = null;
+		this.selectedHand = null;
+		this.hoveredHand = null;
+		this.sidebarHoveredHand = null;
 		this.keypointEdits = false;
 		const resolvedFormatId = (format && format.id) ? format.id : null;
 		for (let i = 0; i < flatXYPairs.length; i += kpCount) {
@@ -422,6 +1008,9 @@ export class OpenPoseCanvas2D {
 
 	removePose(index) {
 		if (index >= 0 && index < this.poses.length) {
+			this.selectedHand = null;
+			this.hoveredHand = null;
+			this.sidebarHoveredHand = null;
 			this.poses.splice(index, 1);
 			if (this.selectedPoseIndex === index) {
 				this.selectedPoseIndex = this.poses.length > 0 ? Math.min(index, this.poses.length - 1) : null;
@@ -439,6 +1028,8 @@ export class OpenPoseCanvas2D {
 			// Clear multi-keypoint selection whenever the active pose changes
 			this.selectedKeypointIds = new Set();
 		}
+		this.selectedHand = null;
+		this.sidebarHoveredHand = null;
 		this.selectedPoseIndex = indexOrNull;
 		this.notifySelectionChange();
 		this.requestRedraw();
@@ -461,6 +1052,22 @@ export class OpenPoseCanvas2D {
 		// Sidebar hover takes priority over canvas hover
 		this.hoveredKeypointId = idOrNull !== null ? idOrNull : this.canvasHoveredKeypointId;
 		this.updateCursor();
+		this.requestRedraw();
+	}
+
+	setSidebarHoveredHandSide(side) {
+		let nextHand = null;
+		if ((side === 'left' || side === 'right') && this.selectedPoseIndex !== null) {
+			const pose = this.poses[this.selectedPoseIndex];
+			const { property } = this.getHandSideConfig(side);
+			if (Array.isArray(pose?.[property]) && pose[property].some((kp) => kp)) {
+				nextHand = { poseIndex: this.selectedPoseIndex, side };
+			}
+		}
+		if (this.sidebarHoveredHand?.poseIndex === nextHand?.poseIndex && this.sidebarHoveredHand?.side === nextHand?.side) {
+			return;
+		}
+		this.sidebarHoveredHand = nextHand;
 		this.requestRedraw();
 	}
 	
@@ -521,14 +1128,23 @@ export class OpenPoseCanvas2D {
 	 */
 	updateCursor() {
 		if (!this.canvas) return;
+		if (this.handEditMode) {
+			this.canvas.style.cursor = this.activeDragMode === 'dragHandKeypoint' || this.handEditMode.hoveredKeypointId !== null
+				? 'crosshair'
+				: 'default';
+			return;
+		}
 
+		if (this.activeDragMode === 'moveHand' || this.activeDragMode === 'rotateHand') {
+			this.canvas.style.cursor = 'grabbing';
+		}
 		// During an active rotation drag, show grabbing cursor
-		if (this.activeDragMode === 'rotatePose') {
+		else if (this.activeDragMode === 'rotatePose') {
 			this.canvas.style.cursor = 'grabbing';
 		}
 		// Mirror handles use pointer — communicated via getHandleCursor map; no drag mode needed
 		// During an active scale drag, show the resize cursor for that handle
-		else if ((this.activeDragMode === 'scalePose' || this.activeDragMode === 'scaleSelectedKeypoints') && this.activeScaleHandle) {
+		else if ((this.activeDragMode === 'scalePose' || this.activeDragMode === 'scaleSelectedKeypoints' || this.activeDragMode === 'scaleHand') && this.activeScaleHandle) {
 			this.canvas.style.cursor = this.getHandleCursor(this.activeScaleHandle);
 		}
 		// During an active drag of a keypoint or selected keypoints, always show crosshair/move
@@ -540,12 +1156,19 @@ export class OpenPoseCanvas2D {
 			this.canvas.style.cursor = 'crosshair';
 		}
 		// When hovering a scale handle, show the appropriate resize cursor
+		else if (this.hoveredHandHandle) {
+			this.canvas.style.cursor = this.getHandleCursor(this.hoveredHandHandle);
+		}
 		else if (this.hoveredHandle) {
 			this.canvas.style.cursor = this.getHandleCursor(this.hoveredHandle);
 		}
 		// When hovering a keypoint (sidebar or canvas), show crosshair
 		else if (this.hoveredKeypointId !== null) {
 			this.canvas.style.cursor = 'crosshair';
+		}
+		else if (this.hoveredHand) {
+			const hoveredPose = this.poses[this.hoveredHand.poseIndex];
+			this.canvas.style.cursor = this.isLooseHand(hoveredPose, this.hoveredHand.side) ? 'grab' : 'pointer';
 		}
 		// When hovering a conditioning area badge, show pointer
 		else if (this.isHoveringBadge) {
@@ -572,12 +1195,14 @@ export class OpenPoseCanvas2D {
 			e: 'ew-resize',     // Right middle
 			rotate: 'grab',     // Rotation handle
 			mirrorV: 'pointer', // Vertical mirror (L/R flip) — instant click
-			mirrorH: 'pointer'  // Horizontal mirror (U/D flip) — instant click
+			mirrorH: 'pointer', // Horizontal mirror (U/D flip) — instant click
+			edit: 'pointer'     // Open the isolated hand editor
 		};
 		return cursorMap[handleName] || 'default';
 	}
 	
 	destroy() {
+		this.cancelHandEditMode();
 		// Clean up debounce timer
 		if (this.canvasHoverDebounceTimer) {
 			clearTimeout(this.canvasHoverDebounceTimer);
@@ -587,6 +1212,11 @@ export class OpenPoseCanvas2D {
 		this.canvas.removeEventListener('pointerup', this.handlePointerUp);
 		this.canvas.removeEventListener('pointerleave', this.handlePointerLeave);
 		this.canvas.removeEventListener('dblclick', this.handleDoubleClick);
+		this.canvasResizeObserver?.disconnect();
+		if (this.handEditButtons) {
+			Object.values(this.handEditButtons).forEach((button) => button.remove());
+			this.handEditButtons = null;
+		}
 		if (this.animationFrameId) {
 			clearTimeout(this.animationFrameId); // Clear timeout instead of canceling RAF
 		}
@@ -602,6 +1232,16 @@ export class OpenPoseCanvas2D {
 	
 	onHoverChange(callback) {
 		this.onHoverChangeCallback = callback;
+	}
+
+	onHandEditModeChange(callback) {
+		this.onHandEditModeChangeCallback = callback;
+	}
+
+	notifyHandEditModeChange(active) {
+		if (this.onHandEditModeChangeCallback) {
+			this.onHandEditModeChangeCallback(active, this.handEditMode);
+		}
 	}
 	
 	notifyChange(reason) {
@@ -680,6 +1320,13 @@ export class OpenPoseCanvas2D {
 		} else {
 			pose.handRightKeypoints = [];
 		}
+		if (this.selectedHand?.poseIndex === poseIndex) {
+			this.selectedHand = null;
+			this.hoveredHand = null;
+		}
+		if (this.sidebarHoveredHand?.poseIndex === poseIndex) {
+			this.sidebarHoveredHand = null;
+		}
 		this.requestRedraw();
 		this.notifyChange('extras');
 		return true;
@@ -699,6 +1346,13 @@ export class OpenPoseCanvas2D {
 			return false;
 		}
 		pose.handLeftKeypoints = new Array(len).fill(null);
+		if (this.selectedHand?.poseIndex === poseIndex && this.selectedHand.side === 'left') {
+			this.selectedHand = null;
+			this.hoveredHand = null;
+		}
+		if (this.sidebarHoveredHand?.poseIndex === poseIndex && this.sidebarHoveredHand.side === 'left') {
+			this.sidebarHoveredHand = null;
+		}
 		this.requestRedraw();
 		this.notifyChange('extras');
 		return true;
@@ -718,6 +1372,13 @@ export class OpenPoseCanvas2D {
 			return false;
 		}
 		pose.handRightKeypoints = new Array(len).fill(null);
+		if (this.selectedHand?.poseIndex === poseIndex && this.selectedHand.side === 'right') {
+			this.selectedHand = null;
+			this.hoveredHand = null;
+		}
+		if (this.sidebarHoveredHand?.poseIndex === poseIndex && this.sidebarHoveredHand.side === 'right') {
+			this.sidebarHoveredHand = null;
+		}
 		this.requestRedraw();
 		this.notifyChange('extras');
 		return true;
@@ -879,6 +1540,9 @@ export class OpenPoseCanvas2D {
 				)
 			})
 		);
+		this.selectedHand = null;
+		this.hoveredHand = null;
+		this.sidebarHoveredHand = null;
 		this.keypointEdits = false;
 		
 		this.requestRedraw();
@@ -908,6 +1572,14 @@ export class OpenPoseCanvas2D {
 			       // Clear and fill background
 			       this.clearAndFillBackground();
 			       debugLog('[OpenPoseCanvas2D] Background filled');
+			       if (this.handEditMode) {
+				       const viewport = this.getViewportDimensions();
+				       ctx.fillStyle = '#24272b';
+				       ctx.fillRect(0, 0, viewport.width, viewport.height);
+				       this.drawHandEditMode();
+				       this.updateHandEditControls();
+				       return;
+			       }
 			       // Draw grid
 			       if (this.gridEnabled) {
 				       debugLog('[OpenPoseCanvas2D] Drawing grid');
@@ -937,8 +1609,17 @@ export class OpenPoseCanvas2D {
 				       }
 				       debugLog('[OpenPoseCanvas2D] Poses drawn');
 			       }
-			       // Draw selection UI for selected pose (only when no multi-keypoint selection is active)
-			       if (this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length && this.selectedKeypointIds.size === 0) {
+			       this.drawWristFusionFeedback();
+			       this.drawAttachedHandHints();
+			       this.drawSidebarHoveredHandHint();
+			       if (this.hoveredHand && (!this.selectedHand || this.hoveredHand.poseIndex !== this.selectedHand.poseIndex || this.hoveredHand.side !== this.selectedHand.side)) {
+				       this.drawHandSelectionUI(this.hoveredHand, true);
+			       }
+			       if (this.selectedHand) {
+				       this.drawHandSelectionUI(this.selectedHand, false);
+			       }
+			       // Draw selection UI for selected pose (only when no hand or multi-keypoint selection is active)
+			       if (!this.selectedHand && this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length && this.selectedKeypointIds.size === 0) {
 				       debugLog('[OpenPoseCanvas2D] Drawing selection UI for pose', this.selectedPoseIndex);
 				       this.drawSelectionUI(this.poses[this.selectedPoseIndex]);
 				       debugLog('[OpenPoseCanvas2D] Selection UI drawn');
@@ -972,6 +1653,7 @@ export class OpenPoseCanvas2D {
 			       if (this.marqueeRect !== null) {
 				       this.drawMarqueeRect();
 			       }
+			       this.updateHandEditControls();
 		
 		} catch (error) {
 			console.error('[OpenPoseCanvas2D] ERROR in render():', error);
@@ -1323,12 +2005,15 @@ export class OpenPoseCanvas2D {
 		}
 		const ctx = this.ctx;
 		const radius = this.keypointRadius;
+		const fusedWristColor = this.getFusedHandWristColor(pose, handLabel, handKeypoints[0]);
 		for (let i = 0; i < handKeypoints.length; i++) {
 			const kp = handKeypoints[i];
 			if (!kp) {
 				continue;
 			}
-			const color = HAND_KEYPOINT_COLORS[i] || [255, 255, 255];
+			const color = i === 0 && fusedWristColor
+				? fusedWristColor
+				: (HAND_KEYPOINT_COLORS[i] || [255, 255, 255]);
 			ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
 			ctx.beginPath();
 			ctx.arc(kp.x, kp.y, radius, 0, Math.PI * 2);
@@ -1353,6 +2038,114 @@ export class OpenPoseCanvas2D {
 		ctx.moveTo(x1, y1);
 		ctx.lineTo(x2, y2);
 		ctx.stroke();
+	}
+
+	drawHandEditMode() {
+		const mode = this.handEditMode;
+		const pose = mode ? this.poses[mode.poseIndex] : null;
+		if (!mode || !pose || !mode.view) {
+			return;
+		}
+		const ctx = this.ctx;
+		const config = this.getHandSideConfig(mode.side);
+		const elbow = pose.keypoints?.[config.elbowIndex] || null;
+		const bodyWrist = pose.keypoints?.[config.wristIndex] || null;
+		const handWrist = mode.keypoints[0] || null;
+		const armAnchor = bodyWrist || handWrist;
+		const fusedWristColor = this.getFusedHandWristColor(pose, mode.side, handWrist);
+
+		if (elbow && armAnchor) {
+			const elbowView = this.worldToHandView(elbow);
+			const anchorView = this.worldToHandView(armAnchor);
+			ctx.strokeStyle = 'rgba(185, 195, 205, 0.32)';
+			ctx.lineWidth = 5;
+			ctx.lineCap = 'round';
+			ctx.beginPath();
+			ctx.moveTo(elbowView.x, elbowView.y);
+			ctx.lineTo(anchorView.x, anchorView.y);
+			ctx.stroke();
+		}
+
+		if (bodyWrist && handWrist) {
+			const bodyWristView = this.worldToHandView(bodyWrist);
+			const handWristView = this.worldToHandView(handWrist);
+			const distance = Math.hypot(bodyWristView.x - handWristView.x, bodyWristView.y - handWristView.y);
+			if (distance > 2) {
+				ctx.strokeStyle = 'rgba(140, 210, 255, 0.62)';
+				ctx.lineWidth = 2;
+				ctx.setLineDash([6, 5]);
+				ctx.beginPath();
+				ctx.moveTo(bodyWristView.x, bodyWristView.y);
+				ctx.lineTo(handWristView.x, handWristView.y);
+				ctx.stroke();
+				ctx.setLineDash([]);
+			}
+		}
+
+		for (const [a, b] of HAND_EDGES) {
+			const kpA = mode.keypoints[a];
+			const kpB = mode.keypoints[b];
+			if (!kpA || !kpB) {
+				continue;
+			}
+			const viewA = this.worldToHandView(kpA);
+			const viewB = this.worldToHandView(kpB);
+			const color = HAND_KEYPOINT_COLORS[b] || [255, 255, 255];
+			ctx.strokeStyle = PREVIEW_OUTLINE_STROKE;
+			ctx.lineWidth = 5;
+			ctx.lineCap = 'round';
+			ctx.beginPath();
+			ctx.moveTo(viewA.x, viewA.y);
+			ctx.lineTo(viewB.x, viewB.y);
+			ctx.stroke();
+			ctx.strokeStyle = `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.9)`;
+			ctx.lineWidth = 3;
+			ctx.beginPath();
+			ctx.moveTo(viewA.x, viewA.y);
+			ctx.lineTo(viewB.x, viewB.y);
+			ctx.stroke();
+		}
+
+		for (let i = 0; i < mode.keypoints.length; i++) {
+			const kp = mode.keypoints[i];
+			if (!kp) {
+				continue;
+			}
+			const viewPoint = this.worldToHandView(kp);
+			const color = i === 0 && fusedWristColor
+				? fusedWristColor
+				: (HAND_KEYPOINT_COLORS[i] || [255, 255, 255]);
+			const isHovered = i === mode.hoveredKeypointId;
+			const isActive = i === mode.activeKeypointId;
+			const radius = i === 0 ? 7 : (isHovered || isActive ? 8 : 6);
+			if (isHovered || isActive) {
+				ctx.strokeStyle = isActive ? 'rgba(100, 210, 255, 1)' : 'rgba(255, 255, 255, 0.95)';
+				ctx.lineWidth = 3;
+				ctx.beginPath();
+				ctx.arc(viewPoint.x, viewPoint.y, radius + 5, 0, Math.PI * 2);
+				ctx.stroke();
+			}
+			ctx.fillStyle = i === 0 && !fusedWristColor
+				? 'rgba(150, 158, 166, 0.95)'
+				: `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+			ctx.beginPath();
+			ctx.arc(viewPoint.x, viewPoint.y, radius, 0, Math.PI * 2);
+			ctx.fill();
+			if (i === 0) {
+				ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+				ctx.lineWidth = 1.5;
+				ctx.stroke();
+			}
+		}
+
+		if (armAnchor) {
+			const anchorView = this.worldToHandView(armAnchor);
+			ctx.strokeStyle = bodyWrist ? 'rgba(100, 210, 255, 0.95)' : 'rgba(190, 200, 210, 0.9)';
+			ctx.lineWidth = 3;
+			ctx.beginPath();
+			ctx.arc(anchorView.x, anchorView.y, 12, 0, Math.PI * 2);
+			ctx.stroke();
+		}
 	}
 	
 	drawSelectionUI(pose) {
@@ -1538,6 +2331,285 @@ export class OpenPoseCanvas2D {
 		ctx.lineTo(mhX + 5,  mhY + 4);       // base right
 		ctx.closePath();
 		ctx.fill();
+	}
+
+	drawHandSelectionUI(handRef, hoveredOnly = false) {
+		const pose = handRef ? this.poses[handRef.poseIndex] : null;
+		if (!pose || !this.isSelectableHand(pose, handRef.side)) {
+			return;
+		}
+		const { property } = this.getHandSideConfig(handRef.side);
+		const bounds = this.getHandBounds(pose[property]);
+		if (!bounds) {
+			return;
+		}
+		const padding = 10;
+		const ctx = this.ctx;
+		const active = this.activeDragMode === 'moveHand' || this.activeDragMode === 'scaleHand' || this.activeDragMode === 'rotateHand';
+		const boxColor = hoveredOnly
+			? 'rgba(160, 210, 235, 0.5)'
+			: (active ? 'rgba(100, 220, 255, 0.95)' : 'rgba(100, 200, 255, 0.75)');
+		ctx.strokeStyle = boxColor;
+		ctx.lineWidth = active ? 2.5 : 1.5;
+		ctx.setLineDash([4, 4]);
+		ctx.strokeRect(
+			bounds.minX - padding,
+			bounds.minY - padding,
+			bounds.maxX - bounds.minX + padding * 2,
+			bounds.maxY - bounds.minY + padding * 2
+		);
+		ctx.setLineDash([]);
+
+		if (hoveredOnly) {
+			return;
+		}
+
+		const handles = this.getHandTransformHandles(bounds, padding);
+		const handleFill = active ? 'rgba(100, 220, 255, 0.95)' : 'rgba(100, 200, 255, 0.8)';
+		ctx.fillStyle = handleFill;
+		ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+		ctx.lineWidth = 1.5;
+		for (const handleName of ['nw', 'ne', 'sw', 'se']) {
+			const handle = handles[handleName];
+			ctx.beginPath();
+			ctx.arc(handle.x, handle.y, 3.5, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.stroke();
+		}
+
+		const rotationHandle = handles.rotate;
+		const topCenter = {
+			x: (bounds.minX + bounds.maxX) / 2,
+			y: bounds.minY - padding
+		};
+		const rotationActive = this.activeDragMode === 'rotateHand' || this.hoveredHandHandle === 'rotate';
+		const rotationColor = rotationActive ? 'rgba(255, 190, 60, 0.95)' : boxColor;
+		ctx.strokeStyle = rotationColor;
+		ctx.lineWidth = 1.5;
+		ctx.beginPath();
+		ctx.moveTo(topCenter.x, topCenter.y);
+		ctx.lineTo(rotationHandle.x, rotationHandle.y);
+		ctx.stroke();
+
+		const radius = 7;
+		const arcStart = -Math.PI / 4;
+		const arcEnd = Math.PI * 1.25;
+		ctx.strokeStyle = rotationColor;
+		ctx.lineWidth = 2;
+		ctx.lineCap = 'round';
+		ctx.beginPath();
+		ctx.arc(rotationHandle.x, rotationHandle.y, radius, arcStart, arcEnd, false);
+		ctx.stroke();
+		ctx.lineCap = 'butt';
+
+		const arcEndX = rotationHandle.x + radius * Math.cos(arcEnd);
+		const arcEndY = rotationHandle.y + radius * Math.sin(arcEnd);
+		const forwardAngle = arcEnd + Math.PI / 2;
+		const halfLength = 4.5;
+		const halfWidth = 2.5;
+		const tipX = arcEndX + halfLength * Math.cos(forwardAngle);
+		const tipY = arcEndY + halfLength * Math.sin(forwardAngle);
+		const baseX = arcEndX - halfLength * Math.cos(forwardAngle);
+		const baseY = arcEndY - halfLength * Math.sin(forwardAngle);
+		const perpendicular = forwardAngle + Math.PI / 2;
+		ctx.fillStyle = rotationColor;
+		ctx.beginPath();
+		ctx.moveTo(tipX, tipY);
+		ctx.lineTo(baseX + halfWidth * Math.cos(perpendicular), baseY + halfWidth * Math.sin(perpendicular));
+		ctx.lineTo(baseX - halfWidth * Math.cos(perpendicular), baseY - halfWidth * Math.sin(perpendicular));
+		ctx.closePath();
+		ctx.fill();
+
+		const mirrorVHandle = handles.mirrorV;
+		const rightCenter = { x: bounds.maxX + padding, y: (bounds.minY + bounds.maxY) / 2 };
+		const mirrorVColor = this.hoveredHandHandle === 'mirrorV' ? 'rgba(100, 255, 160, 0.95)' : boxColor;
+		ctx.strokeStyle = mirrorVColor;
+		ctx.lineWidth = 1.5;
+		ctx.beginPath();
+		ctx.moveTo(rightCenter.x, rightCenter.y);
+		ctx.lineTo(mirrorVHandle.x, mirrorVHandle.y);
+		ctx.stroke();
+		ctx.setLineDash([2, 2]);
+		ctx.beginPath();
+		ctx.moveTo(mirrorVHandle.x, mirrorVHandle.y - 9);
+		ctx.lineTo(mirrorVHandle.x, mirrorVHandle.y + 9);
+		ctx.stroke();
+		ctx.setLineDash([]);
+		ctx.fillStyle = mirrorVColor;
+		ctx.beginPath();
+		ctx.moveTo(mirrorVHandle.x - 10, mirrorVHandle.y);
+		ctx.lineTo(mirrorVHandle.x - 4, mirrorVHandle.y - 5);
+		ctx.lineTo(mirrorVHandle.x - 4, mirrorVHandle.y + 5);
+		ctx.closePath();
+		ctx.fill();
+		ctx.beginPath();
+		ctx.moveTo(mirrorVHandle.x + 10, mirrorVHandle.y);
+		ctx.lineTo(mirrorVHandle.x + 4, mirrorVHandle.y - 5);
+		ctx.lineTo(mirrorVHandle.x + 4, mirrorVHandle.y + 5);
+		ctx.closePath();
+		ctx.fill();
+
+		const mirrorHHandle = handles.mirrorH;
+		const bottomCenter = { x: (bounds.minX + bounds.maxX) / 2, y: bounds.maxY + padding };
+		const mirrorHColor = this.hoveredHandHandle === 'mirrorH' ? 'rgba(100, 255, 160, 0.95)' : boxColor;
+		ctx.strokeStyle = mirrorHColor;
+		ctx.lineWidth = 1.5;
+		ctx.beginPath();
+		ctx.moveTo(bottomCenter.x, bottomCenter.y);
+		ctx.lineTo(mirrorHHandle.x, mirrorHHandle.y);
+		ctx.stroke();
+		ctx.setLineDash([2, 2]);
+		ctx.beginPath();
+		ctx.moveTo(mirrorHHandle.x - 9, mirrorHHandle.y);
+		ctx.lineTo(mirrorHHandle.x + 9, mirrorHHandle.y);
+		ctx.stroke();
+		ctx.setLineDash([]);
+		ctx.fillStyle = mirrorHColor;
+		ctx.beginPath();
+		ctx.moveTo(mirrorHHandle.x, mirrorHHandle.y - 10);
+		ctx.lineTo(mirrorHHandle.x - 5, mirrorHHandle.y - 4);
+		ctx.lineTo(mirrorHHandle.x + 5, mirrorHHandle.y - 4);
+		ctx.closePath();
+		ctx.fill();
+		ctx.beginPath();
+		ctx.moveTo(mirrorHHandle.x, mirrorHHandle.y + 10);
+		ctx.lineTo(mirrorHHandle.x - 5, mirrorHHandle.y + 4);
+		ctx.lineTo(mirrorHHandle.x + 5, mirrorHHandle.y + 4);
+		ctx.closePath();
+		ctx.fill();
+
+		if (this.hasEditableHand(pose, handRef.side)) {
+			const editHandle = handles.edit;
+			const leftCenter = { x: bounds.minX - padding, y: (bounds.minY + bounds.maxY) / 2 };
+			const editColor = this.hoveredHandHandle === 'edit' ? 'rgba(255, 190, 60, 0.95)' : boxColor;
+			ctx.strokeStyle = editColor;
+			ctx.lineWidth = 1.5;
+			ctx.beginPath();
+			ctx.moveTo(leftCenter.x, leftCenter.y);
+			ctx.lineTo(editHandle.x, editHandle.y);
+			ctx.stroke();
+			ctx.lineWidth = 2;
+			ctx.lineJoin = 'round';
+			ctx.beginPath();
+			ctx.moveTo(editHandle.x - 6, editHandle.y + 3);
+			ctx.lineTo(editHandle.x + 3, editHandle.y - 6);
+			ctx.lineTo(editHandle.x + 6, editHandle.y - 3);
+			ctx.lineTo(editHandle.x - 3, editHandle.y + 6);
+			ctx.closePath();
+			ctx.stroke();
+			ctx.fillStyle = editColor;
+			ctx.beginPath();
+			ctx.moveTo(editHandle.x - 6, editHandle.y + 3);
+			ctx.lineTo(editHandle.x - 3, editHandle.y + 6);
+			ctx.lineTo(editHandle.x - 8, editHandle.y + 8);
+			ctx.closePath();
+			ctx.fill();
+			ctx.lineJoin = 'miter';
+		}
+	}
+
+	drawAttachedHandHints() {
+		const hints = this.getAttachedHandHints();
+		if (hints.length === 0) {
+			return;
+		}
+		const ctx = this.ctx;
+		const padding = 10;
+		const active = this.activeDragMode !== 'none';
+		for (const handRef of hints) {
+			const pose = this.poses[handRef.poseIndex];
+			const config = this.getHandSideConfig(handRef.side);
+			const bounds = this.getHandBounds(pose?.[config.property]);
+			if (!bounds || !this.getFusedHandRefForWrist(handRef.poseIndex, config.wristIndex)) {
+				continue;
+			}
+			ctx.strokeStyle = active ? 'rgba(100, 220, 255, 0.9)' : 'rgba(160, 210, 235, 0.55)';
+			ctx.lineWidth = active ? 2 : 1.5;
+			ctx.setLineDash([4, 4]);
+			ctx.strokeRect(
+				bounds.minX - padding,
+				bounds.minY - padding,
+				bounds.maxX - bounds.minX + padding * 2,
+				bounds.maxY - bounds.minY + padding * 2
+			);
+		}
+		ctx.setLineDash([]);
+	}
+
+	drawSidebarHoveredHandHint() {
+		const handRef = this.sidebarHoveredHand;
+		if (!handRef || (this.selectedHand?.poseIndex === handRef.poseIndex && this.selectedHand?.side === handRef.side)) {
+			return;
+		}
+		const pose = this.poses[handRef.poseIndex];
+		const { property } = this.getHandSideConfig(handRef.side);
+		const bounds = this.getHandBounds(pose?.[property]);
+		if (!bounds) {
+			return;
+		}
+		const padding = 10;
+		const ctx = this.ctx;
+		ctx.strokeStyle = 'rgba(160, 210, 235, 0.65)';
+		ctx.lineWidth = 1.5;
+		ctx.setLineDash([4, 4]);
+		ctx.strokeRect(
+			bounds.minX - padding,
+			bounds.minY - padding,
+			bounds.maxX - bounds.minX + padding * 2,
+			bounds.maxY - bounds.minY + padding * 2
+		);
+		ctx.setLineDash([]);
+	}
+
+	drawWristFusionFeedback() {
+		if (!this.wristFusionTargets) {
+			return;
+		}
+		const ctx = this.ctx;
+		for (const target of this.wristFusionTargets) {
+			const point = target.handWrist;
+			if (!point) {
+				continue;
+			}
+			ctx.strokeStyle = target.isCandidate
+				? 'rgba(100, 230, 150, 0.95)'
+				: 'rgba(100, 200, 255, 0.85)';
+			ctx.fillStyle = target.isCandidate
+				? 'rgba(100, 230, 150, 0.18)'
+				: 'rgba(100, 200, 255, 0.1)';
+			ctx.lineWidth = target.isCandidate ? 3 : 2;
+			ctx.setLineDash(target.isCandidate ? [] : [4, 3]);
+			ctx.beginPath();
+			ctx.arc(point.x, point.y, this.wristFusionSnapRadius, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.stroke();
+		}
+		ctx.setLineDash([]);
+	}
+
+	applyMirrorToHand(handRef, axis) {
+		const pose = handRef ? this.poses[handRef.poseIndex] : null;
+		if (!pose || !this.isSelectableHand(pose, handRef.side) || (axis !== 'vertical' && axis !== 'horizontal')) {
+			return false;
+		}
+		const { property } = this.getHandSideConfig(handRef.side);
+		const handKeypoints = pose[property];
+		const pivot = handKeypoints[0];
+		const mirroredKeypoints = handKeypoints.map((kp, index) => {
+			if (!kp) return null;
+			if (index === 0) return { ...pivot };
+			return axis === 'vertical'
+				? { x: 2 * pivot.x - kp.x, y: kp.y }
+				: { x: kp.x, y: 2 * pivot.y - kp.y };
+		});
+		if (JSON.stringify(handKeypoints) === JSON.stringify(mirroredKeypoints)) {
+			return false;
+		}
+		pose[property] = mirroredKeypoints;
+		this.markKeypointEdited();
+		this.requestRedraw();
+		this.notifyChange('geometry');
+		return true;
 	}
 
 	/**
@@ -1886,14 +2958,104 @@ export class OpenPoseCanvas2D {
 	// Event handlers
 	screenToLogical(clientX, clientY) {
 		const rect = this.canvas.getBoundingClientRect();
+		const viewport = this.getViewportDimensions();
 		return {
-			x: (clientX - rect.left) * (this.logicalWidth / rect.width),
-			y: (clientY - rect.top) * (this.logicalHeight / rect.height)
+			x: (clientX - rect.left) * (viewport.width / rect.width),
+			y: (clientY - rect.top) * (viewport.height / rect.height)
 		};
+	}
+
+	findNearestEditableHandKeypoint(pointer) {
+		const mode = this.handEditMode;
+		if (!mode) {
+			return null;
+		}
+		let nearestId = null;
+		let nearestDistance = Infinity;
+		const lastIndex = Math.min(20, mode.keypoints.length - 1);
+		for (let keypointId = 1; keypointId <= lastIndex; keypointId++) {
+			const viewPoint = this.worldToHandView(mode.keypoints[keypointId]);
+			if (!viewPoint) {
+				continue;
+			}
+			const distance = Math.hypot(pointer.x - viewPoint.x, pointer.y - viewPoint.y);
+			if (distance < nearestDistance) {
+				nearestDistance = distance;
+				nearestId = keypointId;
+			}
+		}
+		return nearestDistance <= this.handEditHitRadius ? nearestId : null;
+	}
+
+	handleHandEditPointerDown(evt, pointer) {
+		if (evt.button !== 0 || !this.handEditMode) {
+			return;
+		}
+		const keypointId = this.findNearestEditableHandKeypoint(pointer);
+		if (keypointId === null) {
+			return;
+		}
+		const kp = this.handEditMode.keypoints[keypointId];
+		this.activeDragMode = 'dragHandKeypoint';
+		this.activeKeypointId = keypointId;
+		this.handEditMode.activeKeypointId = keypointId;
+		this.handEditMode.hoveredKeypointId = keypointId;
+		this.handEditMode.pointerId = evt.pointerId;
+		this.dragStartKeypoint = { keypointId, x: kp.x, y: kp.y };
+		this.canvas.setPointerCapture(evt.pointerId);
+		this.updateCursor();
+		this.requestRedraw();
+		evt.preventDefault();
+	}
+
+	handleHandEditPointerMove(pointer) {
+		const mode = this.handEditMode;
+		if (!mode) {
+			return;
+		}
+		if (this.activeDragMode === 'dragHandKeypoint' && mode.activeKeypointId !== null) {
+			const worldPoint = this.handViewToWorld(pointer);
+			if (worldPoint) {
+				mode.keypoints[mode.activeKeypointId] = {
+					x: Math.max(0, Math.min(this.logicalWidth, worldPoint.x)),
+					y: Math.max(0, Math.min(this.logicalHeight, worldPoint.y))
+				};
+				this.requestRedraw();
+			}
+			return;
+		}
+		const hoveredKeypointId = this.findNearestEditableHandKeypoint(pointer);
+		if (hoveredKeypointId !== mode.hoveredKeypointId) {
+			mode.hoveredKeypointId = hoveredKeypointId;
+			this.onHoverChangeCallback?.();
+			this.updateCursor();
+			this.requestRedraw();
+		}
+	}
+
+	handleHandEditPointerUp(evt) {
+		const mode = this.handEditMode;
+		if (!mode) {
+			return;
+		}
+		this.activeDragMode = 'none';
+		this.activeKeypointId = null;
+		this.dragStartKeypoint = null;
+		mode.activeKeypointId = null;
+		mode.pointerId = null;
+		if (this.canvas.hasPointerCapture(evt.pointerId)) {
+			this.canvas.releasePointerCapture(evt.pointerId);
+		}
+		this.updateCursor();
+		this.requestRedraw();
 	}
 	
 	handlePointerDown(evt) {
 		const pointer = this.screenToLogical(evt.clientX, evt.clientY);
+		if (this.handEditMode) {
+			this.handleHandEditPointerDown(evt, pointer);
+			return;
+		}
 		this.dragStartPointer = pointer;
 		const isShift = evt.shiftKey;
 
@@ -1918,7 +3080,62 @@ export class OpenPoseCanvas2D {
 			}
 		}
 
-		// ── 1. Multi-keypoint selection bbox scale handles (active pose only) ──
+		// ── 1. Selected hand scale + rotation handles ──
+		if (!isShift && evt.button === 0 && this.selectedHand) {
+			const handData = this.getSelectedHandTransformData();
+			if (handData) {
+				const handles = this.getHandTransformHandles(handData.bounds, 10);
+				const editDistance = Math.hypot(pointer.x - handles.edit.x, pointer.y - handles.edit.y);
+				if (editDistance <= this.handleHitRadius && this.hasEditableHand(handData.pose, handData.handRef.side)) {
+					this.enterHandEditMode(handData.handRef.poseIndex, handData.handRef.side);
+					return;
+				}
+				const mirrorVDistance = Math.hypot(pointer.x - handles.mirrorV.x, pointer.y - handles.mirrorV.y);
+				if (mirrorVDistance <= this.handleHitRadius) {
+					this.applyMirrorToHand(handData.handRef, 'vertical');
+					return;
+				}
+				const mirrorHDistance = Math.hypot(pointer.x - handles.mirrorH.x, pointer.y - handles.mirrorH.y);
+				if (mirrorHDistance <= this.handleHitRadius) {
+					this.applyMirrorToHand(handData.handRef, 'horizontal');
+					return;
+				}
+				const rotationDistance = Math.hypot(pointer.x - handles.rotate.x, pointer.y - handles.rotate.y);
+				if (rotationDistance <= this.handleHitRadius) {
+					this.activeDragMode = 'rotateHand';
+					this.dragStartHandKeypoints = handData.keypoints.map((kp) => kp ? { x: kp.x, y: kp.y } : null);
+					this.handTransformPivot = { ...handData.keypoints[0] };
+					this.handRotateStartAngle = Math.atan2(
+						pointer.y - this.handTransformPivot.y,
+						pointer.x - this.handTransformPivot.x
+					);
+					this.handDragMoved = false;
+					this.canvas.setPointerCapture(evt.pointerId);
+					this.updateCursor();
+					return;
+				}
+				for (const handleName of ['nw', 'ne', 'sw', 'se']) {
+					const handle = handles[handleName];
+					const distance = Math.hypot(pointer.x - handle.x, pointer.y - handle.y);
+					if (distance <= this.handleHitRadius) {
+						this.activeDragMode = 'scaleHand';
+						this.activeScaleHandle = handleName;
+						this.dragStartHandKeypoints = handData.keypoints.map((kp) => kp ? { x: kp.x, y: kp.y } : null);
+						this.handTransformPivot = { ...handData.keypoints[0] };
+						this.handScaleStartDistance = Math.hypot(
+							pointer.x - this.handTransformPivot.x,
+							pointer.y - this.handTransformPivot.y
+						);
+						this.handDragMoved = false;
+						this.canvas.setPointerCapture(evt.pointerId);
+						this.updateCursor();
+						return;
+					}
+				}
+			}
+		}
+
+		// ── 2. Multi-keypoint selection bbox scale handles (active pose only) ──
 		if (!isShift && this.selectedPoseIndex !== null && this.selectedKeypointIds.size > 0) {
 			const mkBbox = this.getSelectedKeypointsBounds();
 			if (mkBbox) {
@@ -1935,6 +3152,7 @@ export class OpenPoseCanvas2D {
 							const kp = pose.keypoints[kpId];
 							if (kp) this.dragStartKeypointMap.set(kpId, { x: kp.x, y: kp.y });
 						}
+						this.captureAttachedHands(pose, this.selectedKeypointIds);
 						this.canvas.setPointerCapture(evt.pointerId);
 						this.updateCursor();
 						return;
@@ -1943,8 +3161,8 @@ export class OpenPoseCanvas2D {
 			}
 		}
 
-		// ── 2. Pose-level scale + rotation handles (only when no multi-kp selection active) ──
-		if (!isShift && this.selectedPoseIndex !== null && this.selectedKeypointIds.size === 0) {
+		// ── 3. Pose-level scale + rotation handles (only when no multi-kp selection active) ──
+		if (!isShift && !this.selectedHand && this.selectedPoseIndex !== null && this.selectedKeypointIds.size === 0) {
 			const pose = this.poses[this.selectedPoseIndex];
 			const bbox = this.getPoseBounds(pose);
 			if (bbox) {
@@ -1990,7 +3208,7 @@ export class OpenPoseCanvas2D {
 			}
 		}
 
-		// ── 3. Keypoint hit-test ──
+		// ── 4. Keypoint hit-test ──
 		// For Shift+Click: only act on keypoints from the active pose.
 		// For plain click: find the topmost keypoint across all poses.
 		if (isShift) {
@@ -2002,6 +3220,7 @@ export class OpenPoseCanvas2D {
 					if (kp) {
 						const dist = Math.sqrt((pointer.x - kp.x) ** 2 + (pointer.y - kp.y) ** 2);
 						if (dist <= this.keypointHitRadius) {
+							this.selectedHand = null;
 							if (this.selectedKeypointIds.has(kpId)) {
 								this.selectedKeypointIds.delete(kpId);
 							} else {
@@ -2013,7 +3232,7 @@ export class OpenPoseCanvas2D {
 					}
 				}
 			}
-			// Shift+Click on empty space or inactive pose keypoint — fall through to step 5 for marquee start
+			// Shift+Click on empty space or inactive pose keypoint — fall through to step 6 for marquee start
 		}
 
 		// Plain click: hit-test all poses (topmost first)
@@ -2024,6 +3243,7 @@ export class OpenPoseCanvas2D {
 				if (kp) {
 					const dist = Math.sqrt((pointer.x - kp.x) ** 2 + (pointer.y - kp.y) ** 2);
 					if (dist <= this.keypointHitRadius) {
+						this.selectedHand = null;
 						this.preselectionPoseIndex = null;
 						this.selectionBoxHovered = true;
 						this.hoveredHandle = null;
@@ -2037,6 +3257,7 @@ export class OpenPoseCanvas2D {
 								if (kpSnap) snapshotMap.set(id, { x: kpSnap.x, y: kpSnap.y });
 							}
 							this.dragStartKeypointMap = snapshotMap;
+							this.captureAttachedHands(pose, this.selectedKeypointIds);
 							this.canvas.setPointerCapture(evt.pointerId);
 							this.updateCursor();
 							return;
@@ -2052,6 +3273,7 @@ export class OpenPoseCanvas2D {
 							x: kp.x,
 							y: kp.y
 						};
+						this.captureAttachedHands(pose, [kpId]);
 						this.updateCursor();
 						this.canvas.setPointerCapture(evt.pointerId);
 						return;
@@ -2060,7 +3282,35 @@ export class OpenPoseCanvas2D {
 			}
 		}
 
-		// ── 4. Pose body hit (bounding box) ──
+		if (!isShift) {
+			const handHit = this.findHandAtPoint(pointer, true);
+			if (handHit) {
+				const pose = this.poses[handHit.poseIndex];
+				const { property } = this.getHandSideConfig(handHit.side);
+				this.setSelectedPose(handHit.poseIndex);
+				this.selectedHand = handHit;
+				this.hoveredHand = handHit;
+				this.selectedKeypointIds = new Set();
+				this.preselectionPoseIndex = null;
+				this.selectionBoxHovered = false;
+				this.hoveredHandle = null;
+				this.hoveredHandHandle = null;
+				if (this.isLooseHand(pose, handHit.side)) {
+					this.activeDragMode = 'moveHand';
+					this.dragStartHandKeypoints = pose[property].map((kp) => kp ? { x: kp.x, y: kp.y } : null);
+					this.handDragMoved = false;
+					this.updateMovedHandFusionTarget(pose, handHit.side);
+					this.canvas.setPointerCapture(evt.pointerId);
+				} else {
+					this.activeDragMode = 'none';
+				}
+				this.updateCursor();
+				this.requestRedraw();
+				return;
+			}
+		}
+
+		// ── 5. Pose body hit (bounding box) ──
 		if (!isShift) for (let poseIdx = this.poses.length - 1; poseIdx >= 0; poseIdx--) {
 			const pose = this.poses[poseIdx];
 			const bbox = this.getPoseBounds(pose);
@@ -2081,6 +3331,7 @@ export class OpenPoseCanvas2D {
 							if (kpSnap) snapshotMap.set(id, { x: kpSnap.x, y: kpSnap.y });
 						}
 						this.dragStartKeypointMap = snapshotMap;
+						this.captureAttachedHands(activePose, this.selectedKeypointIds);
 						this.canvas.setPointerCapture(evt.pointerId);
 						this.updateCursor();
 						return;
@@ -2098,7 +3349,7 @@ export class OpenPoseCanvas2D {
 			}
 		}
 
-		// ── 5. Empty space — start marquee selection (only if a pose is selected) ──
+		// ── 6. Empty space — start marquee selection (only if a pose is selected) ──
 		if (isShift && this.selectedPoseIndex !== null && this.selectedKeypointIds.size > 0) {
 			// Shift-marquee: additive — keep existing selection as the base
 			this.marqueeSelectionBase = new Set(this.selectedKeypointIds);
@@ -2106,6 +3357,7 @@ export class OpenPoseCanvas2D {
 			this.selectedKeypointIds = new Set();
 			this.marqueeSelectionBase = null;
 		}
+		this.selectedHand = null;
 		if (this.selectedPoseIndex !== null) {
 			// Start marquee to select keypoints from the active pose
 			this.activeDragMode = 'marquee';
@@ -2121,6 +3373,10 @@ export class OpenPoseCanvas2D {
 	
 	handlePointerMove(evt) {
 		const pointer = this.screenToLogical(evt.clientX, evt.clientY);
+		if (this.handEditMode) {
+			this.handleHandEditPointerMove(pointer);
+			return;
+		}
 
 		// ── Badge row hover: pointer cursor and tooltip ──
 		{
@@ -2176,6 +3432,14 @@ export class OpenPoseCanvas2D {
 		
 		// Update canvas hover with pose index (sidebar hover takes priority internally)
 		this.updateCanvasHoveredKeypoint(hoveredKeypointId, hoveredPoseIndex);
+		const previousHoveredHand = this.hoveredHand;
+		this.hoveredHand = hoveredKeypointId === null ? this.findHandAtPoint(pointer, true) : null;
+		const handHoverChanged = previousHoveredHand?.poseIndex !== this.hoveredHand?.poseIndex ||
+			previousHoveredHand?.side !== this.hoveredHand?.side;
+		if (handHoverChanged) {
+			this.updateCursor();
+			this.requestRedraw();
+		}
 
 		// Debug: log hover detection when hovering keypoint 17 (Left Ear)
 		if (hoveredKeypointId === 17 || hoveredKeypointId === 16) {
@@ -2186,9 +3450,50 @@ export class OpenPoseCanvas2D {
 		// Multi-keypoint selection handles take priority over pose-level handles.
 		const wasSelectionBoxHovered = this.selectionBoxHovered;
 		const wasHoveredHandle = this.hoveredHandle;
+		const wasHoveredHandHandle = this.hoveredHandHandle;
 		this.selectionBoxHovered = false;
 		this.hoveredHandle = null;
-		if (this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length) {
+		this.hoveredHandHandle = null;
+		if (this.selectedHand) {
+			const handData = this.getSelectedHandTransformData();
+			if (handData) {
+				const padding = 10;
+				const handles = this.getHandTransformHandles(handData.bounds, padding);
+				const editDistance = Math.hypot(pointer.x - handles.edit.x, pointer.y - handles.edit.y);
+				const mirrorVDistance = Math.hypot(pointer.x - handles.mirrorV.x, pointer.y - handles.mirrorV.y);
+				const mirrorHDistance = Math.hypot(pointer.x - handles.mirrorH.x, pointer.y - handles.mirrorH.y);
+				const rotationDistance = Math.hypot(pointer.x - handles.rotate.x, pointer.y - handles.rotate.y);
+				if (editDistance <= this.handleHitRadius && this.hasEditableHand(handData.pose, handData.handRef.side)) {
+					this.hoveredHandHandle = 'edit';
+					this.selectionBoxHovered = true;
+				} else if (mirrorVDistance <= this.handleHitRadius) {
+					this.hoveredHandHandle = 'mirrorV';
+					this.selectionBoxHovered = true;
+				} else if (mirrorHDistance <= this.handleHitRadius) {
+					this.hoveredHandHandle = 'mirrorH';
+					this.selectionBoxHovered = true;
+				} else if (rotationDistance <= this.handleHitRadius) {
+					this.hoveredHandHandle = 'rotate';
+					this.selectionBoxHovered = true;
+				} else {
+					for (const handleName of ['nw', 'ne', 'sw', 'se']) {
+						const handle = handles[handleName];
+						const distance = Math.hypot(pointer.x - handle.x, pointer.y - handle.y);
+						if (distance <= this.handleHitRadius) {
+							this.hoveredHandHandle = handleName;
+							this.selectionBoxHovered = true;
+							break;
+						}
+					}
+				}
+				if (!this.hoveredHandHandle) {
+					this.selectionBoxHovered = pointer.x >= handData.bounds.minX - padding &&
+						pointer.x <= handData.bounds.maxX + padding &&
+						pointer.y >= handData.bounds.minY - padding &&
+						pointer.y <= handData.bounds.maxY + padding;
+				}
+			}
+		} else if (this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length) {
 			// Priority 1: multi-keypoint selection bbox handles
 			if (this.selectedKeypointIds.size > 0) {
 				const mkBbox = this.getSelectedKeypointsBounds();
@@ -2264,7 +3569,7 @@ export class OpenPoseCanvas2D {
 			}
 		}
 		// Update cursor and redraw if hover state changed
-		if (wasSelectionBoxHovered !== this.selectionBoxHovered || wasHoveredHandle !== this.hoveredHandle) {
+		if (wasSelectionBoxHovered !== this.selectionBoxHovered || wasHoveredHandle !== this.hoveredHandle || wasHoveredHandHandle !== this.hoveredHandHandle) {
 			this.updateCursor();
 			this.requestRedraw();
 		}
@@ -2274,7 +3579,7 @@ export class OpenPoseCanvas2D {
 		this.preselectionPoseIndex = null;
 
 		// Only show preselection when not hovering over handles of the selected pose
-		if (!this.hoveredHandle) {
+		if (!this.hoveredHandle && !this.hoveredHandHandle && !this.hoveredHand) {
 			// Check poses in reverse order (top to bottom) for preselection
 			for (let poseIdx = this.poses.length - 1; poseIdx >= 0; poseIdx--) {
 				// Skip the currently selected pose - it has its own selection UI
@@ -2327,6 +3632,88 @@ export class OpenPoseCanvas2D {
 		}
 		
 		const pose = this.poses[this.selectedPoseIndex];
+
+		if (this.activeDragMode === 'scaleHand') {
+			const handRef = this.selectedHand;
+			if (!pose || !handRef || handRef.poseIndex !== this.selectedPoseIndex || !this.dragStartHandKeypoints ||
+				!this.handTransformPivot || !this.handScaleStartDistance) {
+				return;
+			}
+			const { property } = this.getHandSideConfig(handRef.side);
+			const pivot = this.handTransformPivot;
+			const currentDistance = Math.hypot(pointer.x - pivot.x, pointer.y - pivot.y);
+			let scale = Math.max(0.1, Math.min(10, currentDistance / this.handScaleStartDistance));
+			let maximumCanvasScale = 10;
+			for (const kp of this.dragStartHandKeypoints) {
+				if (!kp) continue;
+				const dx = kp.x - pivot.x;
+				const dy = kp.y - pivot.y;
+				if (dx > 0) maximumCanvasScale = Math.min(maximumCanvasScale, (this.logicalWidth - pivot.x) / dx);
+				else if (dx < 0) maximumCanvasScale = Math.min(maximumCanvasScale, (0 - pivot.x) / dx);
+				if (dy > 0) maximumCanvasScale = Math.min(maximumCanvasScale, (this.logicalHeight - pivot.y) / dy);
+				else if (dy < 0) maximumCanvasScale = Math.min(maximumCanvasScale, (0 - pivot.y) / dy);
+			}
+			scale = Math.min(scale, Math.max(0.1, maximumCanvasScale));
+			pose[property] = this.dragStartHandKeypoints.map((kp, index) => {
+				if (!kp) return null;
+				if (index === 0) return { ...pivot };
+				return {
+					x: pivot.x + (kp.x - pivot.x) * scale,
+					y: pivot.y + (kp.y - pivot.y) * scale
+				};
+			});
+			this.handDragMoved = this.handDragMoved || scale !== 1;
+			this.requestRedraw();
+			return;
+		}
+
+		if (this.activeDragMode === 'rotateHand') {
+			const handRef = this.selectedHand;
+			if (!pose || !handRef || handRef.poseIndex !== this.selectedPoseIndex || !this.dragStartHandKeypoints ||
+				!this.handTransformPivot || this.handRotateStartAngle === null) {
+				return;
+			}
+			const { property } = this.getHandSideConfig(handRef.side);
+			const pivot = this.handTransformPivot;
+			const currentAngle = Math.atan2(pointer.y - pivot.y, pointer.x - pivot.x);
+			const deltaAngle = currentAngle - this.handRotateStartAngle;
+			const cosAngle = Math.cos(deltaAngle);
+			const sinAngle = Math.sin(deltaAngle);
+			pose[property] = this.dragStartHandKeypoints.map((kp, index) => {
+				if (!kp) return null;
+				if (index === 0) return { ...pivot };
+				const dx = kp.x - pivot.x;
+				const dy = kp.y - pivot.y;
+				return {
+					x: pivot.x + dx * cosAngle - dy * sinAngle,
+					y: pivot.y + dx * sinAngle + dy * cosAngle
+				};
+			});
+			this.handDragMoved = this.handDragMoved || deltaAngle !== 0;
+			this.requestRedraw();
+			return;
+		}
+
+		if (this.activeDragMode === 'moveHand') {
+			const handRef = this.selectedHand;
+			if (!pose || !handRef || handRef.poseIndex !== this.selectedPoseIndex || !this.dragStartHandKeypoints) {
+				return;
+			}
+			const { property } = this.getHandSideConfig(handRef.side);
+			const bounds = this.getHandBounds(this.dragStartHandKeypoints);
+			if (!bounds) {
+				return;
+			}
+			let dx = pointer.x - this.dragStartPointer.x;
+			let dy = pointer.y - this.dragStartPointer.y;
+			dx = Math.max(-bounds.minX, Math.min(this.logicalWidth - bounds.maxX, dx));
+			dy = Math.max(-bounds.minY, Math.min(this.logicalHeight - bounds.maxY, dy));
+			this.handDragMoved = this.handDragMoved || dx !== 0 || dy !== 0;
+			pose[property] = this.dragStartHandKeypoints.map((kp) => kp ? { x: kp.x + dx, y: kp.y + dy } : null);
+			this.updateMovedHandFusionTarget(pose, handRef.side);
+			this.requestRedraw();
+			return;
+		}
 		
 		if (this.activeDragMode === 'dragKeypoint') {
 			// Clamp to canvas bounds
@@ -2334,6 +3721,8 @@ export class OpenPoseCanvas2D {
 				x: Math.max(0, Math.min(this.logicalWidth, pointer.x)),
 				y: Math.max(0, Math.min(this.logicalHeight, pointer.y))
 			};
+			this.updateAttachedHands(pose);
+			this.updateWristFusionTargets(pose);
 			// Update trash target hover state (radial hit-test against quarter-circle)
 			const R = this._getTrashTargetRadius();
 			const wasHovered = this.trashTargetHovered;
@@ -2356,6 +3745,8 @@ export class OpenPoseCanvas2D {
 					y: Math.max(0, Math.min(this.logicalHeight, startPos.y + dy))
 				};
 			}
+			this.updateAttachedHands(pose);
+			this.updateWristFusionTargets(pose);
 			this.requestRedraw();
 		}
 		else if (this.activeDragMode === 'scaleSelectedKeypoints') {
@@ -2408,6 +3799,8 @@ export class OpenPoseCanvas2D {
 					y: anchorY + (startPos.y - anchorY) * scaleY
 				};
 			}
+			this.updateAttachedHands(pose);
+			this.updateWristFusionTargets(pose);
 			this.requestRedraw();
 		}
 		else if (this.activeDragMode === 'movePose') {
@@ -2616,12 +4009,17 @@ export class OpenPoseCanvas2D {
 	}
 	
 	handlePointerUp(evt) {
+		if (this.handEditMode) {
+			this.handleHandEditPointerUp(evt);
+			return;
+		}
 		// ── Drag-to-delete: drop on trash target deletes the keypoint ──
 		if (this.activeDragMode === 'dragKeypoint' && this.trashTargetHovered && this.dragStartKeypoint) {
 			const { poseIndex, keypointId } = this.dragStartKeypoint;
 			// Restore keypoint to start position before clearing (so we nullify cleanly)
 			const pose = this.poses[poseIndex];
 			if (pose && pose.keypoints) {
+				this.restoreAttachedHands(pose);
 				pose.keypoints[keypointId] = null;
 				this.markKeypointEdited();
 			}
@@ -2631,11 +4029,33 @@ export class OpenPoseCanvas2D {
 			this.activeKeypointId = null;
 			this.dragStartPointer = null;
 			this.dragStartKeypoint = null;
+			this.dragStartAttachedHands = null;
+			this.wristFusionTargets = null;
 			this.canvas.releasePointerCapture(evt.pointerId);
 			this.notifyChange('geometry');
 			this.updateCursor();
 			this.requestRedraw();
 			return;
+		}
+
+		const isHandTransform = this.activeDragMode === 'moveHand' || this.activeDragMode === 'scaleHand' || this.activeDragMode === 'rotateHand';
+		if (isHandTransform && this.selectedHand) {
+			const handRef = this.selectedHand;
+			const pose = this.poses[handRef.poseIndex];
+			const { property } = this.getHandSideConfig(handRef.side);
+			if (this.activeDragMode === 'moveHand') {
+				this.snapMovedHandToBodyWrist(pose, handRef.side);
+			}
+			const changed = !!pose && JSON.stringify(pose[property]) !== JSON.stringify(this.dragStartHandKeypoints);
+			if (changed) {
+				this.markKeypointEdited();
+				this.notifyChange('geometry');
+			}
+		}
+
+		if (this.activeDragMode === 'dragKeypoint' || this.activeDragMode === 'moveSelectedKeypoints' || this.activeDragMode === 'scaleSelectedKeypoints') {
+			const poseIndex = this.dragStartKeypoint?.poseIndex ?? this.selectedPoseIndex;
+			this.fuseBodyWristsAtHandTargets(this.poses[poseIndex]);
 		}
 
 		if (this.activeDragMode === 'dragKeypoint' && this.dragStartKeypoint) {
@@ -2682,7 +4102,7 @@ export class OpenPoseCanvas2D {
 		if (this.activeDragMode === 'moveSelectedKeypoints' || this.activeDragMode === 'scaleSelectedKeypoints') {
 			this.markKeypointEdited();
 			this.notifyChange('geometry');
-		} else if (this.activeDragMode !== 'none' && this.activeDragMode !== 'marquee') {
+		} else if (this.activeDragMode !== 'none' && this.activeDragMode !== 'marquee' && !isHandTransform) {
 			this.notifyChange('geometry');
 		}
 		
@@ -2693,6 +4113,13 @@ export class OpenPoseCanvas2D {
 		this.dragStartPointer = null;
 		this.dragStartPose = null;
 		this.dragStartKeypoint = null;
+		this.dragStartAttachedHands = null;
+		this.dragStartHandKeypoints = null;
+		this.handDragMoved = false;
+		this.handTransformPivot = null;
+		this.handScaleStartDistance = null;
+		this.handRotateStartAngle = null;
+		this.wristFusionTargets = null;
 		this.dragStartKeypointMap = null;
 		this.rotatePivot = null;
 		this.rotateStartAngle = null;
@@ -2704,13 +4131,23 @@ export class OpenPoseCanvas2D {
 	}
 	
 	handlePointerLeave(evt) {
+		if (this.handEditMode) {
+			if (this.activeDragMode === 'none' && this.handEditMode.hoveredKeypointId !== null) {
+				this.handEditMode.hoveredKeypointId = null;
+				this.onHoverChangeCallback?.();
+				this.updateCursor();
+				this.requestRedraw();
+			}
+			return;
+		}
 		// Clear canvas hover when pointer leaves the canvas
 		this.updateCanvasHoveredKeypoint(null, null);
 		// Reset selection box, handle hover state, and preselection
-		const needsRedraw = this.selectionBoxHovered || this.hoveredHandle || this.preselectionPoseIndex !== null;
+		const needsRedraw = this.selectionBoxHovered || this.hoveredHandle || this.preselectionPoseIndex !== null || this.hoveredHand !== null;
 		this.selectionBoxHovered = false;
 		this.hoveredHandle = null;
 		this.preselectionPoseIndex = null;
+		this.hoveredHand = null;
 		// Clear badge hover state
 		this.isHoveringBadge = false;
 		this.canvas.title = '';
@@ -2730,6 +4167,9 @@ export class OpenPoseCanvas2D {
 	 * or if no reachable neighbor exists.
 	 */
 	handleDoubleClick(evt) {
+		if (this.handEditMode) {
+			return;
+		}
 		evt.preventDefault();
 		const pointer = this.screenToLogical(evt.clientX, evt.clientY);
 

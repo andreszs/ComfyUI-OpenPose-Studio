@@ -172,6 +172,30 @@ const POSE_BG_MODES = new Set(["contain", "cover"]);
 const DEFAULT_BG_MODE = "contain";
 const DEFAULT_BG_OPACITY = 0.5;
 
+const HAND_KEYPOINT_ROWS = [
+	{ name: "Wrist / Hand anchor — Locked", rgb: [100, 100, 100] },
+	{ name: "Thumb base (CMC)", rgb: [100, 0, 0] },
+	{ name: "Thumb knuckle (MCP)", rgb: [150, 0, 0] },
+	{ name: "Thumb joint (IP)", rgb: [200, 0, 0] },
+	{ name: "Thumb tip", rgb: [255, 0, 0] },
+	{ name: "Index knuckle (MCP)", rgb: [100, 100, 0] },
+	{ name: "Index middle joint (PIP)", rgb: [150, 150, 0] },
+	{ name: "Index end joint (DIP)", rgb: [200, 200, 0] },
+	{ name: "Index fingertip", rgb: [255, 255, 0] },
+	{ name: "Middle knuckle (MCP)", rgb: [0, 100, 50] },
+	{ name: "Middle middle joint (PIP)", rgb: [0, 150, 75] },
+	{ name: "Middle end joint (DIP)", rgb: [0, 200, 100] },
+	{ name: "Middle fingertip", rgb: [0, 255, 125] },
+	{ name: "Ring knuckle (MCP)", rgb: [0, 50, 100] },
+	{ name: "Ring middle joint (PIP)", rgb: [0, 75, 150] },
+	{ name: "Ring end joint (DIP)", rgb: [0, 100, 200] },
+	{ name: "Ring fingertip", rgb: [0, 125, 255] },
+	{ name: "Little knuckle (MCP)", rgb: [100, 0, 100] },
+	{ name: "Little middle joint (PIP)", rgb: [150, 0, 150] },
+	{ name: "Little end joint (DIP)", rgb: [200, 0, 200] },
+	{ name: "Little fingertip", rgb: [255, 0, 255] }
+];
+
 function normalizeBackgroundMode(value) {
 	if (POSE_BG_MODES.has(value)) {
 		return value;
@@ -543,7 +567,11 @@ export const poseEditorCanvasWorkflow = {
 	},
 
 	resizeCanvas(width, height) {
-		let resolution = this.calcResolution(width, height);
+		const handEditActive = !!this.renderer?.isHandEditModeActive?.();
+		const viewportSize = Math.max(width, height);
+		const resolution = handEditActive
+			? this.calcResolution(viewportSize, viewportSize)
+			: this.calcResolution(width, height);
 		const cssWidth = Math.round(resolution["width"]);
 		const cssHeight = Math.round(resolution["height"]);
 
@@ -734,6 +762,11 @@ addPose(keypoints = undefined, faceKeypoints = null, handLeftKeypoints = null, h
 	},
 
 	handleEditorKeyDown(e) {
+		if (this.renderer?.isHandEditModeActive?.() && ["ArrowDown", "ArrowUp", "Delete", "Backspace"].includes(e.key)) {
+			e.preventDefault();
+			e.stopImmediatePropagation();
+			return;
+		}
 		if ((e.key === "ArrowDown" || e.key === "ArrowUp")) {
 			const direction = e.key === "ArrowDown" ? 1 : -1;
 			this.stepPreset(direction);
@@ -838,6 +871,66 @@ export const poseEditorSubsystemWorkflow = {
 		}
 	},
 
+	refreshHandKeypointsList(mode) {
+		if (!this.cocoKeypointsList || !mode) {
+			return;
+		}
+		if (this.cocoKeypointsLabel) {
+			const sideLabel = mode.side === "right" ? "Right" : "Left";
+			this.cocoKeypointsLabel.textContent = `${sideLabel} hand keypoints`;
+			this.cocoKeypointsLabel.style.display = "block";
+			this.cocoKeypointsLabel.classList.remove("openpose-coco-empty-section-label");
+			this.cocoKeypointsLabel.style.marginBottom = "8px";
+		}
+		this.cocoKeypointsList.innerHTML = "";
+		this.cocoKeypointsList.style.display = "flex";
+		this.cocoKeypointsList.style.flexDirection = "column";
+		this.cocoKeypointsList.style.gap = "2px";
+		this.cocoKeypointsList.style.flex = "1 1 auto";
+		this.cocoKeypointsList.style.overflowY = "auto";
+
+		for (let keypointId = 0; keypointId < HAND_KEYPOINT_ROWS.length; keypointId++) {
+			const definition = HAND_KEYPOINT_ROWS[keypointId];
+			const isPresent = !!mode.keypoints?.[keypointId];
+			const item = document.createElement("div");
+			item.className = "openpose-coco-keypoint-item openpose-hand-keypoint-item";
+			item.dataset.handKeypointId = `${keypointId}`;
+			item.title = `Keypoint ${keypointId}: ${definition.name}${isPresent ? "" : " — Missing"}`;
+			if (!isPresent) {
+				item.classList.add("openpose-keypoint-disabled", "openpose-hand-keypoint-missing");
+			}
+
+			const leftContent = document.createElement("div");
+			leftContent.className = "openpose-hand-keypoint-content";
+			const swatch = document.createElement("span");
+			swatch.className = "openpose-coco-color-swatch";
+			swatch.style.backgroundColor = `rgb(${definition.rgb.join(", ")})`;
+			const name = document.createElement("span");
+			name.className = "openpose-coco-keypoint-name";
+			name.textContent = definition.name;
+			leftContent.appendChild(swatch);
+			leftContent.appendChild(name);
+
+			const keypointNumber = document.createElement("span");
+			keypointNumber.className = "openpose-hand-keypoint-number";
+			keypointNumber.textContent = `${keypointId}`;
+			item.appendChild(leftContent);
+			item.appendChild(keypointNumber);
+			this.cocoKeypointRowElements.set(keypointId, { item, name, statusIcon: null });
+
+			if (isPresent) {
+				item.addEventListener("mouseenter", () => {
+					this.renderer?.setHoveredHandEditKeypointId?.(keypointId);
+				});
+				item.addEventListener("mouseleave", () => {
+					this.renderer?.setHoveredHandEditKeypointId?.(null);
+				});
+			}
+			this.cocoKeypointsList.appendChild(item);
+		}
+		this.refreshCocoKeypointRowStyles();
+	},
+
 	refreshCocoKeypointsList() {
 		if (!this.cocoKeypointsList) {
 			return;
@@ -863,6 +956,11 @@ export const poseEditorSubsystemWorkflow = {
 			: null;
 		if (donationRoot) {
 			applyDonationFooterStyles(donationRoot);
+		}
+		const handEditMode = this.renderer?.getHandEditModeInfo?.();
+		if (handEditMode) {
+			this.refreshHandKeypointsList(handEditMode);
+			return;
 		}
 		
 		// Handle empty state
@@ -1416,7 +1514,7 @@ ${tabsSectionHtml}
 			selectedExtras.hand_right_keypoints_2d.length > 0 &&
 			selectedExtras.hand_right_keypoints_2d.some(kp => kp);
 
-		const addExtraActionRow = ({ label, emoji, onRemove }) => {
+		const addExtraActionRow = ({ label, emoji, onEdit = null, onHover = null, onRemove }) => {
 			const item = document.createElement("div");
 			item.className = "openpose-coco-keypoint-item";
 			item.style.display = "flex";
@@ -1434,9 +1532,11 @@ ${tabsSectionHtml}
 			item.style.cursor = "default";
 			item.addEventListener("mouseenter", () => {
 				item.style.backgroundColor = "var(--openpose-primary-hover-bg)";
+				onHover?.(true);
 			});
 			item.addEventListener("mouseleave", () => {
 				item.style.backgroundColor = "var(--openpose-input-bg)";
+				onHover?.(false);
 			});
 
 			const leftContent = document.createElement("div");
@@ -1478,9 +1578,47 @@ ${tabsSectionHtml}
 			rightContent.style.alignItems = "center";
 			rightContent.style.gap = "4px";
 			rightContent.style.flexShrink = "0";
-			rightContent.style.width = "36px";
-			rightContent.style.minWidth = "36px";
+			rightContent.style.width = onEdit ? "56px" : "36px";
+			rightContent.style.minWidth = onEdit ? "56px" : "36px";
 			rightContent.style.justifyContent = "flex-end";
+
+			if (onEdit) {
+				const editControl = document.createElement("button");
+				editControl.type = "button";
+				editControl.className = "openpose-coco-edit-control";
+				editControl.innerHTML = UiIcons.svg('pencil', { size: 14, className: 'openpose-ui-icon' });
+				const editIcon = editControl.querySelector(".openpose-ui-icon");
+				if (editIcon) {
+					editIcon.style.opacity = "1";
+				}
+				editControl.style.border = "none";
+				editControl.style.background = "transparent";
+				editControl.style.padding = "0";
+				editControl.style.width = "16px";
+				editControl.style.minWidth = "16px";
+				editControl.style.height = "16px";
+				editControl.style.display = "inline-flex";
+				editControl.style.alignItems = "center";
+				editControl.style.justifyContent = "center";
+				editControl.style.color = "var(--openpose-text)";
+				editControl.style.opacity = "0.7";
+				editControl.style.cursor = "pointer";
+				editControl.title = `Edit ${label.toLowerCase()}`;
+				editControl.setAttribute("aria-label", editControl.title);
+				editControl.addEventListener("mouseenter", () => {
+					editControl.style.opacity = "1";
+					editControl.style.color = "var(--openpose-text)";
+				});
+				editControl.addEventListener("mouseleave", () => {
+					editControl.style.opacity = "0.7";
+					editControl.style.color = "var(--openpose-text)";
+				});
+				editControl.addEventListener("click", (event) => {
+					event.stopPropagation();
+					onEdit();
+				});
+				rightContent.appendChild(editControl);
+			}
 
 			const removeControl = createRemoveControl();
 			removeControl.dataset.removeDisabled = "0";
@@ -1521,6 +1659,13 @@ ${tabsSectionHtml}
 			addExtraActionRow({
 				label: "Left hand",
 				emoji: "\u270B",
+				onHover: (hovered) => this.renderer?.setSidebarHoveredHandSide?.(hovered ? "left" : null),
+				onEdit: () => {
+					const activeIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
+					if (activeIndex != null && activeIndex >= 0) {
+						this.renderer.enterHandEditMode(activeIndex, "left");
+					}
+				},
 				onRemove: () => {
 					const activeIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
 					if (activeIndex == null || activeIndex < 0) {
@@ -1538,6 +1683,13 @@ ${tabsSectionHtml}
 			addExtraActionRow({
 				label: "Right hand",
 				emoji: "\u{1F91A}",
+				onHover: (hovered) => this.renderer?.setSidebarHoveredHandSide?.(hovered ? "right" : null),
+				onEdit: () => {
+					const activeIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
+					if (activeIndex != null && activeIndex >= 0) {
+						this.renderer.enterHandEditMode(activeIndex, "right");
+					}
+				},
 				onRemove: () => {
 					const activeIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
 					if (activeIndex == null || activeIndex < 0) {
@@ -1557,6 +1709,19 @@ ${tabsSectionHtml}
 	},
 
 	refreshCocoKeypointRowStyles() {
+		const handEditMode = this.renderer?.getHandEditModeInfo?.();
+		if (handEditMode) {
+			for (const [keypointId, { item, name }] of this.cocoKeypointRowElements) {
+				const isPresent = !!handEditMode.keypoints?.[keypointId];
+				const isHovered = keypointId === handEditMode.hoveredKeypointId || keypointId === handEditMode.activeKeypointId;
+				item.style.backgroundColor = isHovered ? "var(--openpose-primary-hover-bg)" : "var(--openpose-input-bg)";
+				item.style.opacity = isPresent ? "1" : "0.45";
+				item.style.cursor = isPresent && keypointId !== 0 ? "pointer" : "default";
+				name.style.color = isHovered ? "var(--openpose-text)" : "var(--openpose-input-text)";
+				item.classList.toggle("openpose-keypoint-disabled", !isPresent);
+			}
+			return;
+		}
 		// Apply styles to all keypoint rows, respecting hover state
 		// Read from renderer (single source of truth)
 		const poses = this.renderer ? this.renderer.getPoses() : [];
@@ -1708,7 +1873,8 @@ ${tabsSectionHtml}
 			if (!sidebar) {
 				return;
 			}
-			const controls = Array.from(sidebar.querySelectorAll("button, input, select, textarea"));
+			const controls = Array.from(sidebar.querySelectorAll("button, input, select, textarea"))
+				.filter((control) => !control.classList.contains("openpose-support-btn"));
 			controls.forEach((control) => {
 				if (control.dataset.sidebarPrevDisabled === undefined) {
 					control.dataset.sidebarPrevDisabled = control.disabled ? "1" : "0";
