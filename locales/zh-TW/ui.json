@@ -91,6 +91,8 @@
   "gallery.tooltip.rhand_kps": "右手關鍵點：{count}",
   "gallery.state.loading": "正在載入姿勢合集…",
   "gallery.state.empty": "未找到姿勢合集。請向 poses/ 目錄新增 JSON 檔案。",
+  "gallery.warning.unavailable_title": "部分姿勢庫無法載入。",
+  "gallery.warning.unavailable_body": "請解鎖磁碟機或修正設定的路徑，然後點擊 🔄 重新載入圖庫和姿勢選擇器。",
   "gallery.item.no_face_hands": "僅身體（無臉部/手部）",
   "gallery.overlay.view.medium": "中等圖示",
   "gallery.empty_action.text": "瀏覽畫廊",

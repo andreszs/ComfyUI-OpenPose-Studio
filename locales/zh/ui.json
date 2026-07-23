@@ -91,6 +91,8 @@
   "gallery.tooltip.rhand_kps": "右手关键点：{count}",
   "gallery.state.loading": "正在加载姿势合集…",
   "gallery.state.empty": "未找到姿势合集。请向 poses/ 目录添加 JSON 文件。",
+  "gallery.warning.unavailable_title": "部分姿势库无法加载。",
+  "gallery.warning.unavailable_body": "请解锁驱动器或修正配置的路径，然后点击 🔄 重新加载图库和姿势选择器。",
   "gallery.item.no_face_hands": "仅身体（无面部/手部）",
   "gallery.overlay.view.medium": "中等图标",
   "gallery.empty_action.text": "浏览画廊",

@@ -91,6 +91,8 @@
   "gallery.tooltip.rhand_kps": "右手キーポイント: {count}",
   "gallery.state.loading": "ポーズコレクションを読み込み中…",
   "gallery.state.empty": "ポーズコレクションが見つかりません。poses/ ディレクトリにJSONファイルを追加してください。",
+  "gallery.warning.unavailable_title": "一部のポーズライブラリを読み込めませんでした。",
+  "gallery.warning.unavailable_body": "ドライブのロックを解除するか設定済みのパスを修正してから、🔄 をクリックしてギャラリーとポーズセレクターを再読み込みしてください。",
   "gallery.item.no_face_hands": "身体のみ (顔/手なし)",
   "gallery.overlay.view.medium": "中アイコン",
   "gallery.empty_action.text": "ギャラリーを閲覧",

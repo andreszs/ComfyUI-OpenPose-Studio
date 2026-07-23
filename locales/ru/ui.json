@@ -93,6 +93,8 @@
   "gallery.tooltip.rhand_kps": "Ключевые точки правой руки: {count}",
   "gallery.state.loading": "Загрузка коллекций поз…",
   "gallery.state.empty": "Коллекции поз не найдены. Добавьте файлы JSON в директорию poses/.",
+  "gallery.warning.unavailable_title": "Не удалось загрузить некоторые библиотеки поз.",
+  "gallery.warning.unavailable_body": "Разблокируйте диск или исправьте настроенный путь, затем нажмите 🔄, чтобы перезагрузить галерею и список выбора поз.",
   "gallery.item.no_face_hands": "Только тело (без лица/рук)",
   "gallery.overlay.view.medium": "Средние значки",
   "gallery.empty_action.text": "Открыть Галерею",

@@ -93,6 +93,8 @@
     "gallery.tooltip.rhand_kps":  "Right hand keypoints: {count}",
     "gallery.state.loading":  "Loading pose collections…",
     "gallery.state.empty":  "No pose collections found. Add JSON files to the poses/ directory.",
+    "gallery.warning.unavailable_title":  "Some pose libraries could not be loaded.",
+    "gallery.warning.unavailable_body":  "Unlock the drive or fix the configured path, then click 🔄 to reload the Gallery and Presets selector.",
     "gallery.item.no_face_hands":  "Body only (no face/hands)",
     "gallery.overlay.view.medium":  "Medium Icons",
     "gallery.empty_action.text":  "Browse the Gallery",

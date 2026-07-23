@@ -51,6 +51,8 @@ folder_paths.add_model_folder_path(POSES_FOLDER_KEY, POSES_DIR, is_default=True)
 _TOML_PATH = os.path.join(_PLUGIN_DIR, "pyproject.toml")
 _FALLBACK_NAME = "comfyui-openpose-studio"
 _FALLBACK_VERSION = "unknown"
+_warned_inaccessible_pose_paths = set()
+_inaccessible_pose_paths = {}
 
 
 # ---------------------------------------------------------------------------
@@ -137,10 +139,20 @@ def get_pose_roots():
     roots = []
     seen = set()
     label_counts = {}
+    inaccessible_paths = {}
     builtin_path = os.path.normcase(os.path.realpath(POSES_DIR))
 
     for directory in folder_paths.get_folder_paths(POSES_FOLDER_KEY):
-        real_directory = os.path.realpath(directory)
+        path = os.fspath(directory)
+        try:
+            real_directory = os.path.realpath(directory)
+        except OSError as error:
+            if path not in _warned_inaccessible_pose_paths:
+                print(f"\033[93m[comfyui-openpose-studio] WARNING: Could not load pose library '{path}': {error}\033[0m")
+                _warned_inaccessible_pose_paths.add(path)
+            inaccessible_paths[path] = str(error)
+            continue
+        _warned_inaccessible_pose_paths.discard(path)
         normalized_directory = os.path.normcase(real_directory)
         if normalized_directory in seen:
             continue
@@ -163,6 +175,8 @@ def get_pose_roots():
             "name": label,
         })
 
+    _inaccessible_pose_paths.clear()
+    _inaccessible_pose_paths.update(inaccessible_paths)
     return roots
 
 
@@ -210,7 +224,11 @@ async def list_poses(request):
     """List available pose files."""
     entries = get_pose_files()
     legacy_files = [entry["path"] for entry in entries if entry["source"] == 0]
-    return web.json_response({"files": legacy_files, "entries": entries})
+    unavailable = [
+        {"path": path, "reason": reason}
+        for path, reason in _inaccessible_pose_paths.items()
+    ]
+    return web.json_response({"files": legacy_files, "entries": entries, "unavailable": unavailable})
 
 
 @PromptServer.instance.routes.post("/openpose/render_style")

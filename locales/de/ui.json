@@ -93,6 +93,8 @@
   "gallery.tooltip.rhand_kps": "Keypoints rechte Hand: {count}",
   "gallery.state.loading": "Pose-Sammlungen werden geladen…",
   "gallery.state.empty": "Keine Pose-Sammlungen gefunden. JSON-Dateien zum Verzeichnis poses/ hinzufügen.",
+  "gallery.warning.unavailable_title": "Einige Pose-Bibliotheken konnten nicht geladen werden.",
+  "gallery.warning.unavailable_body": "Entsperren Sie das Laufwerk oder korrigieren Sie den konfigurierten Pfad und klicken Sie dann auf 🔄, um die Galerie und die Posenauswahl neu zu laden.",
   "gallery.item.no_face_hands": "Nur Körper (kein Gesicht/Hände)",
   "gallery.overlay.view.medium": "Mittlere Symbole",
   "gallery.empty_action.text": "Galerie durchsuchen",

@@ -91,6 +91,8 @@
   "gallery.tooltip.rhand_kps": "Keypoints mano der: {count}",
   "gallery.state.loading": "Cargando colecciones de poses…",
   "gallery.state.empty": "No se encontraron colecciones. Agrega archivos JSON al directorio poses/.",
+  "gallery.warning.unavailable_title": "No se pudieron cargar algunas bibliotecas de poses.",
+  "gallery.warning.unavailable_body": "Desbloquea la unidad o corrige la ruta configurada y luego haz clic en 🔄 para volver a cargar la Galería y el selector de poses.",
   "gallery.item.no_face_hands": "Solo cuerpo (sin cara/manos)",
   "gallery.overlay.view.medium": "Íconos medianos",
   "gallery.empty_action.text": "Explorar la Galería",

@@ -501,6 +501,7 @@ class OpenPosePanel {
         // Presets (loaded from JSON)
         this.presetsLoading = true;
         this.presets = [];
+        this.unavailablePoseLibraries = [];
         this.presetBaseWidth = DEFAULT_CANVAS_WIDTH;
         this.presetBaseHeight = DEFAULT_CANVAS_HEIGHT;
 
@@ -1655,6 +1656,7 @@ class OpenPosePanel {
 
 	async loadPresetsFromJson() {
 		this.presetsLoading = true;
+		this.unavailablePoseLibraries = [];
 		this.renderPresetPreviewLoading();
 		this.moduleManager?.notifyPresetsLoadStart?.();
 		const defaultPreset = {
@@ -1675,6 +1677,9 @@ class OpenPosePanel {
 				throw new Error(`Failed to list pose files: ${listResponse.status}`);
 			}
 			const listPayload = await listResponse.json();
+			this.unavailablePoseLibraries = Array.isArray(listPayload.unavailable)
+				? listPayload.unavailable
+				: [];
 			const files = Array.isArray(listPayload.entries)
 				? listPayload.entries
 				: (Array.isArray(listPayload.files) ? listPayload.files : []);
@@ -2365,7 +2370,7 @@ app.registerExtension({
                 // Set reasonable node size (will auto-expand for widgets)
                 const targetSize = this.computeSize();
                 targetSize[0] = Math.max(targetSize[0], 250);
-                targetSize[1] = Math.max(targetSize[1], 280);
+                targetSize[1] = Math.max(targetSize[1], 400);
                 this.setSize(targetSize);
 
                 // Restore savedPose from properties on load and update preview

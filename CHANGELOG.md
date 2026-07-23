@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.0.1] - 2026-07-23
+
+### Added
+- Added a localized Gallery warning that lists unavailable configured pose libraries with their paths and system-reported failure reasons.
+- Added recovery guidance so users can unlock a drive or fix a configured path, then reload the Gallery and Presets selector without restarting ComfyUI.
+
+### Changed
+- Increased the initial height of newly inserted OpenPose Studio nodes so the pose preview has enough room to display at a useful size.
+
+### Fixed
+- Prevented inaccessible pose libraries, including locked BitLocker drives, from blocking OpenPose Studio initialization and node registration.
+
+---
+
 ## [2.0.0] - 2026-07-22
 
 ### Added

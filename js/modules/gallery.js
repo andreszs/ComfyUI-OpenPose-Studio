@@ -271,11 +271,35 @@ class GalleryManager {
         galleryOverlay.applyStyles(this.container);
     }
 
+    updateLibraryWarning() {
+        const warning = this.container.querySelector(".openpose-gallery-library-warning");
+        const list = warning?.querySelector(".openpose-gallery-library-warning-list");
+        if (!warning || !list) {
+            return;
+        }
+        const unavailable = Array.isArray(this.openpose.unavailablePoseLibraries)
+            ? this.openpose.unavailablePoseLibraries
+            : [];
+        list.replaceChildren();
+        for (const library of unavailable) {
+            if (!library?.path) {
+                continue;
+            }
+            const item = document.createElement("li");
+            item.textContent = library.reason
+                ? `${library.path} — ${library.reason}`
+                : library.path;
+            list.appendChild(item);
+        }
+        warning.style.display = list.childElementCount > 0 ? "flex" : "none";
+    }
+
     refresh() {
         if (!this.galleryContainer) {
             return;
         }
         this.setViewMode(this.viewMode);
+        this.updateLibraryWarning();
 
         const op = this.openpose;
         if (op.presetsLoading) {
@@ -644,6 +668,14 @@ export const galleryOverlayHtml = `
                         </div>
                     </div>
                 </div>
+                <div class="openpose-alert openpose-alert-warning alert alert-warning openpose-gallery-library-warning" style="display: none;">
+                    <span class="openpose-alert-icon">\u{26A0}\u{FE0F}</span>
+                    <div class="openpose-alert-body">
+                        <strong>${t("gallery.warning.unavailable_title")}</strong>
+                        <p>${t("gallery.warning.unavailable_body")}</p>
+                        <ul class="openpose-gallery-library-warning-list"></ul>
+                    </div>
+                </div>
                 <div class="openpose-gallery-content"></div>
             </div>
         </div>
@@ -699,6 +731,16 @@ export function setupGalleryOverlayStyles(container) {
     container.querySelectorAll(".openpose-gallery-header").forEach((header) => {
         header.style.flex = "0 0 auto";
         header.style.paddingBottom = "10px";
+    });
+
+    container.querySelectorAll(".openpose-gallery-library-warning").forEach((warning) => {
+        warning.style.alignItems = "flex-start";
+        warning.style.marginBottom = "10px";
+    });
+
+    container.querySelectorAll(".openpose-gallery-library-warning-list").forEach((list) => {
+        list.style.margin = "6px 0 0";
+        list.style.paddingLeft = "20px";
     });
 
     // Unified sizing for all header controls (stats badge, view button, refresh button)

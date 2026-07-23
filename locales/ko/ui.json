@@ -92,6 +92,8 @@
 
   "gallery.state.loading": "포즈 컬렉션 로딩 중…",
   "gallery.state.empty": "포즈 컬렉션을 찾을 수 없습니다. poses/ 디렉토리에 JSON 파일을 추가하세요.",
+  "gallery.warning.unavailable_title": "일부 포즈 라이브러리를 불러오지 못했습니다.",
+  "gallery.warning.unavailable_body": "드라이브 잠금을 해제하거나 설정된 경로를 수정한 다음 🔄을 클릭하여 갤러리와 포즈 선택기를 다시 불러오세요.",
   "gallery.item.no_face_hands": "몸만 (얼굴/손 없음)",
   "gallery.overlay.view.medium": "중간 아이콘",
   "gallery.empty_action.text": "갤러리 탐색",

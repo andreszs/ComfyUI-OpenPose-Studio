@@ -9,6 +9,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,6 +89,8 @@ class PoseLibraryTests(unittest.TestCase):
         self.external_dir.mkdir()
         pose_library.POSES_DIR = str(self.builtin_dir)
         folder_paths_mock.paths = [str(self.builtin_dir), str(self.external_dir)]
+        pose_library._warned_inaccessible_pose_paths.clear()
+        pose_library._inaccessible_pose_paths.clear()
 
     def tearDown(self):
         self.temp_dir.cleanup()
@@ -144,6 +147,45 @@ class PoseLibraryTests(unittest.TestCase):
         roots = pose_library.get_pose_roots()
 
         self.assertEqual([root["name"] for root in roots], ["poses", "library", "library (2)"])
+
+    def test_inaccessible_root_is_skipped_without_hiding_other_libraries(self):
+        self.write_json(self.builtin_dir / "builtin.json")
+        self.write_json(self.external_dir / "custom.json")
+        locked_path = self.base_dir / "Locked Library"
+        locked_path.mkdir()
+        self.write_json(locked_path / "recovered.json")
+        locked_dir = str(locked_path)
+        folder_paths_mock.paths = [str(self.builtin_dir), locked_dir, str(self.external_dir)]
+        realpath = os.path.realpath
+
+        def resolve_path(path):
+            if os.fspath(path) == locked_dir:
+                raise OSError("drive is locked")
+            return realpath(path)
+
+        with (
+            mock.patch.object(pose_library.os.path, "realpath", side_effect=resolve_path),
+            mock.patch("builtins.print") as print_mock,
+        ):
+            entries = pose_library.get_pose_files()
+            response = asyncio.run(pose_library.list_poses(None))
+
+        self.assertEqual([entry["filename"] for entry in entries], ["builtin.json", "custom.json"])
+        self.assertEqual([entry["source"] for entry in entries], [0, 1])
+        self.assertEqual(
+            json.loads(response.body)["unavailable"],
+            [{"path": locked_dir, "reason": "drive is locked"}],
+        )
+        print_mock.assert_called_once()
+        warning = print_mock.call_args.args[0]
+        self.assertIn("\033[93m", warning)
+        self.assertIn(locked_dir, warning)
+        self.assertIn("drive is locked", warning)
+
+        recovered_response = asyncio.run(pose_library.list_poses(None))
+        recovered_payload = json.loads(recovered_response.body)
+        self.assertEqual(recovered_payload["unavailable"], [])
+        self.assertIn("recovered.json", [entry["filename"] for entry in recovered_payload["entries"]])
 
     def test_list_response_keeps_legacy_builtin_files_and_adds_entries(self):
         self.write_json(self.builtin_dir / "builtin.json")

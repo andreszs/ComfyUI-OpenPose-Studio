@@ -93,6 +93,8 @@
   "gallery.tooltip.rhand_kps": "Points clés de la main droite : {count}",
   "gallery.state.loading": "Chargement des collections de poses…",
   "gallery.state.empty": "Aucune collection de poses trouvée. Ajoutez des fichiers JSON dans le répertoire poses/.",
+  "gallery.warning.unavailable_title": "Certaines bibliothèques de poses n’ont pas pu être chargées.",
+  "gallery.warning.unavailable_body": "Déverrouillez le lecteur ou corrigez le chemin configuré, puis cliquez sur 🔄 pour recharger la galerie et le sélecteur de poses.",
   "gallery.item.no_face_hands": "Corps uniquement (sans visage/mains)",
   "gallery.overlay.view.medium": "Icônes moyennes",
   "gallery.empty_action.text": "Parcourir la Galerie",
