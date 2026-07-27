@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.2] - 2026-07-27
+
+### Changed
+- Moved the focused hand editor controls below the canvas and used balanced viewport margins to provide more editing space.
+
+### Fixed
+- Kept background reference images visible and aligned with hand keypoints in the focused editor, preserving their Contain/Cover mode and opacity.
+- Kept the grid and center-axis guides aligned with the zoomed hand view.
+
+---
+
 ## [2.0.1] - 2026-07-23
 
 ### Added

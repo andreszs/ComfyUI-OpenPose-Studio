@@ -651,6 +651,11 @@
     box-sizing: border-box;
 }
 
+.ope-openpose-modal.openpose-hand-edit-active .openpose-canvas-area .canvas-container,
+.ope-openpose-modal .openpose-hand-edit-active .openpose-canvas-area .canvas-container {
+    padding-bottom: 80px;
+}
+
 .ope-openpose-modal .openpose-hand-edit-actions {
     position: absolute;
     z-index: 5;
@@ -658,7 +663,7 @@
     justify-content: center;
     gap: 22px;
     padding: 9px 12px;
-    transform: translate(-50%, -100%);
+    transform: translateX(-50%);
     border: 1px solid var(--openpose-border);
     border-radius: 999px;
     background: color-mix(in srgb, var(--openpose-panel-bg-secondary) 94%, transparent);

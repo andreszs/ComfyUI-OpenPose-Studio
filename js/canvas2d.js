@@ -809,8 +809,7 @@ export class OpenPoseCanvas2D {
 		}
 		const viewport = this.getViewportDimensions();
 		const margin = Math.max(36, Math.min(viewport.width, viewport.height) * 0.1);
-		const bottomMargin = Math.max(margin, 92);
-		const availableHeight = viewport.height - margin - bottomMargin;
+		const availableHeight = viewport.height - margin * 2;
 		const scale = Math.min(
 			(viewport.width - margin * 2) / (maxX - minX),
 			availableHeight / (maxY - minY)
@@ -859,7 +858,7 @@ export class OpenPoseCanvas2D {
 			actions.hidden = false;
 			actions.style.display = 'inline-flex';
 			actions.style.left = `${canvasLeft + canvasWidth / 2}px`;
-			actions.style.top = `${canvasTop + canvasHeight - 14}px`;
+			actions.style.top = `${canvasTop + canvasHeight + 8}px`;
 			return;
 		}
 		actions.hidden = true;
@@ -1576,6 +1575,20 @@ export class OpenPoseCanvas2D {
 				       const viewport = this.getViewportDimensions();
 				       ctx.fillStyle = '#24272b';
 				       ctx.fillRect(0, 0, viewport.width, viewport.height);
+				       const view = this.handEditMode.view;
+				       if (view) {
+					       ctx.save();
+					       ctx.beginPath();
+					       ctx.rect(view.offsetX, view.offsetY, this.logicalWidth * view.scale, this.logicalHeight * view.scale);
+					       ctx.clip();
+					       if (this.gridEnabled) {
+						       this.drawGrid(view);
+					       }
+					       if (this.backgroundImage) {
+						       this.drawBackground(view);
+					       }
+					       ctx.restore();
+				       }
 				       this.drawHandEditMode();
 				       this.updateHandEditControls();
 				       return;
@@ -1798,11 +1811,13 @@ export class OpenPoseCanvas2D {
 		ctx.restore();
 	}
 
-	drawGrid() {
+	drawGrid(view = null) {
 		const ctx = this.ctx;
 		const centerX = this.logicalWidth / 2;
 		const centerY = this.logicalHeight / 2;
 		const pixelAlign = (value) => Math.round(value) + 0.5;
+		const mapX = (value) => view ? value * view.scale + view.offsetX : value;
+		const mapY = (value) => view ? value * view.scale + view.offsetY : value;
 		
 		// Draw grid lines (dashed, light gray) - skip center lines
 		ctx.strokeStyle = this.gridColor;
@@ -1813,17 +1828,17 @@ export class OpenPoseCanvas2D {
 		// Vertical lines (skip the center vertical line)
 		for (let x = 0; x <= this.logicalWidth; x += this.gridSpacing) {
 			if (Math.abs(x - centerX) < 0.1) continue; // Skip center line
-			const alignedX = pixelAlign(x);
-			ctx.moveTo(alignedX, 0);
-			ctx.lineTo(alignedX, this.logicalHeight);
+			const alignedX = pixelAlign(mapX(x));
+			ctx.moveTo(alignedX, mapY(0));
+			ctx.lineTo(alignedX, mapY(this.logicalHeight));
 		}
 		
 		// Horizontal lines (skip the center horizontal line)
 		for (let y = 0; y <= this.logicalHeight; y += this.gridSpacing) {
 			if (Math.abs(y - centerY) < 0.1) continue; // Skip center line
-			const alignedY = pixelAlign(y);
-			ctx.moveTo(0, alignedY);
-			ctx.lineTo(this.logicalWidth, alignedY);
+			const alignedY = pixelAlign(mapY(y));
+			ctx.moveTo(mapX(0), alignedY);
+			ctx.lineTo(mapX(this.logicalWidth), alignedY);
 		}
 		
 		ctx.stroke();
@@ -1836,20 +1851,22 @@ export class OpenPoseCanvas2D {
 		ctx.strokeStyle = 'rgba(255, 0, 0, 0.3)';
 		ctx.lineWidth = 1;
 		ctx.beginPath();
-		ctx.moveTo(centerX + axisOffset, 0);
-		ctx.lineTo(centerX + axisOffset, this.logicalHeight);
+		const verticalAxisX = view ? pixelAlign(mapX(centerX)) : centerX + axisOffset;
+		ctx.moveTo(verticalAxisX, mapY(0));
+		ctx.lineTo(verticalAxisX, mapY(this.logicalHeight));
 		ctx.stroke();
 		
 		// Horizontal center axis (GREEN for X-axis)
 		ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
 		ctx.lineWidth = 1;
 		ctx.beginPath();
-		ctx.moveTo(0, centerY + axisOffset);
-		ctx.lineTo(this.logicalWidth, centerY + axisOffset);
+		const horizontalAxisY = view ? pixelAlign(mapY(centerY)) : centerY + axisOffset;
+		ctx.moveTo(mapX(0), horizontalAxisY);
+		ctx.lineTo(mapX(this.logicalWidth), horizontalAxisY);
 		ctx.stroke();
 	}
 	
-	drawBackground() {
+	drawBackground(view = null) {
 		if (!this.backgroundImage) return;
 		
 		const ctx = this.ctx;
@@ -1885,6 +1902,13 @@ export class OpenPoseCanvas2D {
 				drawX = 0;
 				drawY = (this.logicalHeight - drawHeight) / 2;
 			}
+		}
+
+		if (view) {
+			drawX = drawX * view.scale + view.offsetX;
+			drawY = drawY * view.scale + view.offsetY;
+			drawWidth *= view.scale;
+			drawHeight *= view.scale;
 		}
 		
 		ctx.globalAlpha = this.backgroundOpacity;
