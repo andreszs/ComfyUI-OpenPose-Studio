@@ -201,6 +201,8 @@
   "toast.hands_removed": "手を削除しました",
   "toast.invalid_bg_image": "無効な背景画像です。",
   "toast.invalid_pose_file_title": "無効なポーズファイル",
+  "toast.keypoint_auto_adjusted": "{count} 個のキーポイントをキャンバス内に収まるよう自動調整しました。",
+  "toast.keypoints_auto_adjusted": "{count} 個のキーポイントをキャンバス内に収まるよう自動調整しました。",
   "toast.keypoint_removed": "{keypoint} を削除しました",
   "toast.left_hand_removed": "左手を削除しました",
   "toast.mixed_formats_locked": "混在した形式は対応していません。\nこのリストは {lockedLabel} にロックされています。{otherLabel} を追加するにはリストをクリアしてください。",

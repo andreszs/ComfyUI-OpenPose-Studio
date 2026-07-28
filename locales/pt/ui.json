@@ -204,6 +204,8 @@
   "toast.hands_removed": "Mãos removidas",
   "toast.invalid_bg_image": "Imagem de plano de fundo inválida.",
   "toast.invalid_pose_file_title": "Arquivo de pose inválido",
+  "toast.keypoint_auto_adjusted": "{count} keypoint foi ajustado automaticamente para ficar dentro dos limites da tela.",
+  "toast.keypoints_auto_adjusted": "{count} keypoints foram ajustados automaticamente para ficar dentro dos limites da tela.",
   "toast.keypoint_removed": "{keypoint} removido",
   "toast.left_hand_removed": "Mão esquerda removida",
   "toast.mixed_formats_locked": "Formatos mistos não são suportados.\nEsta lista está bloqueada para: {lockedLabel}. Limpe a lista para adicionar {otherLabel}.",

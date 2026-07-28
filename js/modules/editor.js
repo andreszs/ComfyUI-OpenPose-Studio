@@ -211,6 +211,45 @@ function normalizeBackgroundOpacity(value) {
 	return Math.min(1, Math.max(0, num));
 }
 
+function clampKeypointsToCanvas(points, canvasWidth, canvasHeight) {
+	if (!Array.isArray(points)) {
+		return { keypoints: points, adjustedCount: 0 };
+	}
+	let adjustedCount = 0;
+	const keypoints = points.map((point) => {
+		if (!isValidKeypoint(point)) {
+			return point;
+		}
+		const x = Number(point[0]);
+		const y = Number(point[1]);
+		let adjustedX = Math.min(canvasWidth, Math.max(0, x));
+		let adjustedY = Math.min(canvasHeight, Math.max(0, y));
+		if (adjustedX === x && adjustedY === y) {
+			return point;
+		}
+		if (adjustedX === 0 && adjustedY === 0) {
+			adjustedX = Math.min(1, canvasWidth);
+			adjustedY = Math.min(1, canvasHeight);
+		}
+		adjustedCount += 1;
+		return [adjustedX, adjustedY];
+	});
+	return { keypoints, adjustedCount };
+}
+
+function clampKeypointGroupsToCanvas(groups, canvasWidth, canvasHeight) {
+	if (!Array.isArray(groups)) {
+		return { groups, adjustedCount: 0 };
+	}
+	let adjustedCount = 0;
+	const adjustedGroups = groups.map((group) => {
+		const adjusted = clampKeypointsToCanvas(group, canvasWidth, canvasHeight);
+		adjustedCount += adjusted.adjustedCount;
+		return adjusted.keypoints;
+	});
+	return { groups: adjustedGroups, adjustedCount };
+}
+
 // Helper function to detect COCO keypoint schema and return appropriate title
 export function getKeypointSchemaTitle(renderer) {
 	if (!renderer) return "COCO Keypoints";
@@ -652,9 +691,35 @@ export const poseEditorCanvasWorkflow = {
 				);
 			}
 		}
-		const keypoints = this.getPresetKeypoints(presetId);
-		const faceKeypoints = this.getPresetFaceKeypoints(presetId);
-		const { left: handLeftKeypoints, right: handRightKeypoints } = this.getPresetHandKeypoints(presetId);
+		const bodyAdjustment = clampKeypointsToCanvas(
+			this.getPresetKeypoints(presetId),
+			this.canvasWidth,
+			this.canvasHeight
+		);
+		const faceAdjustment = clampKeypointGroupsToCanvas(
+			this.getPresetFaceKeypoints(presetId),
+			this.canvasWidth,
+			this.canvasHeight
+		);
+		const presetHands = this.getPresetHandKeypoints(presetId);
+		const leftHandAdjustment = clampKeypointGroupsToCanvas(
+			presetHands.left,
+			this.canvasWidth,
+			this.canvasHeight
+		);
+		const rightHandAdjustment = clampKeypointGroupsToCanvas(
+			presetHands.right,
+			this.canvasWidth,
+			this.canvasHeight
+		);
+		const keypoints = bodyAdjustment.keypoints;
+		const faceKeypoints = faceAdjustment.groups;
+		const handLeftKeypoints = leftHandAdjustment.groups;
+		const handRightKeypoints = rightHandAdjustment.groups;
+		const adjustedKeypointCount = bodyAdjustment.adjustedCount
+			+ faceAdjustment.adjustedCount
+			+ leftHandAdjustment.adjustedCount
+			+ rightHandAdjustment.adjustedCount;
 
 		// Detect format (or reuse provided formatId) and get keypoint count for multi-person handling
 		let detectedFormat = null;
@@ -700,6 +765,17 @@ export const poseEditorCanvasWorkflow = {
 			? t("toast.pose_added_with_note", { formatName: fmtName })
 			: t("toast.pose_added", { formatName: fmtName });
 		showToast("success", "Pose Editor", msg);
+	}
+	if (!silent && adjustedKeypointCount > 0) {
+		const messageKey = adjustedKeypointCount === 1
+			? "toast.keypoint_auto_adjusted"
+			: "toast.keypoints_auto_adjusted";
+		showToast(
+			"warn",
+			"OpenPose Studio",
+			t(messageKey, { count: adjustedKeypointCount }),
+			6000
+		);
 	}
 },
 

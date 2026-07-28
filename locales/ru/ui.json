@@ -204,6 +204,8 @@
   "toast.hands_removed": "Руки удалены",
   "toast.invalid_bg_image": "Неверное фоновое изображение.",
   "toast.invalid_pose_file_title": "Неверный файл позы",
+  "toast.keypoint_auto_adjusted": "{count} ключевая точка была автоматически перемещена в границы холста.",
+  "toast.keypoints_auto_adjusted": "{count} ключевых точек были автоматически перемещены в границы холста.",
   "toast.keypoint_removed": "{keypoint} удалено",
   "toast.left_hand_removed": "Левая рука удалена",
   "toast.mixed_formats_locked": "Смешанные форматы не поддерживаются.\nСписок заблокирован для: {lockedLabel}. Очистите список, чтобы добавить {otherLabel}.",

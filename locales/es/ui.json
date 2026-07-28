@@ -201,6 +201,8 @@
   "toast.hands_removed": "Manos eliminadas",
   "toast.invalid_bg_image": "Imagen de fondo inválida.",
   "toast.invalid_pose_file_title": "Archivo de pose inválido",
+  "toast.keypoint_auto_adjusted": "Se autoajustó {count} keypoint para ubicarlo dentro de los límites del lienzo.",
+  "toast.keypoints_auto_adjusted": "Se autoajustaron {count} keypoints para ubicarlos dentro de los límites del lienzo.",
   "toast.keypoint_removed": "{keypoint} eliminado",
   "toast.left_hand_removed": "Mano izquierda eliminada",
   "toast.mixed_formats_locked": "No se admiten formatos mixtos.\nEsta lista está bloqueada a: {lockedLabel}. Limpia la lista para agregar {otherLabel}.",

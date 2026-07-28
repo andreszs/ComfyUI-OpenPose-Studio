@@ -204,6 +204,8 @@
     "toast.hands_removed":  "Hands removed",
     "toast.invalid_bg_image":  "Invalid background image.",
     "toast.invalid_pose_file_title":  "Invalid Pose File",
+    "toast.keypoint_auto_adjusted":  "{count} keypoint was auto-adjusted to fit within the canvas bounds.",
+    "toast.keypoints_auto_adjusted":  "{count} keypoints were auto-adjusted to fit within the canvas bounds.",
     "toast.keypoint_removed":  "{keypoint} removed",
     "toast.left_hand_removed":  "Left hand removed",
     "toast.mixed_formats_locked":  "Mixed formats are not supported.\nThis list is locked to: {lockedLabel}. Clear the list to add {otherLabel}.",
