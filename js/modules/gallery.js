@@ -1,11 +1,33 @@
 import { t } from "./i18n.js";
-import { toRgba, showToast, showConfirm, getPersistedSetting, setPersistedSetting } from "../utils.js";
+import {
+    drawBoneWithOutline,
+    getPersistedSetting,
+    isValidKeypoint,
+    setPersistedSetting,
+    showToast,
+    toRgba
+} from "../utils.js";
 import { getFormatForPose } from "../formats/index.js";
 import { registerModule } from "./index.js";
 import { UiIcons } from "../ui-icons.js";
 
 const GALLERY_VIEW_MODE_KEY = "openpose_editor.gallery.viewMode";
 const GALLERY_VIEW_MODES = new Set(["medium", "large", "tiles"]);
+const HAND_EDGES = [
+    [0, 1], [1, 2], [2, 3], [3, 4],
+    [0, 5], [5, 6], [6, 7], [7, 8],
+    [0, 9], [9, 10], [10, 11], [11, 12],
+    [0, 13], [13, 14], [14, 15], [15, 16],
+    [0, 17], [17, 18], [18, 19], [19, 20]
+];
+const HAND_KEYPOINT_COLORS = [
+    [100, 100, 100],
+    [100, 0, 0], [150, 0, 0], [200, 0, 0], [255, 0, 0],
+    [100, 100, 0], [150, 150, 0], [200, 200, 0], [255, 255, 0],
+    [0, 100, 50], [0, 150, 75], [0, 200, 100], [0, 255, 125],
+    [0, 50, 100], [0, 75, 150], [0, 100, 200], [0, 125, 255],
+    [100, 0, 100], [150, 0, 150], [200, 0, 200], [255, 0, 255]
+];
 
 function normalizeGallerySearch(value) {
     return String(value || "")
@@ -56,6 +78,26 @@ function countExtraKeypoints(groups) {
         }
     }
     return count;
+}
+
+function getGalleryPresetDetails(preset) {
+    const keypoints = Array.isArray(preset?.keypoints) ? preset.keypoints : [];
+    const detectedFormat = getFormatForPose(keypoints);
+    const keypointsPerPerson = detectedFormat?.keypoints?.length || 18;
+    const personCount = Math.max(1, Math.floor(keypoints.length / keypointsPerPerson));
+    return {
+        detectedFormat,
+        personCount,
+        bodyCount: keypoints.filter(isValidKeypoint).length,
+        faceCount: countExtraKeypoints(preset?.faceKeypoints),
+        leftHandCount: countExtraKeypoints(preset?.handLeftKeypoints),
+        rightHandCount: countExtraKeypoints(preset?.handRightKeypoints)
+    };
+}
+
+function getGalleryFilename(preset) {
+    const source = String(preset?.displayFilename || preset?.sourceFile || "");
+    return source.replace(/\\/g, "/").split("/").pop() || "\u2014";
 }
 
 function formatCanvasMetaSize(width, height) {
@@ -129,7 +171,293 @@ class GalleryManager {
         this.collectionFiles = new Set();
         this.emptyPoseFiles = [];
         this.searchQuery = "";
+        this.selectedPresetId = null;
+        this.focusedHandSide = null;
         this.setViewMode(this.viewMode);
+        this.clearSelection();
+    }
+
+    clearSelection() {
+        this.selectedPresetId = null;
+        this.focusedHandSide = null;
+        this.container.querySelectorAll(".openpose-gallery-hand-row.is-active").forEach((row) => {
+            row.classList.remove("is-active");
+        });
+        this.container.querySelectorAll(".openpose-gallery-item.is-selected").forEach((item) => {
+            item.classList.remove("is-selected");
+            item.style.background = "transparent";
+            item.style.boxShadow = "none";
+        });
+        const button = this.container.querySelector('[data-action="gallery-insert-pose"]');
+        if (button) {
+            button.disabled = true;
+            button.style.opacity = "0.5";
+            button.style.cursor = "not-allowed";
+        }
+        this.updateSelectedDetails(null);
+        const canvas = this.container.querySelector(".openpose-gallery-selected-preview");
+        const ctx = canvas?.getContext("2d");
+        if (!canvas || !ctx) {
+            return;
+        }
+        const frame = canvas.closest(".openpose-preset-preview-frame");
+        canvas.width = Math.max(1, Math.round(frame?.clientWidth || 220));
+        canvas.height = Math.max(1, Math.round(frame?.clientHeight || 220));
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const previewSurface = this.openpose.getPreviewSurfaceFill();
+        if (previewSurface) {
+            ctx.fillStyle = previewSurface;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+    }
+
+    selectPreset(preset, selectedItem = null) {
+        if (!preset?.id) {
+            this.clearSelection();
+            return;
+        }
+        this.selectedPresetId = preset.id;
+        this.focusedHandSide = null;
+        this.container.querySelectorAll(".openpose-gallery-hand-row.is-active").forEach((row) => {
+            row.classList.remove("is-active");
+        });
+        this.container.querySelectorAll(".openpose-gallery-item").forEach((item) => {
+            const isSelected = item === selectedItem || item._galleryPresetId === preset.id;
+            item.classList.toggle("is-selected", isSelected);
+            item.style.background = isSelected
+                ? "var(--openpose-gallery-selection-bg)"
+                : "transparent";
+            item.style.boxShadow = "none";
+        });
+        const button = this.container.querySelector('[data-action="gallery-insert-pose"]');
+        if (button) {
+            button.disabled = false;
+            button.style.opacity = "";
+            button.style.cursor = "pointer";
+        }
+        this.renderSelectedPreview(preset);
+        this.updateSelectedDetails(preset);
+    }
+
+    updateSelectedDetails(preset) {
+        const empty = this.container.querySelector(".openpose-gallery-details-empty");
+        const content = this.container.querySelector(".openpose-gallery-details-content");
+        if (!empty || !content) {
+            return;
+        }
+        empty.hidden = !!preset;
+        content.hidden = !preset;
+        if (!preset) {
+            return;
+        }
+        const details = getGalleryPresetDetails(preset);
+        const canvasWidth = Number(preset.canvas_width ?? preset.width);
+        const canvasHeight = Number(preset.canvas_height ?? preset.height);
+        const sourceType = preset.galleryBadge === "collection"
+            ? "Collection item"
+            : (preset.galleryBadge === "nonstandard" ? "Non-standard JSON" : "Pose file");
+        const location = preset.galleryGroupTitle || preset.sourceFile || "\u2014";
+        const values = {
+            name: this.openpose.normalizePoseName(preset.label || preset.id || "Pose"),
+            file: getGalleryFilename(preset),
+            location,
+            type: sourceType,
+            format: details.detectedFormat?.displayName || details.detectedFormat?.id || "\u2014",
+            canvas: Number.isFinite(canvasWidth) && canvasWidth > 0 && Number.isFinite(canvasHeight) && canvasHeight > 0
+                ? `${Math.round(canvasWidth)} \u00D7 ${Math.round(canvasHeight)} px`
+                : "\u2014",
+            people: String(details.personCount),
+            body: String(details.bodyCount),
+            face: String(details.faceCount),
+            leftHand: String(details.leftHandCount),
+            rightHand: String(details.rightHandCount)
+        };
+        for (const [key, value] of Object.entries(values)) {
+            const element = content.querySelector(`[data-gallery-detail="${key}"]`);
+            if (element) {
+                element.textContent = value;
+                if (key === "file" || key === "location") {
+                    element.title = value;
+                }
+            }
+        }
+        const handCounts = {
+            left: details.leftHandCount,
+            right: details.rightHandCount
+        };
+        this.container.querySelectorAll(".openpose-gallery-hand-row").forEach((row) => {
+            const available = handCounts[row.dataset.galleryHand] > 0;
+            row.classList.toggle("is-available", available);
+            row.tabIndex = available ? 0 : -1;
+            row.setAttribute("aria-disabled", available ? "false" : "true");
+            row.title = available ? `Preview ${row.dataset.galleryHand} hand` : "";
+            const icon = row.querySelector(".openpose-gallery-hand-zoom");
+            if (icon) {
+                icon.hidden = !available;
+            }
+        });
+    }
+
+    getSelectedPreset() {
+        return this.openpose.presets.find((preset) => preset.id === this.selectedPresetId) || null;
+    }
+
+    focusSelectedHand(side) {
+        const preset = this.getSelectedPreset();
+        const groups = side === "right" ? preset?.handRightKeypoints : preset?.handLeftKeypoints;
+        if (!preset || countExtraKeypoints(groups) === 0) {
+            return;
+        }
+        this.focusedHandSide = side;
+        this.container.querySelectorAll(".openpose-gallery-hand-row").forEach((row) => {
+            row.classList.toggle("is-active", row.dataset.galleryHand === side);
+        });
+        this.renderSelectedHandPreview(preset, side);
+    }
+
+    clearFocusedHand() {
+        if (!this.focusedHandSide) {
+            return;
+        }
+        this.focusedHandSide = null;
+        this.container.querySelectorAll(".openpose-gallery-hand-row.is-active").forEach((row) => {
+            row.classList.remove("is-active");
+        });
+        const preset = this.getSelectedPreset();
+        if (preset) {
+            this.renderSelectedPreview(preset);
+        }
+    }
+
+    drawHandSkeleton(ctx, groups, scale, offsetX, offsetY, focused = false) {
+        if (!Array.isArray(groups)) {
+            return;
+        }
+        const lineWidth = focused
+            ? Math.max(3, Math.min(7, 2.5 * scale))
+            : Math.max(1.5, 3 * scale);
+        const outlineWidth = focused ? 3 : 1.5;
+        const outlineColor = focused
+            ? "rgba(255,255,255,0.78)"
+            : "rgba(255,255,255,0.42)";
+        for (const hand of groups) {
+            if (!Array.isArray(hand)) {
+                continue;
+            }
+            for (const [a, b] of HAND_EDGES) {
+                const pointA = hand[a];
+                const pointB = hand[b];
+                if (!isValidKeypoint(pointA) || !isValidKeypoint(pointB)) {
+                    continue;
+                }
+                const color = HAND_KEYPOINT_COLORS[b] || [255, 255, 255];
+                drawBoneWithOutline(
+                    ctx,
+                    pointA[0] * scale + offsetX,
+                    pointA[1] * scale + offsetY,
+                    pointB[0] * scale + offsetX,
+                    pointB[1] * scale + offsetY,
+                    `rgba(${color.join(", ")}, 0.9)`,
+                    lineWidth,
+                    outlineWidth,
+                    outlineColor
+                );
+            }
+        }
+    }
+
+    renderSelectedPreview(preset) {
+        const canvas = this.container.querySelector(".openpose-gallery-selected-preview");
+        const frame = canvas?.closest(".openpose-preset-preview-frame");
+        if (!canvas || !preset) {
+            return;
+        }
+        canvas.width = Math.max(1, Math.round(frame?.clientWidth || 220));
+        canvas.height = Math.max(1, Math.round(frame?.clientHeight || 220));
+        const baseWidth = Number(preset.canvas_width ?? preset.width) || this.openpose.presetBaseWidth || 512;
+        const baseHeight = Number(preset.canvas_height ?? preset.height) || this.openpose.presetBaseHeight || 768;
+        this.openpose.renderPresetThumbnail(canvas, preset.keypoints, baseWidth, baseHeight);
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+            return;
+        }
+        const padding = 10;
+        const scale = Math.min(
+            (canvas.width - padding * 2) / baseWidth,
+            (canvas.height - padding * 2) / baseHeight
+        );
+        const offsetX = (canvas.width - baseWidth * scale) / 2;
+        const offsetY = (canvas.height - baseHeight * scale) / 2;
+        this.drawHandSkeleton(ctx, preset.handLeftKeypoints, scale, offsetX, offsetY);
+        this.drawHandSkeleton(ctx, preset.handRightKeypoints, scale, offsetX, offsetY);
+    }
+
+    renderSelectedHandPreview(preset, side) {
+        const canvas = this.container.querySelector(".openpose-gallery-selected-preview");
+        const frame = canvas?.closest(".openpose-preset-preview-frame");
+        const groups = side === "right" ? preset?.handRightKeypoints : preset?.handLeftKeypoints;
+        if (!canvas || !Array.isArray(groups)) {
+            return;
+        }
+        canvas.width = Math.max(1, Math.round(frame?.clientWidth || 220));
+        canvas.height = Math.max(1, Math.round(frame?.clientHeight || 220));
+        const points = groups.flatMap((hand) => (
+            Array.isArray(hand) ? hand.filter(isValidKeypoint) : []
+        ));
+        if (points.length === 0) {
+            this.renderSelectedPreview(preset);
+            return;
+        }
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+            return;
+        }
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const previewSurface = this.openpose.getPreviewSurfaceFill();
+        if (previewSurface) {
+            ctx.fillStyle = previewSurface;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        const minX = Math.min(...points.map((point) => point[0]));
+        const maxX = Math.max(...points.map((point) => point[0]));
+        const minY = Math.min(...points.map((point) => point[1]));
+        const maxY = Math.max(...points.map((point) => point[1]));
+        const boxWidth = Math.max(1, maxX - minX);
+        const boxHeight = Math.max(1, maxY - minY);
+        const padding = 20;
+        const topPadding = 38;
+        const availableHeight = canvas.height - topPadding - padding;
+        const scale = Math.min(
+            (canvas.width - padding * 2) / boxWidth,
+            availableHeight / boxHeight
+        );
+        const offsetX = (canvas.width - boxWidth * scale) / 2 - minX * scale;
+        const offsetY = topPadding + (availableHeight - boxHeight * scale) / 2 - minY * scale;
+        this.drawHandSkeleton(ctx, groups, scale, offsetX, offsetY, true);
+
+        const label = side === "right" ? "Right hand" : "Left hand";
+        ctx.font = "600 11px Arial, sans-serif";
+        ctx.textBaseline = "top";
+        const labelWidth = ctx.measureText(label).width + 12;
+        ctx.fillStyle = "rgba(0,0,0,0.58)";
+        ctx.fillRect(8, 8, labelWidth, 21);
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.fillText(label, 14, 13);
+    }
+
+    insertSelectedPreset() {
+        if (!this.selectedPresetId) {
+            return;
+        }
+        if (this.openpose.presetSelect) {
+            this.openpose.presetSelect.value = this.selectedPresetId;
+            this.openpose.presetSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        this.openpose.addPresetToCanvas(this.selectedPresetId);
+        this.openpose.setActiveTab("editor");
     }
 
     setSearchQuery(value) {
@@ -263,6 +591,7 @@ class GalleryManager {
         if (!this.galleryContainer) {
             return;
         }
+        this.clearSelection();
         this.galleryContainer.innerHTML = "";
         const empty = document.createElement("div");
         empty.className = "openpose-gallery-empty";
@@ -369,6 +698,9 @@ class GalleryManager {
             presets.forEach((preset) => {
                 const item = document.createElement("div");
                 item.className = "openpose-gallery-item";
+                item._galleryPresetId = preset.id;
+                item.tabIndex = 0;
+                item.setAttribute("role", "button");
                 item.title = preset.displayFilename || preset.sourceFile || "";
                 if (preset.sourceFile) {
                     item.dataset.sourceFile = preset.sourceFile;
@@ -377,18 +709,12 @@ class GalleryManager {
                     item.dataset.library = preset.library;
                 }
                 const normalizedName = op.normalizePoseName(preset.label || preset.id || "Pose");
-                const faceCount = countExtraKeypoints(preset.faceKeypoints);
-                const leftHandCount = countExtraKeypoints(preset.handLeftKeypoints);
-                const rightHandCount = countExtraKeypoints(preset.handRightKeypoints);
-
-                // Calculate person count from keypoints
-                let personCount = 1;
-                if (Array.isArray(preset.keypoints) && preset.keypoints.length > 0) {
-                    const detectedFormat = getFormatForPose(preset.keypoints);
-                    const kpCount = detectedFormat && detectedFormat.keypoints ? detectedFormat.keypoints.length : 18;
-                    personCount = Math.floor(preset.keypoints.length / kpCount);
-                    if (personCount < 1) personCount = 1;
-                }
+                const {
+                    faceCount,
+                    leftHandCount,
+                    rightHandCount,
+                    personCount
+                } = getGalleryPresetDetails(preset);
                 const personLabel = personCount === 1 ? "1 person" : `${personCount} persons`;
 
                 const canvas = document.createElement("canvas");
@@ -460,17 +786,15 @@ class GalleryManager {
                 }
 
                 op.renderPresetThumbnail(canvas, preset.keypoints, preset.canvas_width || preset.width, preset.canvas_height || preset.height);
-                item.addEventListener("click", async () => {
-                    const ok = await showConfirm("Confirm", "Add this pose to the canvas?");
-                    if (!ok) {
+                item.addEventListener("click", () => {
+                    this.selectPreset(preset, item);
+                });
+                item.addEventListener("keydown", (event) => {
+                    if (event.key !== "Enter" && event.key !== " ") {
                         return;
                     }
-                    if (op.presetSelect) {
-                        op.presetSelect.value = preset.id;
-                        op.presetSelect.dispatchEvent(new Event("change", { bubbles: true }));
-                    }
-                    op.addPresetToCanvas(preset.id);
-                    op.setActiveTab("editor");
+                    event.preventDefault();
+                    this.selectPreset(preset, item);
                 });
 
                 carousel.appendChild(item);
@@ -553,6 +877,12 @@ class GalleryManager {
 
         galleryOverlay.applyStyles(this.container);
         this.updateStatsBadge(galleryPresets, allGalleryPresets);
+        const selectedPreset = galleryPresets.find((preset) => preset.id === this.selectedPresetId);
+        if (selectedPreset) {
+            requestAnimationFrame(() => this.selectPreset(selectedPreset));
+        } else {
+            this.clearSelection();
+        }
     }
 
     refreshOnShow() {
@@ -648,35 +978,119 @@ function setupGalleryControls(container, openposeInstance, galleryManager) {
             }
         });
     }
+
+    const insertButton = container.querySelector('[data-action="gallery-insert-pose"]');
+    if (insertButton && !insertButton.dataset.galleryInsertReady) {
+        insertButton.dataset.galleryInsertReady = "1";
+        insertButton.addEventListener("click", () => galleryManager.insertSelectedPreset());
+    }
+
+    container.querySelectorAll(".openpose-gallery-hand-row").forEach((row) => {
+        if (row.dataset.galleryHandReady) {
+            return;
+        }
+        row.dataset.galleryHandReady = "1";
+        const focusHand = () => {
+            if (row.classList.contains("is-available")) {
+                galleryManager.focusSelectedHand(row.dataset.galleryHand);
+            }
+        };
+        row.addEventListener("mouseenter", focusHand);
+        row.addEventListener("mouseleave", () => galleryManager.clearFocusedHand());
+        row.addEventListener("focus", focusHand);
+        row.addEventListener("blur", () => galleryManager.clearFocusedHand());
+    });
 }
 
 export const galleryOverlayHtml = `
     <div class="openpose-overlay openpose-gallery-overlay" data-overlay="gallery">
-        <div class="openpose-overlay-card openpose-gallery-card">
-            <div class="openpose-overlay-content openpose-gallery-wrapper">
-                <div class="openpose-gallery-header">
-                    <div class="openpose-gallery-note-row">
-                        <div class="openpose-gallery-note">These poses are loaded from the configured pose libraries. Add JSON files to any configured library and reload to show them in the Gallery and Presets selector.</div>
-                        <div class="openpose-gallery-actions">
-                            <div class="openpose-gallery-search">
-                                <input class="openpose-gallery-search-input openpose-gallery-header-ctrl" data-action="gallery-search" type="search" placeholder="Search filename or path…" aria-label="Search poses by filename or path" autocomplete="off" spellcheck="false" />
-                                <button class="openpose-gallery-search-clear" data-action="gallery-search-clear" type="button" title="Clear search" aria-label="Clear gallery search" hidden>${UiIcons.svg('x', { size: 14, className: 'openpose-ui-icon' })}</button>
-                            </div>
-                            <span class="openpose-gallery-stats-badge openpose-gallery-header-ctrl">0 poses from 0 files in 0 libraries</span>
-                            <button class="openpose-btn openpose-btn-small openpose-gallery-view-toggle openpose-gallery-header-ctrl" data-action="gallery-toggle-view-mode">View: Medium Icons</button>
-                            <button class="openpose-btn openpose-btn-small openpose-refresh-btn openpose-gallery-header-ctrl" data-action="presets-reload" title="Reload presets">\u{1F504}</button>
+        <div class="openpose-sidebar openpose-gallery-sidebar">
+            <div class="openpose-sidebar-card">
+                <div class="openpose-preset-preview-frame">
+                    <canvas class="openpose-preset-preview openpose-gallery-selected-preview" aria-label="Selected pose preview"></canvas>
+                </div>
+                <button class="openpose-btn openpose-apply-btn openpose-gallery-insert-btn" data-action="gallery-insert-pose" disabled>Insert Pose</button>
+                <div class="openpose-gallery-details">
+                    <div class="openpose-gallery-details-empty">Select a pose to view its details.</div>
+                    <div class="openpose-gallery-details-content" hidden>
+                        <div class="openpose-gallery-details-name" data-gallery-detail="name"></div>
+                        <div class="openpose-gallery-details-row">
+                            <span>File</span>
+                            <strong class="openpose-gallery-details-path" data-gallery-detail="file"></strong>
+                        </div>
+                        <div class="openpose-gallery-details-row">
+                            <span>Location</span>
+                            <strong class="openpose-gallery-details-path" data-gallery-detail="location"></strong>
+                        </div>
+                        <div class="openpose-gallery-details-row">
+                            <span>Source type</span>
+                            <strong data-gallery-detail="type"></strong>
+                        </div>
+                        <div class="openpose-gallery-details-row">
+                            <span>Format</span>
+                            <strong data-gallery-detail="format"></strong>
+                        </div>
+                        <div class="openpose-gallery-details-row">
+                            <span>Canvas</span>
+                            <strong data-gallery-detail="canvas"></strong>
+                        </div>
+                        <div class="openpose-gallery-details-row">
+                            <span>People</span>
+                            <strong data-gallery-detail="people"></strong>
+                        </div>
+                        <div class="openpose-gallery-details-row">
+                            <span>Body keypoints</span>
+                            <strong data-gallery-detail="body"></strong>
+                        </div>
+                        <div class="openpose-gallery-details-row">
+                            <span>Face keypoints</span>
+                            <strong data-gallery-detail="face"></strong>
+                        </div>
+                        <div class="openpose-gallery-details-row openpose-gallery-hand-row" data-gallery-hand="left" tabindex="-1" aria-disabled="true">
+                            <span>Left hand</span>
+                            <strong class="openpose-gallery-hand-value">
+                                <span data-gallery-detail="leftHand"></span>
+                                <span class="openpose-gallery-hand-zoom" hidden>${UiIcons.svg('zoomIn', { size: 14, className: 'openpose-ui-icon' })}</span>
+                            </strong>
+                        </div>
+                        <div class="openpose-gallery-details-row openpose-gallery-hand-row" data-gallery-hand="right" tabindex="-1" aria-disabled="true">
+                            <span>Right hand</span>
+                            <strong class="openpose-gallery-hand-value">
+                                <span data-gallery-detail="rightHand"></span>
+                                <span class="openpose-gallery-hand-zoom" hidden>${UiIcons.svg('zoomIn', { size: 14, className: 'openpose-ui-icon' })}</span>
+                            </strong>
                         </div>
                     </div>
                 </div>
-                <div class="openpose-alert openpose-alert-warning alert alert-warning openpose-gallery-library-warning" style="display: none;">
-                    <span class="openpose-alert-icon">\u{26A0}\u{FE0F}</span>
-                    <div class="openpose-alert-body">
-                        <strong>${t("gallery.warning.unavailable_title")}</strong>
-                        <p>${t("gallery.warning.unavailable_body")}</p>
-                        <ul class="openpose-gallery-library-warning-list"></ul>
+            </div>
+        </div>
+        <div class="openpose-gallery-main">
+            <div class="openpose-overlay-card openpose-gallery-card">
+                <div class="openpose-overlay-content openpose-gallery-wrapper">
+                    <div class="openpose-gallery-header">
+                        <div class="openpose-gallery-note-row">
+                            <div class="openpose-gallery-note">These poses are loaded from the configured pose libraries. Add JSON files to any configured library and reload to show them in the Gallery and Presets selector.</div>
+                            <div class="openpose-gallery-actions">
+                                <div class="openpose-gallery-search">
+                                    <input class="openpose-gallery-search-input openpose-gallery-header-ctrl" data-action="gallery-search" type="search" placeholder="Search filename or path…" aria-label="Search poses by filename or path" autocomplete="off" spellcheck="false" />
+                                    <button class="openpose-gallery-search-clear" data-action="gallery-search-clear" type="button" title="Clear search" aria-label="Clear gallery search" hidden>${UiIcons.svg('x', { size: 14, className: 'openpose-ui-icon' })}</button>
+                                </div>
+                                <span class="openpose-gallery-stats-badge openpose-gallery-header-ctrl">0 poses from 0 files in 0 libraries</span>
+                                <button class="openpose-btn openpose-btn-small openpose-gallery-view-toggle openpose-gallery-header-ctrl" data-action="gallery-toggle-view-mode">View: Medium Icons</button>
+                                <button class="openpose-btn openpose-btn-small openpose-refresh-btn openpose-gallery-header-ctrl" data-action="presets-reload" title="Reload presets">\u{1F504}</button>
+                            </div>
+                        </div>
                     </div>
+                    <div class="openpose-alert openpose-alert-warning alert alert-warning openpose-gallery-library-warning" style="display: none;">
+                        <span class="openpose-alert-icon">\u{26A0}\u{FE0F}</span>
+                        <div class="openpose-alert-body">
+                            <strong>${t("gallery.warning.unavailable_title")}</strong>
+                            <p>${t("gallery.warning.unavailable_body")}</p>
+                            <ul class="openpose-gallery-library-warning-list"></ul>
+                        </div>
+                    </div>
+                    <div class="openpose-gallery-content"></div>
                 </div>
-                <div class="openpose-gallery-content"></div>
             </div>
         </div>
     </div>
@@ -708,8 +1122,23 @@ export function setupGalleryOverlayStyles(container) {
     const captionHoverText = themeColor("text", "var(--fg-color)");
     const previewShadow = "0 1px 1px rgba(0,0,0,0.75)";
 
+    container.querySelectorAll(".openpose-gallery-overlay").forEach((overlay) => {
+        overlay.style.padding = "0";
+    });
+
+    container.querySelectorAll(".openpose-gallery-main").forEach((main) => {
+        main.style.display = "flex";
+        main.style.flex = "1 1 auto";
+        main.style.minWidth = "0";
+        main.style.minHeight = "0";
+        main.style.padding = "10px 10px 10px 6px";
+        main.style.boxSizing = "border-box";
+    });
+
     // Gallery card: use same background as Pose Editor sidebars for consistency
     container.querySelectorAll(".openpose-gallery-card").forEach((card) => {
+        card.style.width = "100%";
+        card.style.height = "100%";
         card.style.overflow = "hidden";
         card.style.background = "var(--openpose-panel-bg-secondary)";
         card.style.border = "none";
@@ -756,7 +1185,7 @@ export function setupGalleryOverlayStyles(container) {
         ctrl.style.verticalAlign = "middle";
     });
 
-    container.querySelectorAll(".openpose-gallery-overlay .openpose-btn").forEach((btn) => {
+    container.querySelectorAll(".openpose-gallery-main .openpose-btn").forEach((btn) => {
         btn.style.padding = "6px 12px";
         btn.style.border = "1px solid var(--openpose-border)";
         btn.style.borderRadius = "4px";
@@ -959,20 +1388,30 @@ export function setupGalleryOverlayStyles(container) {
         if (!item.dataset.hoverReady) {
             item.dataset.hoverReady = "1";
             item.addEventListener("mouseenter", () => {
-                item.style.background = "rgba(0,0,0,0.15)";
-                item.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.14)";
+                item.style.background = item.classList.contains("is-selected")
+                    ? "var(--openpose-gallery-selection-bg)"
+                    : "rgba(0,0,0,0.15)";
+                item.style.boxShadow = item.classList.contains("is-selected")
+                    ? "none"
+                    : "0 2px 6px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.14)";
                 item.querySelectorAll(".openpose-gallery-nonstandard, .openpose-gallery-collection").forEach((b) => {
                     b.style.opacity = "1";
                 });
             });
             item.addEventListener("mouseleave", () => {
-                item.style.background = "transparent";
+                item.style.background = item.classList.contains("is-selected")
+                    ? "var(--openpose-gallery-selection-bg)"
+                    : "transparent";
                 item.style.boxShadow = "none";
                 item.querySelectorAll(".openpose-gallery-nonstandard, .openpose-gallery-collection").forEach((b) => {
                     b.style.opacity = "0.45";
                 });
             });
         }
+    });
+
+    container.querySelectorAll(".openpose-gallery-selected-preview").forEach((canvas) => {
+        canvas.style.cursor = "default";
     });
 
     container.querySelectorAll(".openpose-gallery-nonstandard").forEach((badge) => {
@@ -1148,6 +1587,100 @@ export function setupGalleryOverlayStyles(container) {
         const style = document.createElement("style");
         style.dataset.openposeGalleryView = "1";
         style.textContent = `
+.openpose-gallery-sidebar .openpose-sidebar-card {
+    overflow: hidden;
+}
+.openpose-gallery-details {
+    min-height: 0;
+    overflow-y: auto;
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--openpose-border);
+    color: var(--openpose-text);
+    font-family: Arial, sans-serif;
+}
+.openpose-gallery-details-empty {
+    padding: 8px 2px;
+    color: var(--openpose-text-muted);
+    font-size: 12px;
+    line-height: 1.4;
+}
+.openpose-gallery-details-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.openpose-gallery-details-content[hidden],
+.openpose-gallery-details-empty[hidden] {
+    display: none;
+}
+.openpose-gallery-details-name {
+    margin-bottom: 8px;
+    color: var(--openpose-text);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+.openpose-gallery-details-row {
+    display: grid;
+    grid-template-columns: minmax(76px, 0.8fr) minmax(0, 1.2fr);
+    gap: 8px;
+    padding: 6px 2px;
+    border-top: 1px solid color-mix(in srgb, var(--openpose-border) 55%, transparent);
+    font-size: 11px;
+    line-height: 1.35;
+}
+.openpose-gallery-details-row span {
+    color: var(--openpose-text-muted);
+}
+.openpose-gallery-details-row strong {
+    min-width: 0;
+    color: var(--openpose-text);
+    font-weight: 500;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+.openpose-gallery-details-path {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow-wrap: normal !important;
+}
+.openpose-gallery-hand-row.is-available {
+    border-radius: 4px;
+    cursor: zoom-in;
+    transition: background 120ms ease, box-shadow 120ms ease;
+}
+.openpose-gallery-hand-row.is-available:hover,
+.openpose-gallery-hand-row.is-available:focus-visible,
+.openpose-gallery-hand-row.is-active {
+    background: color-mix(in srgb, var(--openpose-primary-bg) 18%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--openpose-primary-bg) 38%, transparent);
+    outline: none;
+}
+.openpose-gallery-hand-row.is-active > span {
+    color: var(--openpose-text);
+}
+.openpose-gallery-hand-value {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+.openpose-gallery-hand-value > span:first-child {
+    color: var(--openpose-text);
+}
+.openpose-gallery-hand-zoom {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--openpose-primary-text);
+}
+.openpose-gallery-hand-zoom[hidden] {
+    display: none;
+}
 .openpose-gallery-content.gallery-view--large .openpose-gallery-carousel {
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
     gap: 12px !important;

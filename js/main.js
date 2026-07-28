@@ -1045,6 +1045,7 @@ class OpenPosePanel {
 		const primaryBg = resolved.primaryBg || hoverBg || border;
 		const primaryHover = resolved.primaryHover || primaryBg;
 		const primaryText = isColorLight(primaryBg) ? "#222222" : "#ffffff";
+		const gallerySelectionBg = resolved.isLight ? "#b9e7f5" : "#164e63";
 		const statusInfo = resolved.primaryBg || "#cbd5f5";
 		const statusSuccess = resolved.isLight ? "#15803d" : "#86efac";
 		const statusWarn = resolved.isLight ? "#b45309" : "#facc15";
@@ -1087,6 +1088,7 @@ class OpenPosePanel {
 		this.container.style.setProperty("--openpose-primary-bg", primaryBg);
 		this.container.style.setProperty("--openpose-primary-hover-bg", primaryHover);
 		this.container.style.setProperty("--openpose-primary-text", primaryText);
+		this.container.style.setProperty("--openpose-gallery-selection-bg", gallerySelectionBg);
 		this.container.style.setProperty("--openpose-link", primaryBg);
 		this.container.style.setProperty("--openpose-error", error);
 		this.container.style.setProperty("--openpose-status-info", statusInfo);
@@ -1704,8 +1706,8 @@ class OpenPosePanel {
 					? (slashIndex === -1 ? "" : filename.substring(0, slashIndex))
 					: (fileEntry.directory || "");
 				const sourceFile = `${source}:${filename}`;
-				const galleryGroupKey = `${source}:${directory}`;
-				const galleryGroupTitle = directory ? `${library}/${directory}` : library;
+				const galleryGroupKey = directory ? `${source}:${directory}` : sourceFile;
+				const galleryGroupTitle = directory ? `${library}/${directory}` : `${library}/${filename}`;
 				const displayFilename = `${library}/${filename}`;
 				const encodedFilename = filename
 					.split("/")
@@ -1768,8 +1770,15 @@ class OpenPosePanel {
 						firstFile = false;
 					}
 
-					// Group presets by their library and relative directory.
-					const group = galleryGroupTitle.replace(/[_-]/g, " ");
+					let group;
+					if (directory) {
+						group = galleryGroupTitle.replace(/[_-]/g, " ");
+					} else {
+						const baseName = filename.replace(/\.json$/i, "").replace(/[_-]/g, " ");
+						group = normalized.format === "dictionary"
+							? `${library}/${baseName}`
+							: `${library}/User-defined`;
+					}
 
 					for (const preset of normalized.presets) {
 						// Validate the preset data
