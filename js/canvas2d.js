@@ -1581,13 +1581,13 @@ export class OpenPoseCanvas2D {
 					       ctx.beginPath();
 					       ctx.rect(view.offsetX, view.offsetY, this.logicalWidth * view.scale, this.logicalHeight * view.scale);
 					       ctx.clip();
-					       if (this.gridEnabled) {
-						       this.drawGrid(view);
-					       }
 					       if (this.backgroundImage) {
 						       this.drawBackground(view);
 					       }
 					       ctx.restore();
+				       }
+				       if (this.gridEnabled) {
+					       this.drawGrid(viewport.width, viewport.height);
 				       }
 				       this.drawHandEditMode();
 				       this.updateHandEditControls();
@@ -1811,13 +1811,11 @@ export class OpenPoseCanvas2D {
 		ctx.restore();
 	}
 
-	drawGrid(view = null) {
+	drawGrid(width = this.logicalWidth, height = this.logicalHeight) {
 		const ctx = this.ctx;
-		const centerX = this.logicalWidth / 2;
-		const centerY = this.logicalHeight / 2;
+		const centerX = width / 2;
+		const centerY = height / 2;
 		const pixelAlign = (value) => Math.round(value) + 0.5;
-		const mapX = (value) => view ? value * view.scale + view.offsetX : value;
-		const mapY = (value) => view ? value * view.scale + view.offsetY : value;
 		
 		// Draw grid lines (dashed, light gray) - skip center lines
 		ctx.strokeStyle = this.gridColor;
@@ -1826,19 +1824,19 @@ export class OpenPoseCanvas2D {
 		ctx.beginPath();
 		
 		// Vertical lines (skip the center vertical line)
-		for (let x = 0; x <= this.logicalWidth; x += this.gridSpacing) {
+		for (let x = 0; x <= width; x += this.gridSpacing) {
 			if (Math.abs(x - centerX) < 0.1) continue; // Skip center line
-			const alignedX = pixelAlign(mapX(x));
-			ctx.moveTo(alignedX, mapY(0));
-			ctx.lineTo(alignedX, mapY(this.logicalHeight));
+			const alignedX = pixelAlign(x);
+			ctx.moveTo(alignedX, 0);
+			ctx.lineTo(alignedX, height);
 		}
 		
 		// Horizontal lines (skip the center horizontal line)
-		for (let y = 0; y <= this.logicalHeight; y += this.gridSpacing) {
+		for (let y = 0; y <= height; y += this.gridSpacing) {
 			if (Math.abs(y - centerY) < 0.1) continue; // Skip center line
-			const alignedY = pixelAlign(mapY(y));
-			ctx.moveTo(mapX(0), alignedY);
-			ctx.lineTo(mapX(this.logicalWidth), alignedY);
+			const alignedY = pixelAlign(y);
+			ctx.moveTo(0, alignedY);
+			ctx.lineTo(width, alignedY);
 		}
 		
 		ctx.stroke();
@@ -1851,18 +1849,18 @@ export class OpenPoseCanvas2D {
 		ctx.strokeStyle = 'rgba(255, 0, 0, 0.3)';
 		ctx.lineWidth = 1;
 		ctx.beginPath();
-		const verticalAxisX = view ? pixelAlign(mapX(centerX)) : centerX + axisOffset;
-		ctx.moveTo(verticalAxisX, mapY(0));
-		ctx.lineTo(verticalAxisX, mapY(this.logicalHeight));
+		const verticalAxisX = centerX + axisOffset;
+		ctx.moveTo(verticalAxisX, 0);
+		ctx.lineTo(verticalAxisX, height);
 		ctx.stroke();
 		
 		// Horizontal center axis (GREEN for X-axis)
 		ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
 		ctx.lineWidth = 1;
 		ctx.beginPath();
-		const horizontalAxisY = view ? pixelAlign(mapY(centerY)) : centerY + axisOffset;
-		ctx.moveTo(mapX(0), horizontalAxisY);
-		ctx.lineTo(mapX(this.logicalWidth), horizontalAxisY);
+		const horizontalAxisY = centerY + axisOffset;
+		ctx.moveTo(0, horizontalAxisY);
+		ctx.lineTo(width, horizontalAxisY);
 		ctx.stroke();
 	}
 	

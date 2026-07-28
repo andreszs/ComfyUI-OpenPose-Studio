@@ -79,7 +79,7 @@ function ensureOpenPoseInjectedStyles() {
 		}
 
 		/* Right sidebar module icons - grid-based layout */
-		.openpose-sidebar-item {
+		.ope-openpose-modal .openpose-coco-keypoint-item.openpose-sidebar-item {
 			display: grid;
 			grid-template-columns: 18px 1fr;
 			column-gap: 10px;
@@ -2331,7 +2331,7 @@ ${tabsSectionHtml}
 		return null;
 	},
 
-	setBackgroundControlsEnabled(enabled) {
+	setBackgroundControlsEnabled(enabled, { mode = true, opacity = true } = {}) {
 		const updateControl = (control) => {
 			if (!control) {
 				return;
@@ -2343,8 +2343,12 @@ ${tabsSectionHtml}
 				control.dataset.sidebarPrevDisabled = enabled ? "0" : "1";
 			}
 		};
-		updateControl(this.bgModeSelect);
-		updateControl(this.opacitySlider);
+		if (mode) {
+			updateControl(this.bgModeSelect);
+		}
+		if (opacity) {
+			updateControl(this.opacitySlider);
+		}
 	},
 
 	onLoadBackground(e) {

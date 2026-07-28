@@ -665,6 +665,7 @@ class OpenPosePanel {
 			if (active) {
 				this.refreshCocoKeypointsPanel();
 				this.setSidebarControlsDisabled(true);
+				this.setBackgroundControlsEnabled(!!this.backgroundImage, { mode: false });
 			} else {
 				this.setSidebarControlsDisabled(false);
 				this.refreshCocoKeypointsPanel();
