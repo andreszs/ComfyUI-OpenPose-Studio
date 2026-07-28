@@ -111,11 +111,11 @@ OpenPose Studio 是一款高级 ComfyUI 扩展，提供简洁流畅的界面，�
 
 导入的 OpenPose 手部既可以作为一个整体进行变换，也可以逐个调整 Keypoint。在 Canvas 上选择一只手即可显示其变换框，并使用周围的控制柄调整大小、旋转、镜像或打开聚焦手部编辑器。
 
-![带有变换和编辑控件的已选手部](../locales/en/openpose-studio-hand-tools.png)
+![带有变换和编辑控件的已选手部](../locales/en/openpose-studio-hand-tools-2.png)
 
 也可以直接点击侧边栏中 **Left hand** 或 **Right hand** 旁的铅笔图标打开聚焦编辑器。在此视图中，拖动 Keypoints 1–20 可调整手指；Keypoint 0 会保持锁定，作为手部锚点。将鼠标悬停在侧边栏条目上会高亮对应的点。使用确认按钮可将整个手部编辑会话作为一个可撤销的更改应用；使用关闭按钮或 **Escape** 可放弃更改。
 
-![聚焦手部 Keypoint 编辑器](../locales/en/openpose-studio-hand-editor.png)
+![聚焦手部 Keypoint 编辑器](../locales/en/openpose-studio-hand-editor-2.png)
 
 ---
 

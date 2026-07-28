@@ -111,11 +111,11 @@ Wenn Sie eine Idee für eine neue Funktion haben, würde ich sie gerne hören �
 
 Importierte OpenPose-Hände können als Gruppe transformiert oder Keypoint für Keypoint verfeinert werden. Wählen Sie eine Hand auf der Canvas aus, um ihren Transformationsrahmen anzuzeigen. Mit den umgebenden Handles können Sie die Hand skalieren, drehen, spiegeln oder den fokussierten Handeditor öffnen.
 
-![Ausgewählte Hand mit Transformations- und Bearbeitungssteuerelementen](../locales/en/openpose-studio-hand-tools.png)
+![Ausgewählte Hand mit Transformations- und Bearbeitungssteuerelementen](../locales/en/openpose-studio-hand-tools-2.png)
 
 Der fokussierte Editor lässt sich auch direkt über das Bleistift-Symbol neben **Left hand** oder **Right hand** in der Seitenleiste öffnen. Ziehen Sie in dieser Ansicht die Keypoints 1–20, um die Finger anzupassen; Keypoint 0 bleibt als Handanker gesperrt. Beim Überfahren eines Eintrags in der Seitenleiste wird der zugehörige Punkt hervorgehoben. Mit dem Häkchen wird die gesamte Handbearbeitung als eine rückgängig machbare Änderung übernommen. Mit dem Schließen-Symbol oder **Escape** werden die Änderungen verworfen.
 
-![Fokussierter Editor für Hand-Keypoints](../locales/en/openpose-studio-hand-editor.png)
+![Fokussierter Editor für Hand-Keypoints](../locales/en/openpose-studio-hand-editor-2.png)
 
 ---
 

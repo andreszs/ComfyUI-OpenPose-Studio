@@ -111,11 +111,11 @@ OpenPose Studio는 간결하고 편리한 인터페이스로 OpenPose 포즈를 
 
 가져온 OpenPose 손은 그룹 전체로 변형하거나 키포인트별로 세밀하게 조정할 수 있습니다. Canvas에서 손을 선택하면 변형 상자가 표시되며, 주변 핸들을 사용해 크기 조절, 회전, 반전 또는 손 전용 에디터 열기를 수행할 수 있습니다.
 
-![변형 및 편집 컨트롤이 표시된 선택된 손](../locales/en/openpose-studio-hand-tools.png)
+![변형 및 편집 컨트롤이 표시된 선택된 손](../locales/en/openpose-studio-hand-tools-2.png)
 
 사이드바의 **Left hand** 또는 **Right hand** 옆에 있는 연필 아이콘으로 손 전용 에디터를 직접 열 수도 있습니다. 이 화면에서는 키포인트 1–20을 드래그해 손가락을 조정할 수 있으며, 키포인트 0은 손 앵커로 잠긴 상태를 유지합니다. 사이드바 항목에 마우스를 올리면 해당 점이 강조됩니다. 확인 버튼을 누르면 전체 손 편집 세션이 한 번에 되돌릴 수 있는 하나의 변경으로 적용되고, 닫기 버튼이나 **Escape**를 누르면 변경 사항이 취소됩니다.
 
-![손 키포인트 전용 에디터](../locales/en/openpose-studio-hand-editor.png)
+![손 키포인트 전용 에디터](../locales/en/openpose-studio-hand-editor-2.png)
 
 ---
 

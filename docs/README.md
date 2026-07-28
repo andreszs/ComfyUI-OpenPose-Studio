@@ -112,11 +112,11 @@ If you have an idea for a new feature, I would love to hear it — we may be abl
 
 Imported OpenPose hands can be transformed as a group or refined one keypoint at a time. Select a hand on the canvas to display its transform box and use the surrounding handles to resize, rotate, mirror, or open the focused hand editor.
 
-![Selected hand with transform and edit controls](../locales/en/openpose-studio-hand-tools.png)
+![Selected hand with transform and edit controls](../locales/en/openpose-studio-hand-tools-2.png)
 
 You can also open the focused editor directly from the pencil icon beside **Left hand** or **Right hand** in the sidebar. In this view, drag keypoints 1–20 to adjust the fingers while keypoint 0 remains the locked hand anchor. Hovering a sidebar entry highlights its matching point. Use the check button to apply the entire hand-editing session as one undoable change, or use the close button or **Escape** to discard it.
 
-![Focused hand keypoint editor](../locales/en/openpose-studio-hand-editor.png)
+![Focused hand keypoint editor](../locales/en/openpose-studio-hand-editor-2.png)
 
 ---
 
