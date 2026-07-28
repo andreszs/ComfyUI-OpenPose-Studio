@@ -55,6 +55,23 @@ import {
 } from "./utils.js";
 import { getFormatForPose, isFormatEditAllowed } from "./formats/index.js";
 
+const HAND_EDGES = [
+	[0, 1], [1, 2], [2, 3], [3, 4],
+	[0, 5], [5, 6], [6, 7], [7, 8],
+	[0, 9], [9, 10], [10, 11], [11, 12],
+	[0, 13], [13, 14], [14, 15], [15, 16],
+	[0, 17], [17, 18], [18, 19], [19, 20]
+];
+
+const HAND_KEYPOINT_COLORS = [
+	[100, 100, 100],
+	[100, 0, 0], [150, 0, 0], [200, 0, 0], [255, 0, 0],
+	[100, 100, 0], [150, 150, 0], [200, 200, 0], [255, 255, 0],
+	[0, 100, 50], [0, 150, 75], [0, 200, 100], [0, 255, 125],
+	[0, 50, 100], [0, 75, 150], [0, 100, 200], [0, 125, 255],
+	[100, 0, 100], [150, 0, 150], [200, 0, 200], [255, 0, 255]
+];
+
 // Re-export for backwards compatibility
 export { showToast } from "./utils.js";
 
@@ -243,6 +260,8 @@ function renderPoseToDataURL(poseJson, previewWidth = PREVIEW_WIDTH, previewHeig
 
 	const lineWidth = Math.max(1, 4 * scale);
 	const radius = Math.max(2, 3 * scale);
+	const handLineWidth = Math.max(1, 2 * scale);
+	const handRadius = Math.max(1, 2 * scale);
 
 	// Draw each person (format-driven per pose)
 	for (const pose of poses) {
@@ -290,6 +309,41 @@ function renderPoseToDataURL(poseJson, previewWidth = PREVIEW_WIDTH, previewHeig
 				fillColor,
 				radius
 			);
+		}
+
+		for (const hand of [pose.handLeftKeypoints, pose.handRightKeypoints]) {
+			if (!Array.isArray(hand)) continue;
+
+			for (const [a, b] of HAND_EDGES) {
+				const pa = hand[a];
+				const pb = hand[b];
+				if (!isValidKeypoint(pa) || !isValidKeypoint(pb)) continue;
+
+				const color = HAND_KEYPOINT_COLORS[b] || [255, 255, 255];
+				drawBoneWithOutline(
+					ctx,
+					pa[0] * scale + offsetX,
+					pa[1] * scale + offsetY,
+					pb[0] * scale + offsetX,
+					pb[1] * scale + offsetY,
+					`rgba(${color.join(", ")}, 0.8)`,
+					handLineWidth
+				);
+			}
+
+			for (let j = 0; j < hand.length; j++) {
+				const point = hand[j];
+				if (!isValidKeypoint(point)) continue;
+
+				const color = HAND_KEYPOINT_COLORS[j] || [255, 255, 255];
+				drawKeypointWithOutline(
+					ctx,
+					point[0] * scale + offsetX,
+					point[1] * scale + offsetY,
+					`rgb(${color.join(", ")})`,
+					handRadius
+				);
+			}
 		}
 	}
 
