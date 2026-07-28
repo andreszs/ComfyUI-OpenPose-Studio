@@ -1,6 +1,6 @@
 {
-    "canvas_width": 512,
-    "canvas_height": 768,
+    "canvas_width": 768,
+    "canvas_height": 512,
     "people": [
         {
             "pose_keypoints_2d": [
