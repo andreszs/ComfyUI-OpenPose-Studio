@@ -306,17 +306,11 @@ class GalleryManager {
         const details = getGalleryPresetDetails(preset);
         const canvasWidth = Number(preset.canvas_width ?? preset.width);
         const canvasHeight = Number(preset.canvas_height ?? preset.height);
-        const sourceType = preset.galleryBadge === "collection"
-            ? t("gallery.source.collection_item")
-            : (preset.galleryBadge === "nonstandard"
-                ? t("gallery.source.nonstandard_json")
-                : t("gallery.source.pose_file"));
         const location = preset.galleryGroupTitle || preset.sourceFile || "\u2014";
         const values = {
             name: this.openpose.normalizePoseName(preset.label || preset.id || t("gallery.fallback.pose")),
             file: getGalleryFilename(preset),
             location,
-            type: sourceType,
             format: details.detectedFormat?.displayName || details.detectedFormat?.id || "\u2014",
             canvas: Number.isFinite(canvasWidth) && canvasWidth > 0 && Number.isFinite(canvasHeight) && canvasHeight > 0
                 ? `${Math.round(canvasWidth)} \u00D7 ${Math.round(canvasHeight)} px`
@@ -1110,10 +1104,6 @@ export function buildGalleryOverlayHtml() {
                         <div class="openpose-gallery-details-row">
                             <span>${t("gallery.details.location")}</span>
                             <strong class="openpose-gallery-details-path" data-gallery-detail="location"></strong>
-                        </div>
-                        <div class="openpose-gallery-details-row">
-                            <span>${t("gallery.details.source_type")}</span>
-                            <strong data-gallery-detail="type"></strong>
                         </div>
                         <div class="openpose-gallery-details-row">
                             <span>${t("gallery.details.format")}</span>
