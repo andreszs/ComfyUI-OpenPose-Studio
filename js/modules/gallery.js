@@ -211,6 +211,48 @@ class GalleryManager {
         }
     }
 
+    renderLoading() {
+        if (!this.galleryContainer) {
+            return;
+        }
+        this.clearSelection();
+        this.galleryContainer.innerHTML = "";
+        const loading = document.createElement("div");
+        loading.className = "openpose-alert openpose-alert-warning alert alert-warning openpose-gallery-loading";
+        loading.setAttribute("role", "status");
+        const icon = document.createElement("span");
+        icon.className = "openpose-alert-icon";
+        icon.textContent = "\u231B";
+        const body = document.createElement("div");
+        body.className = "openpose-alert-body";
+        const message = document.createElement("strong");
+        message.textContent = t("gallery.state.loading");
+        body.appendChild(message);
+        loading.append(icon, body);
+        this.galleryContainer.appendChild(loading);
+        galleryOverlay.applyStyles(this.container);
+        const statsBadge = this.container.querySelector(".openpose-gallery-stats-badge");
+        if (statsBadge) {
+            statsBadge.textContent = t("gallery.state.loading");
+        }
+        const canvas = this.container.querySelector(".openpose-gallery-selected-preview");
+        const ctx = canvas?.getContext("2d");
+        if (!canvas || !ctx) {
+            return;
+        }
+        const frame = canvas.closest(".openpose-preset-preview-frame");
+        canvas.width = Math.max(1, Math.round(frame?.clientWidth || 220));
+        canvas.height = Math.max(1, Math.round(frame?.clientHeight || 220));
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = this.openpose.getPreviewSurfaceFill();
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#999";
+        ctx.font = "bold 80px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("\u231B", canvas.width / 2, canvas.height / 2);
+    }
+
     selectPreset(preset, selectedItem = null) {
         if (!preset?.id) {
             this.clearSelection();
@@ -594,8 +636,15 @@ class GalleryManager {
         this.clearSelection();
         this.galleryContainer.innerHTML = "";
         const empty = document.createElement("div");
-        empty.className = "openpose-gallery-empty";
-        empty.textContent = message;
+        empty.className = "openpose-alert openpose-alert-info alert alert-info openpose-gallery-empty";
+        empty.setAttribute("role", "status");
+        const icon = document.createElement("span");
+        icon.className = "openpose-alert-icon";
+        icon.textContent = "\u{1F50D}";
+        const body = document.createElement("div");
+        body.className = "openpose-alert-body";
+        body.textContent = message;
+        empty.append(icon, body);
         this.galleryContainer.appendChild(empty);
         galleryOverlay.applyStyles(this.container);
     }
@@ -632,7 +681,7 @@ class GalleryManager {
 
         const op = this.openpose;
         if (op.presetsLoading) {
-            this.renderEmpty(t("gallery.state.loading"));
+            this.renderLoading();
             return;
         }
         if (!op.presets || op.presets.length === 0) {
@@ -1548,12 +1597,6 @@ export function setupGalleryOverlayStyles(container) {
         }
     });
 
-    container.querySelectorAll(".openpose-gallery-empty").forEach((empty) => {
-        empty.style.fontSize = "12px";
-        empty.style.opacity = "0.75";
-        empty.style.color = "var(--openpose-text-muted)";
-    });
-
     container.querySelectorAll(".openpose-gallery-item canvas").forEach((canvas) => {
         canvas.style.width = "100%";
         canvas.style.height = "100%";
@@ -1819,6 +1862,7 @@ registerModule({
         if (galleryState.manager) {
             galleryState.manager.collectionFiles.clear();
             galleryState.manager.emptyPoseFiles = [];
+            galleryState.manager.renderLoading();
         }
     },
     onPresetFileError: (info) => {
@@ -1864,6 +1908,7 @@ registerModule({
         }
     },
     onPresetsLoaded: (info, context) => {
+        galleryState.manager?.clearSelection();
         if (context?.manager?.isActive("gallery")) {
             galleryState.manager?.refresh();
         }
