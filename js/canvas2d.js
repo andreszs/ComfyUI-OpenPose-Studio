@@ -701,6 +701,52 @@ export class OpenPoseCanvas2D {
 		this.requestRedraw();
 	}
 
+	clearHandEditKeypoint(keypointId) {
+		const mode = this.handEditMode;
+		if (!mode || !Number.isInteger(keypointId) || keypointId <= 0 || keypointId >= mode.keypoints.length) {
+			return false;
+		}
+		if (!mode.keypoints[keypointId]) {
+			return false;
+		}
+		mode.keypoints[keypointId] = null;
+		if (mode.hoveredKeypointId === keypointId) {
+			mode.hoveredKeypointId = null;
+		}
+		if (mode.activeKeypointId === keypointId) {
+			mode.activeKeypointId = null;
+		}
+		this.activeKeypointId = null;
+		this.activeDragMode = 'none';
+		this.notifySelectionChange();
+		this.updateCursor();
+		this.requestRedraw();
+		return true;
+	}
+
+	placeHandEditKeypoint(keypointId, viewX, viewY) {
+		const mode = this.handEditMode;
+		if (!mode || !Number.isInteger(keypointId) || keypointId <= 0 || keypointId >= mode.keypoints.length) {
+			return false;
+		}
+		if (mode.keypoints[keypointId]) {
+			return false;
+		}
+		const worldPoint = this.handViewToWorld({ x: viewX, y: viewY });
+		if (!worldPoint || !Number.isFinite(worldPoint.x) || !Number.isFinite(worldPoint.y)) {
+			return false;
+		}
+		mode.keypoints[keypointId] = {
+			x: Math.max(0, Math.min(this.logicalWidth, worldPoint.x)),
+			y: Math.max(0, Math.min(this.logicalHeight, worldPoint.y))
+		};
+		mode.hoveredKeypointId = keypointId;
+		this.notifySelectionChange();
+		this.updateCursor();
+		this.requestRedraw();
+		return true;
+	}
+
 	enterHandEditMode(poseIndex, side) {
 		if (side !== 'left' && side !== 'right') {
 			return false;

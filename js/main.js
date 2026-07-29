@@ -890,12 +890,21 @@ class OpenPosePanel {
                     if (!selectedPose) {
                         return;
                     }
+                    const logical = this.renderer.screenToLogical(event.clientX, event.clientY);
+                    const handEditMode = this.renderer.getHandEditModeInfo?.();
+                    if (handEditMode) {
+                        this.renderer.placeHandEditKeypoint?.(
+                            keypointIdNum,
+                            logical.x,
+                            logical.y
+                        );
+                        return;
+                    }
                     const format = getFormatForPose(selectedPose.keypoints);
                     if (!isFormatEditAllowed(format ? format.id : null)) {
                         showToast("warn", "Pose Editor", t("toast.coco17_edit_disabled"));
                         return;
                     }
-                    const logical = this.renderer.screenToLogical(event.clientX, event.clientY);
                     const didPlace = this.renderer.placeKeypoint(selectedPoseIndex, keypointIdNum, logical.x, logical.y);
                     if (didPlace) {
                         this.recordHistory();

@@ -173,7 +173,7 @@ const DEFAULT_BG_MODE = "contain";
 const DEFAULT_BG_OPACITY = 0.5;
 
 const HAND_KEYPOINT_ROWS = [
-	{ name: "Wrist / Hand anchor — Locked", rgb: [100, 100, 100] },
+	{ name: "Wrist / Hand anchor", rgb: [100, 100, 100] },
 	{ name: "Thumb base (CMC)", rgb: [100, 0, 0] },
 	{ name: "Thumb knuckle (MCP)", rgb: [150, 0, 0] },
 	{ name: "Thumb joint (IP)", rgb: [200, 0, 0] },
@@ -195,6 +195,47 @@ const HAND_KEYPOINT_ROWS = [
 	{ name: "Little end joint (DIP)", rgb: [200, 0, 200] },
 	{ name: "Little fingertip", rgb: [255, 0, 255] }
 ];
+
+function createKeypointRemoveControl() {
+	const control = document.createElement("button");
+	control.type = "button";
+	control.className = "openpose-coco-remove-control";
+	control.textContent = "\u00D7";
+	control.style.border = "none";
+	control.style.background = "transparent";
+	control.style.padding = "0";
+	control.style.margin = "0";
+	control.style.width = "16px";
+	control.style.minWidth = "16px";
+	control.style.height = "16px";
+	control.style.minHeight = "16px";
+	control.style.display = "inline-flex";
+	control.style.alignItems = "center";
+	control.style.justifyContent = "center";
+	control.style.lineHeight = "1";
+	control.style.fontSize = "14px";
+	control.style.fontFamily = "Arial, sans-serif";
+	control.style.color = "var(--openpose-text)";
+	control.style.opacity = "0.7";
+	control.style.cursor = "pointer";
+	control.style.userSelect = "none";
+	control.style.flexShrink = "0";
+	control.addEventListener("mouseenter", () => {
+		if (control.dataset.removeDisabled === "1") {
+			return;
+		}
+		control.style.opacity = "1";
+		control.style.color = "var(--openpose-text)";
+	});
+	control.addEventListener("mouseleave", () => {
+		if (control.dataset.removeDisabled === "1") {
+			return;
+		}
+		control.style.opacity = control.dataset.removeBaseOpacity || "0.7";
+		control.style.color = "var(--openpose-text)";
+	});
+	return control;
+}
 
 function normalizeBackgroundMode(value) {
 	if (POSE_BG_MODES.has(value)) {
@@ -968,12 +1009,13 @@ export const poseEditorSubsystemWorkflow = {
 		for (let keypointId = 0; keypointId < HAND_KEYPOINT_ROWS.length; keypointId++) {
 			const definition = HAND_KEYPOINT_ROWS[keypointId];
 			const isPresent = !!mode.keypoints?.[keypointId];
+			const isEditable = keypointId !== 0;
 			const item = document.createElement("div");
 			item.className = "openpose-coco-keypoint-item openpose-hand-keypoint-item";
 			item.dataset.handKeypointId = `${keypointId}`;
-			item.title = `Keypoint ${keypointId}: ${definition.name}${isPresent ? "" : " — Missing"}`;
+			item.title = definition.name;
 			if (!isPresent) {
-				item.classList.add("openpose-keypoint-disabled", "openpose-hand-keypoint-missing");
+				item.classList.add("openpose-hand-keypoint-missing");
 			}
 
 			const leftContent = document.createElement("div");
@@ -987,19 +1029,53 @@ export const poseEditorSubsystemWorkflow = {
 			leftContent.appendChild(swatch);
 			leftContent.appendChild(name);
 
-			const keypointNumber = document.createElement("span");
-			keypointNumber.className = "openpose-hand-keypoint-number";
-			keypointNumber.textContent = `${keypointId}`;
-			item.appendChild(leftContent);
-			item.appendChild(keypointNumber);
-			this.cocoKeypointRowElements.set(keypointId, { item, name, statusIcon: null });
+			const statusIcon = document.createElement("span");
+			statusIcon.className = "openpose-coco-status-icon openpose-kp-status";
+			statusIcon.classList.add(isPresent ? "is-present" : "is-missing");
 
-			if (isPresent) {
+			const rightContent = document.createElement("div");
+			rightContent.className = "openpose-hand-keypoint-controls";
+			rightContent.appendChild(statusIcon);
+
+			if (isPresent && isEditable) {
+				const removeControl = createKeypointRemoveControl();
+				removeControl.dataset.removeDisabled = "0";
+				removeControl.dataset.removeBaseOpacity = "0.7";
+				removeControl.title = `Remove ${definition.name}`;
+				removeControl.addEventListener("click", (event) => {
+					event.stopPropagation();
+					this.renderer?.clearHandEditKeypoint?.(keypointId);
+				});
+				rightContent.appendChild(removeControl);
+			}
+
+			item.appendChild(leftContent);
+			item.appendChild(rightContent);
+			this.cocoKeypointRowElements.set(keypointId, { item, name, statusIcon });
+
+			if (isPresent && isEditable) {
 				item.addEventListener("mouseenter", () => {
 					this.renderer?.setHoveredHandEditKeypointId?.(keypointId);
 				});
 				item.addEventListener("mouseleave", () => {
 					this.renderer?.setHoveredHandEditKeypointId?.(null);
+				});
+			} else if (!isPresent && isEditable) {
+				item.setAttribute("draggable", "true");
+				item.addEventListener("dragstart", (event) => {
+					if (!event.dataTransfer) {
+						event.preventDefault();
+						return;
+					}
+					item.style.cursor = "grabbing";
+					event.dataTransfer.setData(MISSING_KEYPOINT_DRAG_TYPE, `${keypointId}`);
+					event.dataTransfer.setData("text/plain", definition.name);
+					event.dataTransfer.effectAllowed = "copy";
+					this._draggingMissingKeypoint = true;
+				});
+				item.addEventListener("dragend", () => {
+					item.style.cursor = "grab";
+					this._draggingMissingKeypoint = false;
 				});
 			}
 			this.cocoKeypointsList.appendChild(item);
@@ -1330,46 +1406,7 @@ ${tabsSectionHtml}
 		const isKeypointRemovable = (keypointId, keypoints) => {
 			return !!(keypoints && keypoints[keypointId]);
 		};
-		const createRemoveControl = () => {
-			const control = document.createElement("button");
-			control.type = "button";
-			control.className = "openpose-coco-remove-control";
-			control.textContent = "\u00D7";
-			control.style.border = "none";
-			control.style.background = "transparent";
-			control.style.padding = "0";
-			control.style.margin = "0";
-			control.style.width = "16px";
-			control.style.minWidth = "16px";
-			control.style.height = "16px";
-			control.style.minHeight = "16px";
-			control.style.display = "inline-flex";
-			control.style.alignItems = "center";
-			control.style.justifyContent = "center";
-			control.style.lineHeight = "1";
-			control.style.fontSize = "14px";
-			control.style.fontFamily = "Arial, sans-serif";
-			control.style.color = "var(--openpose-text)";
-			control.style.opacity = "0.7";
-			control.style.cursor = "pointer";
-			control.style.userSelect = "none";
-			control.style.flexShrink = "0";
-			control.addEventListener("mouseenter", () => {
-				if (control.dataset.removeDisabled === "1") {
-					return;
-				}
-				control.style.opacity = "1";
-				control.style.color = "var(--openpose-text)";
-			});
-			control.addEventListener("mouseleave", () => {
-				if (control.dataset.removeDisabled === "1") {
-					return;
-				}
-				control.style.opacity = control.dataset.removeBaseOpacity || "0.7";
-				control.style.color = "var(--openpose-text)";
-			});
-			return control;
-		};
+		const createRemoveControl = createKeypointRemoveControl;
 		
 		// Debug: log format info
 		debugLog('[refreshCocoKeypointsList] Format:', activeFormat?.id, 'Keypoint count:', formatKeypoints.length, 'presentIndices:', Array.from(presentIndexSet));
@@ -1787,14 +1824,22 @@ ${tabsSectionHtml}
 	refreshCocoKeypointRowStyles() {
 		const handEditMode = this.renderer?.getHandEditModeInfo?.();
 		if (handEditMode) {
-			for (const [keypointId, { item, name }] of this.cocoKeypointRowElements) {
+			for (const [keypointId, { item, name, statusIcon }] of this.cocoKeypointRowElements) {
 				const isPresent = !!handEditMode.keypoints?.[keypointId];
 				const isHovered = keypointId === handEditMode.hoveredKeypointId || keypointId === handEditMode.activeKeypointId;
+				const isEditable = keypointId !== 0;
 				item.style.backgroundColor = isHovered ? "var(--openpose-primary-hover-bg)" : "var(--openpose-input-bg)";
-				item.style.opacity = isPresent ? "1" : "0.45";
-				item.style.cursor = isPresent && keypointId !== 0 ? "pointer" : "default";
+				item.style.opacity = "1";
+				item.style.cursor = isEditable ? (isPresent ? "pointer" : "grab") : "default";
 				name.style.color = isHovered ? "var(--openpose-text)" : "var(--openpose-input-text)";
-				item.classList.toggle("openpose-keypoint-disabled", !isPresent);
+				item.classList.toggle("openpose-keypoint-disabled", !isEditable && !isPresent);
+				item.classList.toggle("openpose-keypoint-missing", isEditable && !isPresent);
+				item.classList.toggle("openpose-hand-keypoint-missing", isEditable && !isPresent);
+				if (statusIcon) {
+					statusIcon.classList.toggle("is-present", isPresent);
+					statusIcon.classList.toggle("is-missing", isEditable && !isPresent);
+					statusIcon.classList.toggle("is-disabled", !isEditable && !isPresent);
+				}
 			}
 			return;
 		}
@@ -1950,7 +1995,10 @@ ${tabsSectionHtml}
 				return;
 			}
 			const controls = Array.from(sidebar.querySelectorAll("button, input, select, textarea"))
-				.filter((control) => !control.classList.contains("openpose-support-btn"));
+				.filter((control) => (
+					!control.classList.contains("openpose-support-btn")
+					&& !control.closest(".openpose-hand-keypoint-item")
+				));
 			controls.forEach((control) => {
 				if (control.dataset.sidebarPrevDisabled === undefined) {
 					control.dataset.sidebarPrevDisabled = control.disabled ? "1" : "0";
