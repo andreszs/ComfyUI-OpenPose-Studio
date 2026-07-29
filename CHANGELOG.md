@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.1.0] - 2026-07-29
+
+### Added
+- Added a selection-driven Gallery preview with an explicit **Insert Pose** action and details for the source file, library location, format, canvas size, people, and body, face, and hand keypoint counts.
+- Added focused left- and right-hand previews in the Gallery and rendered hand skeletons in pose previews.
+- Added custom-library and per-section pose-count badges to the Gallery.
+- Added 14 bundled hand-gesture presets covering peace signs, heart hands, pointing, claws, open palms, and other gestures.
+- Added controls to remove hand keypoints and restore missing points by dragging them back onto the focused hand editor.
+- Added localized anatomical keypoint names, edit and remove actions, and left/right perspective guidance across all 10 supported languages.
+
+### Changed
+- Localized the full Gallery interface and refreshed the Gallery and focused hand editor screenshots in every localized README.
+- Normalized the bundled pose presets by correcting canvas metadata, adjusting coordinates, and removing redundant preset data.
+- Simplified Gallery details by removing the redundant source-type field.
+- Refined the keypoint sidebar and support footer layout, including rotating heart colors and shorter localized support text.
+- Refactored Gallery and gesture-preset internals while preserving existing node names, workflows, and pose-loading behavior.
+
+### Fixed
+- Automatically clamped body, face, and hand keypoints from presets to the canvas bounds and added a localized warning when adjustments are required.
+- Fixed focused hand editor grid alignment, background controls, and keypoint control layout.
+- Preserved the correct hand editor control state when switching away from and back to the Editor tab.
+
+---
+
 ## [2.0.2] - 2026-07-27
 
 ### Changed
