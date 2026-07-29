@@ -1530,6 +1530,15 @@ export function injectGlobalAlertStyles() {
 const DONATE_KOFI_URL = "https://ko-fi.com/D1D716OLPM";
 const DONATE_PAYPAL_URL = "https://www.paypal.com/ncp/payment/GEEM324PDD9NC";
 const DONATE_USDC_ADDRESS = "0xe36a336fC6cc9Daae657b4A380dA492AB9601e73";
+const DONATION_HEARTS = ["❤️", "🧡", "💛", "💚", "💙", "💜"];
+const DONATION_HEART_MIN_DELAY = 30000;
+const DONATION_HEART_MAX_DELAY = 60000;
+const lastDonationHeart = { editor: null, merger: null };
+
+function getRandomDonationHeart(currentHeart) {
+  const choices = DONATION_HEARTS.filter((heart) => heart !== currentHeart);
+  return choices[Math.floor(Math.random() * choices.length)];
+}
 
 /**
  * Returns the donation footer HTML (support text + 3 buttons).
@@ -1538,7 +1547,7 @@ const DONATE_USDC_ADDRESS = "0xe36a336fC6cc9Daae657b4A380dA492AB9601e73";
 export function buildDonationFooterHtml() {
   return `
     <div class="openpose-donation-footer">
-      <div class="openpose-donation-footer-text">${t("pose_editor.support.text")}</div>
+      <div class="openpose-donation-footer-text"><span class="openpose-donation-heart" aria-hidden="true">💙</span> ${t("pose_editor.support.text")}</div>
       <div class="openpose-donation-footer-btns">
         <button class="openpose-btn openpose-support-btn" type="button" data-url="${DONATE_KOFI_URL}" title="${t("pose_editor.support.tooltip.kofi")}">Ko-fi</button>
         <button class="openpose-btn openpose-support-btn" type="button" data-url="${DONATE_PAYPAL_URL}" title="${t("pose_editor.support.tooltip.paypal")}">PayPal</button>
@@ -1556,6 +1565,24 @@ export function applyDonationFooterStyles(container) {
 
   container.querySelectorAll(".openpose-donation-footer").forEach((footer) => {
     footer.classList.add("openpose-donation-footer-styled");
+
+    const heart = footer.querySelector(".openpose-donation-heart");
+    if (heart && !heart.dataset.colorChangeReady) {
+      heart.dataset.colorChangeReady = "1";
+      const location = footer.closest(".openpose-merge-sidebar-card") ? "merger" : "editor";
+      heart.textContent = getRandomDonationHeart(lastDonationHeart[location]);
+      lastDonationHeart[location] = heart.textContent;
+      const scheduleColorChange = () => {
+        const delay = DONATION_HEART_MIN_DELAY + Math.random() * (DONATION_HEART_MAX_DELAY - DONATION_HEART_MIN_DELAY);
+        window.setTimeout(() => {
+          if (!footer.isConnected) return;
+          heart.textContent = getRandomDonationHeart(heart.textContent);
+          lastDonationHeart[location] = heart.textContent;
+          scheduleColorChange();
+        }, delay);
+      };
+      scheduleColorChange();
+    }
 
     footer.querySelectorAll(".openpose-support-btn").forEach((btn) => {
       if (!btn) return;

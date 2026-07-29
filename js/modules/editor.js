@@ -173,27 +173,27 @@ const DEFAULT_BG_MODE = "contain";
 const DEFAULT_BG_OPACITY = 0.5;
 
 const HAND_KEYPOINT_ROWS = [
-	{ name: "Wrist / Hand anchor", rgb: [100, 100, 100] },
-	{ name: "Thumb base (CMC)", rgb: [100, 0, 0] },
-	{ name: "Thumb knuckle (MCP)", rgb: [150, 0, 0] },
-	{ name: "Thumb joint (IP)", rgb: [200, 0, 0] },
-	{ name: "Thumb tip", rgb: [255, 0, 0] },
-	{ name: "Index knuckle (MCP)", rgb: [100, 100, 0] },
-	{ name: "Index middle joint (PIP)", rgb: [150, 150, 0] },
-	{ name: "Index end joint (DIP)", rgb: [200, 200, 0] },
-	{ name: "Index fingertip", rgb: [255, 255, 0] },
-	{ name: "Middle knuckle (MCP)", rgb: [0, 100, 50] },
-	{ name: "Middle middle joint (PIP)", rgb: [0, 150, 75] },
-	{ name: "Middle end joint (DIP)", rgb: [0, 200, 100] },
-	{ name: "Middle fingertip", rgb: [0, 255, 125] },
-	{ name: "Ring knuckle (MCP)", rgb: [0, 50, 100] },
-	{ name: "Ring middle joint (PIP)", rgb: [0, 75, 150] },
-	{ name: "Ring end joint (DIP)", rgb: [0, 100, 200] },
-	{ name: "Ring fingertip", rgb: [0, 125, 255] },
-	{ name: "Little knuckle (MCP)", rgb: [100, 0, 100] },
-	{ name: "Little middle joint (PIP)", rgb: [150, 0, 150] },
-	{ name: "Little end joint (DIP)", rgb: [200, 0, 200] },
-	{ name: "Little fingertip", rgb: [255, 0, 255] }
+	{ key: "wrist_anchor", rgb: [100, 100, 100] },
+	{ key: "thumb_cmc", rgb: [100, 0, 0] },
+	{ key: "thumb_mcp", rgb: [150, 0, 0] },
+	{ key: "thumb_ip", rgb: [200, 0, 0] },
+	{ key: "thumb_tip", rgb: [255, 0, 0] },
+	{ key: "index_mcp", rgb: [100, 100, 0] },
+	{ key: "index_pip", rgb: [150, 150, 0] },
+	{ key: "index_dip", rgb: [200, 200, 0] },
+	{ key: "index_tip", rgb: [255, 255, 0] },
+	{ key: "middle_mcp", rgb: [0, 100, 50] },
+	{ key: "middle_pip", rgb: [0, 150, 75] },
+	{ key: "middle_dip", rgb: [0, 200, 100] },
+	{ key: "middle_tip", rgb: [0, 255, 125] },
+	{ key: "ring_mcp", rgb: [0, 50, 100] },
+	{ key: "ring_pip", rgb: [0, 75, 150] },
+	{ key: "ring_dip", rgb: [0, 100, 200] },
+	{ key: "ring_tip", rgb: [0, 125, 255] },
+	{ key: "little_mcp", rgb: [100, 0, 100] },
+	{ key: "little_pip", rgb: [150, 0, 150] },
+	{ key: "little_dip", rgb: [200, 0, 200] },
+	{ key: "little_tip", rgb: [255, 0, 255] }
 ];
 
 function createKeypointRemoveControl() {
@@ -993,11 +993,10 @@ export const poseEditorSubsystemWorkflow = {
 			return;
 		}
 		if (this.cocoKeypointsLabel) {
-			const sideLabel = mode.side === "right" ? "Right" : "Left";
-			this.cocoKeypointsLabel.textContent = `${sideLabel} hand keypoints`;
+			this.cocoKeypointsLabel.textContent = t(`pose_editor.keypoints.${mode.side === "right" ? "right" : "left"}_hand_title`);
 			this.cocoKeypointsLabel.style.display = "block";
 			this.cocoKeypointsLabel.classList.remove("openpose-coco-empty-section-label");
-			this.cocoKeypointsLabel.style.marginBottom = "8px";
+			this.cocoKeypointsLabel.style.marginBottom = "0";
 		}
 		this.cocoKeypointsList.innerHTML = "";
 		this.cocoKeypointsList.style.display = "flex";
@@ -1008,12 +1007,13 @@ export const poseEditorSubsystemWorkflow = {
 
 		for (let keypointId = 0; keypointId < HAND_KEYPOINT_ROWS.length; keypointId++) {
 			const definition = HAND_KEYPOINT_ROWS[keypointId];
+			const keypointLabel = t(`pose_editor.keypoints.hand.${definition.key}`);
 			const isPresent = !!mode.keypoints?.[keypointId];
 			const isEditable = keypointId !== 0;
 			const item = document.createElement("div");
 			item.className = "openpose-coco-keypoint-item openpose-hand-keypoint-item";
 			item.dataset.handKeypointId = `${keypointId}`;
-			item.title = definition.name;
+			item.title = keypointLabel;
 			if (!isPresent) {
 				item.classList.add("openpose-hand-keypoint-missing");
 			}
@@ -1025,7 +1025,7 @@ export const poseEditorSubsystemWorkflow = {
 			swatch.style.backgroundColor = `rgb(${definition.rgb.join(", ")})`;
 			const name = document.createElement("span");
 			name.className = "openpose-coco-keypoint-name";
-			name.textContent = definition.name;
+			name.textContent = keypointLabel;
 			leftContent.appendChild(swatch);
 			leftContent.appendChild(name);
 
@@ -1041,7 +1041,7 @@ export const poseEditorSubsystemWorkflow = {
 				const removeControl = createKeypointRemoveControl();
 				removeControl.dataset.removeDisabled = "0";
 				removeControl.dataset.removeBaseOpacity = "0.7";
-				removeControl.title = `Remove ${definition.name}`;
+				removeControl.title = t("pose_editor.keypoints.remove_title", { target: keypointLabel });
 				removeControl.addEventListener("click", (event) => {
 					event.stopPropagation();
 					this.renderer?.clearHandEditKeypoint?.(keypointId);
@@ -1069,7 +1069,7 @@ export const poseEditorSubsystemWorkflow = {
 					}
 					item.style.cursor = "grabbing";
 					event.dataTransfer.setData(MISSING_KEYPOINT_DRAG_TYPE, `${keypointId}`);
-					event.dataTransfer.setData("text/plain", definition.name);
+					event.dataTransfer.setData("text/plain", keypointLabel);
 					event.dataTransfer.effectAllowed = "copy";
 					this._draggingMissingKeypoint = true;
 				});
@@ -1137,7 +1137,7 @@ export const poseEditorSubsystemWorkflow = {
 				if (!headline) {
 					headline = document.createElement("div");
 					headline.className = "openpose-coco-empty-headline";
-					const insertTarget = this.cocoKeypointsLabel || this.cocoKeypointsList;
+					const insertTarget = this.cocoKeypointsLabel?.closest(".openpose-coco-keypoints-header") || this.cocoKeypointsList;
 					keypointsCard.insertBefore(headline, insertTarget);
 				}
 				headline.textContent = `${t("pose_editor.empty.headline")} \u{1F938}`;
@@ -1286,7 +1286,7 @@ ${tabsSectionHtml}
 			this.cocoKeypointsLabel.textContent = getKeypointSchemaTitle(this.renderer);
 			this.cocoKeypointsLabel.style.display = "block";
 			this.cocoKeypointsLabel.classList.remove("openpose-coco-empty-section-label");
-			this.cocoKeypointsLabel.style.marginBottom = "8px";
+			this.cocoKeypointsLabel.style.marginBottom = "0";
 		}
 		
 		// Extract selected pose keypoints
@@ -1421,6 +1421,9 @@ ${tabsSectionHtml}
 				debugLog('[refreshCocoKeypointsList] Skipping index', i, '(keypoint is null)');
 				continue;
 			}
+			const keypointLabel = activeFormat?.id === "coco18"
+				? t(`pose_editor.keypoints.coco18.${keypoint.name.toLowerCase().replace(/ /g, "_")}`)
+				: (keypoint.name || `Keypoint ${i}`);
 			// Determine presence
 			const keypointId = i;
 			const isPresent = !isDisabled && displayKeypoints[keypointId] != null;
@@ -1470,7 +1473,7 @@ ${tabsSectionHtml}
 			// Keypoint name
 			const name = document.createElement("span");
 			name.className = "openpose-coco-keypoint-name";
-			name.textContent = keypoint.name || `Keypoint ${keypointId}`;
+			name.textContent = keypointLabel;
 			name.style.flex = "1";
 			name.style.whiteSpace = "nowrap";
 			name.style.overflow = "hidden";
@@ -1526,12 +1529,11 @@ ${tabsSectionHtml}
 
 			if (isPresent && canEdit) {
 				const removeControl = createRemoveControl();
-				const keypointLabel = keypoint.name || `Keypoint ${keypointId}`;
 				removeControl.dataset.removeDisabled = "0";
 				removeControl.dataset.removeBaseOpacity = "0.7";
 				removeControl.style.opacity = "0.7";
 				removeControl.style.cursor = "pointer";
-				removeControl.title = `Remove ${keypointLabel}`;
+				removeControl.title = t("pose_editor.keypoints.remove_title", { target: keypointLabel });
 				removeControl.addEventListener("click", (event) => {
 					event.stopPropagation();
 					const activeIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
@@ -1589,7 +1591,7 @@ ${tabsSectionHtml}
 					}
 					item.style.cursor = "grabbing";
 					event.dataTransfer.setData(MISSING_KEYPOINT_DRAG_TYPE, `${keypointId}`);
-					event.dataTransfer.setData("text/plain", keypoint.name || `Keypoint ${keypointId}`);
+					event.dataTransfer.setData("text/plain", keypointLabel);
 					event.dataTransfer.effectAllowed = "copy";
 					this._draggingMissingKeypoint = true;
 				});
@@ -1716,7 +1718,7 @@ ${tabsSectionHtml}
 				editControl.style.color = "var(--openpose-text)";
 				editControl.style.opacity = "0.7";
 				editControl.style.cursor = "pointer";
-				editControl.title = `Edit ${label.toLowerCase()}`;
+				editControl.title = t("pose_editor.keypoints.edit_title", { target: label });
 				editControl.setAttribute("aria-label", editControl.title);
 				editControl.addEventListener("mouseenter", () => {
 					editControl.style.opacity = "1";
@@ -1738,7 +1740,7 @@ ${tabsSectionHtml}
 			removeControl.dataset.removeBaseOpacity = "0.7";
 			removeControl.style.opacity = "0.7";
 			removeControl.style.cursor = "pointer";
-			removeControl.title = `Remove ${label}`;
+			removeControl.title = t("pose_editor.keypoints.remove_title", { target: label });
 			removeControl.addEventListener("click", (event) => {
 				event.stopPropagation();
 				onRemove();
@@ -1770,7 +1772,7 @@ ${tabsSectionHtml}
 		}
 		if (hasLeftHand) {
 			addExtraActionRow({
-				label: "Left hand",
+				label: t("pose_editor.keypoints.left_hand"),
 				emoji: "\u270B",
 				onHover: (hovered) => this.renderer?.setSidebarHoveredHandSide?.(hovered ? "left" : null),
 				onEdit: () => {
@@ -1794,7 +1796,7 @@ ${tabsSectionHtml}
 		}
 		if (hasRightHand) {
 			addExtraActionRow({
-				label: "Right hand",
+				label: t("pose_editor.keypoints.right_hand"),
 				emoji: "\u{1F91A}",
 				onHover: (hovered) => this.renderer?.setSidebarHoveredHandSide?.(hovered ? "right" : null),
 				onEdit: () => {
@@ -3377,9 +3379,11 @@ function buildPoseEditorOverlayHtml() {
     <div class="openpose-sidebar openpose-sidebar-placeholder openpose-sidebar-placeholder-right"></div>
     <div class="openpose-sidebar openpose-sidebar-right">
         <div class="openpose-sidebar-card openpose-coco-keypoints-card">
-            <label class="openpose-label openpose-coco-keypoints-label">${t("pose_editor.keypoints.label")}</label>
+            <div class="openpose-coco-keypoints-header">
+                <label class="openpose-label openpose-coco-keypoints-label">${t("pose_editor.keypoints.label")}</label>
+                <span class="openpose-keypoints-help" title="${t("pose_editor.keypoints.perspective_tooltip")}" aria-label="${t("pose_editor.keypoints.perspective_tooltip")}">${UiIcons.svg('info', { size: 14, className: 'openpose-ui-icon' })}</span>
+            </div>
             <div class="openpose-coco-keypoints-list"></div>
-            <div class="openpose-spacer"></div>
             ${buildDonationFooterHtml()}
         </div>
     </div>
@@ -3473,11 +3477,6 @@ export function applyPoseEditorStyles(container, options = {}) {
     const footerActionsRow = container.querySelector(".openpose-footer-actions-row");
     if (footerActionsRow) {
 		footerActionsRow.classList.add("ope-openpose-shell-footer-row");
-    }
-
-    const applyBtn = container.querySelector(".openpose-apply-btn");
-    if (applyBtn) {
-		applyBtn.textContent = "Apply";
     }
 }
 

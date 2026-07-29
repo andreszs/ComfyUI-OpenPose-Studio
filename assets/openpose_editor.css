@@ -478,7 +478,26 @@
 }
 
 .ope-openpose-modal .openpose-coco-keypoints-label {
-    margin-bottom: 8px;
+    margin-bottom: 0;
+}
+
+.ope-openpose-modal .openpose-coco-keypoints-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ope-openpose-modal .openpose-keypoints-help {
+    display: inline-flex;
+    flex: 0 0 auto;
+    margin-left: auto;
+    color: var(--openpose-text-muted);
+    cursor: help;
+    opacity: 0.7;
+}
+
+.ope-openpose-modal .openpose-keypoints-help:hover {
+    opacity: 1;
 }
 
 .ope-openpose-modal .openpose-sidebar .openpose-label-inline,
@@ -1311,6 +1330,19 @@
     line-height: 1.25;
     padding: 0 6px;
     text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ope-openpose-modal .openpose-coco-keypoints-card > .openpose-donation-footer-styled {
+    margin-top: 0;
+}
+
+.openpose-donation-footer-styled .openpose-donation-heart {
+    display: inline-block;
+    width: 1.2em;
+    text-align: center;
 }
 
 .openpose-donation-footer-styled .openpose-donation-footer-btns {
