@@ -116,6 +116,7 @@ class PoseLibraryTests(unittest.TestCase):
                 {
                     "source": 0,
                     "library": "poses",
+                    "builtin": True,
                     "path": "root.json",
                     "directory": "",
                     "filename": "root.json",
@@ -123,6 +124,7 @@ class PoseLibraryTests(unittest.TestCase):
                 {
                     "source": 0,
                     "library": "poses",
+                    "builtin": True,
                     "path": "misc/sitting.json",
                     "directory": "misc",
                     "filename": "sitting.json",
@@ -130,6 +132,7 @@ class PoseLibraryTests(unittest.TestCase):
                 {
                     "source": 1,
                     "library": "External Library",
+                    "builtin": False,
                     "path": "anime/female/Standing.JSON",
                     "directory": "anime/female",
                     "filename": "Standing.JSON",
@@ -147,6 +150,7 @@ class PoseLibraryTests(unittest.TestCase):
         roots = pose_library.get_pose_roots()
 
         self.assertEqual([root["name"] for root in roots], ["poses", "library", "library (2)"])
+        self.assertEqual([root["builtin"] for root in roots], [True, False, False])
 
     def test_inaccessible_root_is_skipped_without_hiding_other_libraries(self):
         self.write_json(self.builtin_dir / "builtin.json")
@@ -196,6 +200,8 @@ class PoseLibraryTests(unittest.TestCase):
 
         self.assertEqual(payload["files"], ["builtin.json"])
         self.assertEqual(len(payload["entries"]), 2)
+        self.assertTrue(payload["entries"][0]["builtin"])
+        self.assertFalse(payload["entries"][1]["builtin"])
         self.assertEqual(payload["entries"][1]["library"], "External Library")
 
     def test_file_endpoint_selects_source_and_blocks_traversal(self):

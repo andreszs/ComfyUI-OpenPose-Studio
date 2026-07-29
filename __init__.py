@@ -173,6 +173,7 @@ def get_pose_roots():
             "id": len(roots),
             "path": real_directory,
             "name": label,
+            "builtin": normalized_directory == builtin_path,
         })
 
     _inaccessible_pose_paths.clear()
@@ -204,6 +205,7 @@ def get_pose_files():
                 files.append({
                     "source": source["id"],
                     "library": source["name"],
+                    "builtin": source["builtin"],
                     "path": relative_path,
                     "directory": directory,
                     "filename": filename,
@@ -223,7 +225,7 @@ def get_pose_files():
 async def list_poses(request):
     """List available pose files."""
     entries = get_pose_files()
-    legacy_files = [entry["path"] for entry in entries if entry["source"] == 0]
+    legacy_files = [entry["path"] for entry in entries if entry["builtin"]]
     unavailable = [
         {"path": path, "reason": reason}
         for path, reason in _inaccessible_pose_paths.items()

@@ -1764,6 +1764,7 @@ class OpenPosePanel {
 				const filename = typeof fileEntry === "string" ? fileEntry : fileEntry.path;
 				const source = typeof fileEntry === "string" ? 0 : Number(fileEntry.source) || 0;
 				const library = typeof fileEntry === "string" ? "poses" : (fileEntry.library || "poses");
+				const customLibrary = typeof fileEntry !== "string" && fileEntry.builtin === false;
 				const slashIndex = filename ? filename.lastIndexOf("/") : -1;
 				const directory = typeof fileEntry === "string"
 					? (slashIndex === -1 ? "" : filename.substring(0, slashIndex))
@@ -1780,6 +1781,7 @@ class OpenPosePanel {
 					filename,
 					sourceFile,
 					library,
+					customLibrary,
 					directory,
 					galleryGroupKey,
 					galleryGroupTitle,
@@ -1853,6 +1855,7 @@ class OpenPosePanel {
 							group,
 							sourceFile,
 							library,
+							customLibrary,
 							galleryGroupKey,
 							galleryGroupTitle,
 							displayFilename,

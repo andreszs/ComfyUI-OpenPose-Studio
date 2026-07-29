@@ -751,11 +751,32 @@ class GalleryManager {
             const sourceFiles = new Set(presets.map((preset) => preset.sourceFile).filter(Boolean));
             const isSingleCollection = sourceFiles.size === 1
                 && this.collectionFiles.has(Array.from(sourceFiles)[0]);
-            if (isSingleCollection) {
-                const badge = document.createElement("span");
-                badge.className = "openpose-gallery-collection-pill";
-                badge.textContent = t("gallery.badge.collection");
-                title.appendChild(badge);
+            const isDirectoryGroup = presets.some((preset) => (
+                preset.galleryGroupKey && preset.galleryGroupKey !== preset.sourceFile
+            ));
+            const isCustomLibrary = presets.some((preset) => preset.customLibrary);
+            if (isSingleCollection || isDirectoryGroup || isCustomLibrary) {
+                const badges = document.createElement("span");
+                badges.className = "openpose-gallery-title-badges";
+                if (isCustomLibrary) {
+                    const badge = document.createElement("span");
+                    badge.className = "openpose-gallery-custom-path-pill";
+                    badge.textContent = t("gallery.badge.custom_path");
+                    badges.appendChild(badge);
+                }
+                if (isSingleCollection) {
+                    const badge = document.createElement("span");
+                    badge.className = "openpose-gallery-collection-pill";
+                    badge.textContent = t("gallery.badge.collection");
+                    badges.appendChild(badge);
+                }
+                if (isSingleCollection || isDirectoryGroup) {
+                    const badge = document.createElement("span");
+                    badge.className = "openpose-gallery-count-pill";
+                    badge.textContent = t("gallery.count.poses", { count: presets.length });
+                    badges.appendChild(badge);
+                }
+                title.appendChild(badges);
             }
             section.appendChild(title);
 
@@ -1407,8 +1428,15 @@ export function setupGalleryOverlayStyles(container) {
         text.style.minWidth = "0";
     });
 
-    container.querySelectorAll(".openpose-gallery-collection-pill").forEach((badge) => {
+    container.querySelectorAll(".openpose-gallery-title-badges").forEach((badges) => {
+        badges.style.display = "flex";
+        badges.style.alignItems = "center";
+        badges.style.gap = "6px";
+        badges.style.marginLeft = "auto";
+        badges.style.flexShrink = "0";
+    });
 
+    container.querySelectorAll(".openpose-gallery-collection-pill").forEach((badge) => {
         badge.style.fontSize = "10px";
         badge.style.fontWeight = "600";
         badge.style.letterSpacing = "0.5px";
@@ -1420,6 +1448,33 @@ export function setupGalleryOverlayStyles(container) {
         badge.style.pointerEvents = "none";
         badge.style.lineHeight = "1.2";
         badge.style.opacity = "0.8";
+    });
+
+    container.querySelectorAll(".openpose-gallery-custom-path-pill").forEach((badge) => {
+        badge.style.fontSize = "10px";
+        badge.style.fontWeight = "600";
+        badge.style.letterSpacing = "0.5px";
+        badge.style.padding = "3px 8px";
+        badge.style.borderRadius = "3px";
+        badge.style.background = "rgba(62, 142, 244, 0.14)";
+        badge.style.border = "1px solid rgba(62, 142, 244, 0.40)";
+        badge.style.color = "var(--openpose-text)";
+        badge.style.pointerEvents = "none";
+        badge.style.lineHeight = "1.2";
+    });
+
+    container.querySelectorAll(".openpose-gallery-count-pill").forEach((badge) => {
+        badge.style.fontSize = "10px";
+        badge.style.fontWeight = "600";
+        badge.style.letterSpacing = "0.5px";
+        badge.style.textTransform = "uppercase";
+        badge.style.padding = "3px 8px";
+        badge.style.borderRadius = "3px";
+        badge.style.background = "var(--openpose-input-bg)";
+        badge.style.border = "1px solid var(--openpose-border)";
+        badge.style.color = "var(--openpose-text-muted)";
+        badge.style.pointerEvents = "none";
+        badge.style.lineHeight = "1.2";
     });
 
     container.querySelectorAll(".openpose-gallery-carousel").forEach((carousel) => {
@@ -1832,12 +1887,12 @@ function updateGalleryBadges(container) {
         statsBadge.textContent = formatGalleryStats(poseCount, fileCount, libraryCount);
     }
 
-    // Update collection badges with pose counts
-    container.querySelectorAll(".openpose-gallery-collection-pill").forEach((badge) => {
+    // Update section pose counts after rendering
+    container.querySelectorAll(".openpose-gallery-count-pill").forEach((badge) => {
         const section = badge.closest(".openpose-gallery-section");
         if (section) {
             const itemCount = section.querySelectorAll(".openpose-gallery-item").length;
-            badge.textContent = `${t("gallery.badge.collection")} · ${t("gallery.count.poses", { count: itemCount })}`;
+            badge.textContent = t("gallery.count.poses", { count: itemCount });
         }
     });
 }
