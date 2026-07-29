@@ -111,11 +111,11 @@ Se você tiver uma ideia para uma nova funcionalidade, adoraria ouvi-la — pode
 
 As mãos OpenPose importadas podem ser transformadas como um grupo ou refinadas keypoint por keypoint. Selecione uma mão no canvas para exibir sua caixa de transformação e use os controles ao redor para redimensionar, girar, espelhar ou abrir o editor focado de mãos.
 
-![Mão selecionada com controles de transformação e edição](../locales/en/openpose-studio-hand-tools-2.png)
+![Mão selecionada com controles de transformação e edição](../locales/pt/openpose-studio-hand-tools-2.png)
 
 Você também pode abrir o editor focado diretamente pelo ícone de lápis ao lado de **Left hand** ou **Right hand** na barra lateral. Nessa visualização, arraste os keypoints 1–20 para ajustar os dedos; o keypoint 0 permanece bloqueado como âncora da mão. Passar o mouse sobre uma entrada da barra lateral destaca o ponto correspondente. Use o botão de confirmação para aplicar toda a sessão como uma única alteração que pode ser desfeita, ou o botão de fechar ou **Escape** para descartá-la.
 
-![Editor focado de keypoints da mão](../locales/en/openpose-studio-hand-editor-2.png)
+![Editor focado de keypoints da mão](../locales/pt/openpose-studio-hand-editor-2.png)
 
 ---
 
