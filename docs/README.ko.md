@@ -269,7 +269,7 @@ COCO-18은 **18개의 신체 키포인트**를 사용합니다. 포즈는 `pose_
 
 **Gallery** 탭은 실시간 미리보기 썸네일과 함께 사용 가능한 모든 포즈를 시각적으로 탐색하는 기능을 제공합니다. 수동 설정 없이 포즈를 자동으로 검색하고 정리합니다.
 
-![Pose Gallery](../locales/ko/openpose-studio-gallery.png)
+![Pose Gallery](../locales/ko/openpose-studio-gallery-showcase.png)
 
 ### 보기 모드
 

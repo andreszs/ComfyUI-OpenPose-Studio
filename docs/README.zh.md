@@ -269,7 +269,7 @@ Keypoint 顺序（索引 → 名称）：
 
 **Gallery** 标签页提供所有可用姿态的可视化浏览，并带有实时预览缩略图。它会自动发现并整理姿态，无需手动配置。
 
-![Pose Gallery](../locales/zh/openpose-studio-gallery.png)
+![Pose Gallery](../locales/zh/openpose-studio-gallery-showcase.png)
 
 ### 视图模式
 

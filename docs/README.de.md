@@ -269,7 +269,7 @@ Praktische Hinweise:
 
 Die **Gallery**-Registerkarte bietet visuelles Durchsuchen aller verfügbaren Poses mit Live-Vorschau-Thumbnails. Sie erkennt und organisiert Poses automatisch ohne manuelle Konfiguration.
 
-![Pose Gallery](../locales/de/openpose-studio-gallery.png)
+![Pose Gallery](../locales/de/openpose-studio-gallery-showcase.png)
 
 ### Ansichtsmodi
 

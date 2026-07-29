@@ -269,7 +269,7 @@ Notas práticas:
 
 A aba **Gallery** fornece navegação visual de todas as poses disponíveis com miniaturas de pré-visualização ao vivo. Descobre e organiza poses automaticamente sem configuração manual.
 
-![Pose Gallery](../locales/pt/openpose-studio-gallery.png)
+![Pose Gallery](../locales/pt/openpose-studio-gallery-showcase.png)
 
 ### Modos de visualização
 

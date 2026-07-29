@@ -269,7 +269,7 @@ Notas prácticas:
 
 La pestaña **Gallery** permite explorar visualmente todas las poses disponibles con miniaturas de vista previa en vivo. Descubre y organiza poses automáticamente, sin configuración manual.
 
-![Pose Gallery](../locales/es/openpose-studio-gallery.png)
+![Pose Gallery](../locales/es/openpose-studio-gallery-showcase.png)
 
 ### Modos de vista
 

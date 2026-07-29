@@ -269,7 +269,7 @@ COCO-18 использует **18 keypoints тела**. Поза хранитс�
 
 Вкладка **Gallery** обеспечивает визуальный просмотр всех доступных поз с миниатюрами предварительного просмотра в реальном времени. Автоматически обнаруживает и организует позы без ручной настройки.
 
-![Pose Gallery](../locales/ru/openpose-studio-gallery.png)
+![Pose Gallery](../locales/ru/openpose-studio-gallery-showcase.png)
 
 ### Режимы просмотра
 

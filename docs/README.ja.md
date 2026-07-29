@@ -242,7 +242,7 @@ COCO-18 は **18 個の body キーポイント** を使用します。ポーズ
 
 **Gallery** タブでは、利用可能なすべてのポーズをライブプレビューのサムネイルで視覚的に閲覧できます。手動設定なしで自動的に発見・整理します。
 
-![Pose Gallery](../locales/ja/openpose-studio-gallery.png)
+![Pose Gallery](../locales/ja/openpose-studio-gallery-showcase.png)
 
 ### 機能
 

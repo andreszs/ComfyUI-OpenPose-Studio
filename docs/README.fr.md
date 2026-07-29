@@ -269,7 +269,7 @@ Notes pratiques :
 
 L'onglet **Gallery** offre une navigation visuelle de toutes les poses disponibles avec des vignettes de prévisualisation en direct. Il découvre et organise automatiquement les poses sans configuration manuelle.
 
-![Pose Gallery](../locales/fr/openpose-studio-gallery.png)
+![Pose Gallery](../locales/fr/openpose-studio-gallery-showcase.png)
 
 ### Modes d'affichage
 

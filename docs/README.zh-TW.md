@@ -269,7 +269,7 @@ COCO-18 使用 **18 個身體關鍵點**。姿勢以名為 `pose_keypoints_2d` �
 
 **Gallery** 分頁提供所有可用姿勢的視覺化瀏覽，並附即時預覽縮圖。它會自動探索與整理姿勢，無需手動設定。
 
-![Pose Gallery](../locales/zh-TW/openpose-studio-gallery.png)
+![Pose Gallery](../locales/zh-TW/openpose-studio-gallery-showcase.png)
 
 ### 檢視模式
 
