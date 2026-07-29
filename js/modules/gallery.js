@@ -107,9 +107,20 @@ function formatCanvasMetaSize(width, height) {
         Number.isFinite(canvasWidth) && canvasWidth > 0 &&
         Number.isFinite(canvasHeight) && canvasHeight > 0
     ) {
-        return `Canvas: ${Math.round(canvasWidth)}\u00D7${Math.round(canvasHeight)}`;
+        return t("gallery.canvas.size", {
+            width: Math.round(canvasWidth),
+            height: Math.round(canvasHeight)
+        });
     }
-    return "Canvas: (unknown)";
+    return t("gallery.canvas.unknown");
+}
+
+function formatGalleryStats(poseCount, fileCount, libraryCount) {
+    return t("gallery.stats.summary", {
+        poses: t("gallery.count.poses", { count: poseCount }),
+        files: t("gallery.count.files", { count: fileCount }),
+        libraries: t("gallery.count.libraries", { count: libraryCount })
+    });
 }
 
 function isStandardOpenPosePoseObject(payload) {
@@ -296,11 +307,13 @@ class GalleryManager {
         const canvasWidth = Number(preset.canvas_width ?? preset.width);
         const canvasHeight = Number(preset.canvas_height ?? preset.height);
         const sourceType = preset.galleryBadge === "collection"
-            ? "Collection item"
-            : (preset.galleryBadge === "nonstandard" ? "Non-standard JSON" : "Pose file");
+            ? t("gallery.source.collection_item")
+            : (preset.galleryBadge === "nonstandard"
+                ? t("gallery.source.nonstandard_json")
+                : t("gallery.source.pose_file"));
         const location = preset.galleryGroupTitle || preset.sourceFile || "\u2014";
         const values = {
-            name: this.openpose.normalizePoseName(preset.label || preset.id || "Pose"),
+            name: this.openpose.normalizePoseName(preset.label || preset.id || t("gallery.fallback.pose")),
             file: getGalleryFilename(preset),
             location,
             type: sourceType,
@@ -332,7 +345,11 @@ class GalleryManager {
             row.classList.toggle("is-available", available);
             row.tabIndex = available ? 0 : -1;
             row.setAttribute("aria-disabled", available ? "false" : "true");
-            row.title = available ? `Preview ${row.dataset.galleryHand} hand` : "";
+            row.title = available
+                ? t("gallery.hand.preview", {
+                    hand: t(`gallery.hand.${row.dataset.galleryHand}`)
+                })
+                : "";
             const icon = row.querySelector(".openpose-gallery-hand-zoom");
             if (icon) {
                 icon.hidden = !available;
@@ -480,7 +497,7 @@ class GalleryManager {
         const offsetY = topPadding + (availableHeight - boxHeight * scale) / 2 - minY * scale;
         this.drawHandSkeleton(ctx, groups, scale, offsetX, offsetY, true);
 
-        const label = side === "right" ? "Right hand" : "Left hand";
+        const label = t(`gallery.hand.${side}`);
         ctx.font = "600 11px Arial, sans-serif";
         ctx.textBaseline = "top";
         const labelWidth = ctx.measureText(label).width + 12;
@@ -530,13 +547,14 @@ class GalleryManager {
         const libraries = new Set(visiblePresets.map((preset) => preset.library).filter(Boolean));
         const visibleCount = visiblePresets.length;
         const totalCount = totalPresets.length;
-        const poseText = totalCount === 1 ? "pose" : "poses";
-        const fileText = sourceFiles.size === 1 ? "file" : "files";
-        const libraryText = libraries.size === 1 ? "library" : "libraries";
-        const countText = this.searchQuery
-            ? `${visibleCount} of ${totalCount} ${poseText}`
-            : `${visibleCount} ${visibleCount === 1 ? "pose" : "poses"}`;
-        statsBadge.textContent = `${countText} from ${sourceFiles.size} ${fileText} in ${libraries.size} ${libraryText}`;
+        statsBadge.textContent = this.searchQuery
+            ? t("gallery.stats.filtered", {
+                visible: visibleCount,
+                total: totalCount,
+                files: t("gallery.count.files", { count: sourceFiles.size }),
+                libraries: t("gallery.count.libraries", { count: libraries.size })
+            })
+            : formatGalleryStats(visibleCount, sourceFiles.size, libraries.size);
     }
 
     setViewMode(mode) {
@@ -619,14 +637,14 @@ class GalleryManager {
             return formatGalleryTitle("poses", "📁");
         }
         if (!sourceId) {
-            return "Default";
+            return t("gallery.group.default");
         }
         if (sourceId.startsWith("group:")) {
             const title = sourceId.slice("group:".length).trim();
-            return title || "Default";
+            return title || t("gallery.group.default");
         }
         const base = sourceId.replace(/\.json$/i, "").replace(/^.*[/\\]/, "");
-        return formatGalleryTitle(base.replace(/[_-]/g, " ").trim() || "Default");
+        return formatGalleryTitle(base.replace(/[_-]/g, " ").trim() || t("gallery.group.default"));
     }
 
     renderEmpty(message) {
@@ -694,11 +712,11 @@ class GalleryManager {
             matchesGallerySearch([filename], this.searchQuery)
         ));
         if (allGalleryPresets.length === 0 && this.emptyPoseFiles.length === 0) {
-            this.renderEmpty("No presets available.");
+            this.renderEmpty(t("gallery.state.no_presets"));
             return;
         }
         if (galleryPresets.length === 0 && filteredEmptyPoseFiles.length === 0) {
-            this.renderEmpty(`No poses match "${this.searchQuery}".`);
+            this.renderEmpty(t("gallery.state.no_search_match", { query: this.searchQuery }));
             this.updateStatsBadge([], allGalleryPresets);
             return;
         }
@@ -757,14 +775,14 @@ class GalleryManager {
                 if (preset.library) {
                     item.dataset.library = preset.library;
                 }
-                const normalizedName = op.normalizePoseName(preset.label || preset.id || "Pose");
+                const normalizedName = op.normalizePoseName(preset.label || preset.id || t("gallery.fallback.pose"));
                 const {
                     faceCount,
                     leftHandCount,
                     rightHandCount,
                     personCount
                 } = getGalleryPresetDetails(preset);
-                const personLabel = personCount === 1 ? "1 person" : `${personCount} persons`;
+                const personLabel = t("gallery.count.people", { count: personCount });
 
                 const canvas = document.createElement("canvas");
                 canvas.width = previewSize;
@@ -807,13 +825,13 @@ class GalleryManager {
                         metaKp.appendChild(badge);
                     };
                     if (faceCount > 0) {
-                        addIndicatorBadge("\u{1F642}", faceCount, `Face: ${faceCount} keypoints`);
+                        addIndicatorBadge("\u{1F642}", faceCount, t("gallery.tooltip.face_kps", { count: faceCount }));
                     }
                     if (leftHandCount > 0) {
-                        addIndicatorBadge("\u{1F91A}", leftHandCount, `Left hand: ${leftHandCount} keypoints`);
+                        addIndicatorBadge("\u{1F91A}", leftHandCount, t("gallery.tooltip.lhand_kps", { count: leftHandCount }));
                     }
                     if (rightHandCount > 0) {
-                        addIndicatorBadge("\u270B", rightHandCount, `Right hand: ${rightHandCount} keypoints`);
+                        addIndicatorBadge("\u270B", rightHandCount, t("gallery.tooltip.rhand_kps", { count: rightHandCount }));
                     }
                 } else {
                     metaKp.textContent = t("gallery.item.no_face_hands");
@@ -830,7 +848,7 @@ class GalleryManager {
                     const badge = document.createElement("div");
                     badge.className = "openpose-gallery-nonstandard";
                     badge.textContent = "!";
-                    badge.title = "Non-Standard JSON File";
+                    badge.title = t("gallery.badge.nonstandard_file");
                     item.appendChild(badge);
                 }
 
@@ -888,7 +906,7 @@ class GalleryManager {
                 metaSize.textContent = formatCanvasMetaSize(null, null);
                 const metaInfo = document.createElement("div");
                 metaInfo.className = "openpose-gallery-item-meta-kp";
-                metaInfo.textContent = reason || "Invalid file";
+                metaInfo.textContent = reason || t("gallery.state.invalid_file");
                 meta.appendChild(metaName);
                 meta.appendChild(metaSize);
                 meta.appendChild(metaInfo);
@@ -1051,59 +1069,60 @@ function setupGalleryControls(container, openposeInstance, galleryManager) {
     });
 }
 
-export const galleryOverlayHtml = `
+export function buildGalleryOverlayHtml() {
+    return `
     <div class="openpose-overlay openpose-gallery-overlay" data-overlay="gallery">
         <div class="openpose-sidebar openpose-gallery-sidebar">
             <div class="openpose-sidebar-card">
                 <div class="openpose-preset-preview-frame">
-                    <canvas class="openpose-preset-preview openpose-gallery-selected-preview" aria-label="Selected pose preview"></canvas>
+                    <canvas class="openpose-preset-preview openpose-gallery-selected-preview" aria-label="${t("gallery.preview.selected_aria")}"></canvas>
                 </div>
-                <button class="openpose-btn openpose-apply-btn openpose-gallery-insert-btn" data-action="gallery-insert-pose" disabled>Insert Pose</button>
+                <button class="openpose-btn openpose-apply-btn openpose-gallery-insert-btn" data-action="gallery-insert-pose" disabled>${t("gallery.action.insert_pose")}</button>
                 <div class="openpose-gallery-details">
-                    <div class="openpose-gallery-details-empty">Select a pose to view its details.</div>
+                    <div class="openpose-gallery-details-empty">${t("gallery.details.select_pose")}</div>
                     <div class="openpose-gallery-details-content" hidden>
                         <div class="openpose-gallery-details-name" data-gallery-detail="name"></div>
                         <div class="openpose-gallery-details-row">
-                            <span>File</span>
+                            <span>${t("gallery.details.file")}</span>
                             <strong class="openpose-gallery-details-path" data-gallery-detail="file"></strong>
                         </div>
                         <div class="openpose-gallery-details-row">
-                            <span>Location</span>
+                            <span>${t("gallery.details.location")}</span>
                             <strong class="openpose-gallery-details-path" data-gallery-detail="location"></strong>
                         </div>
                         <div class="openpose-gallery-details-row">
-                            <span>Source type</span>
+                            <span>${t("gallery.details.source_type")}</span>
                             <strong data-gallery-detail="type"></strong>
                         </div>
                         <div class="openpose-gallery-details-row">
-                            <span>Format</span>
+                            <span>${t("gallery.details.format")}</span>
                             <strong data-gallery-detail="format"></strong>
                         </div>
                         <div class="openpose-gallery-details-row">
-                            <span>Canvas</span>
+                            <span>${t("gallery.details.canvas")}</span>
                             <strong data-gallery-detail="canvas"></strong>
                         </div>
                         <div class="openpose-gallery-details-row">
-                            <span>People</span>
+                            <span>${t("gallery.details.people")}</span>
                             <strong data-gallery-detail="people"></strong>
                         </div>
                         <div class="openpose-gallery-details-row">
-                            <span>Body keypoints</span>
+                            <span>${t("gallery.details.body_keypoints")}</span>
                             <strong data-gallery-detail="body"></strong>
                         </div>
                         <div class="openpose-gallery-details-row">
-                            <span>Face keypoints</span>
+                            <span>${t("gallery.details.face_keypoints")}</span>
                             <strong data-gallery-detail="face"></strong>
                         </div>
                         <div class="openpose-gallery-details-row openpose-gallery-hand-row" data-gallery-hand="left" tabindex="-1" aria-disabled="true">
-                            <span>Left hand</span>
+                            <span>${t("gallery.details.left_hand")}</span>
                             <strong class="openpose-gallery-hand-value">
                                 <span data-gallery-detail="leftHand"></span>
                                 <span class="openpose-gallery-hand-zoom" hidden>${UiIcons.svg('zoomIn', { size: 14, className: 'openpose-ui-icon' })}</span>
                             </strong>
                         </div>
                         <div class="openpose-gallery-details-row openpose-gallery-hand-row" data-gallery-hand="right" tabindex="-1" aria-disabled="true">
-                            <span>Right hand</span>
+                            <span>${t("gallery.details.right_hand")}</span>
                             <strong class="openpose-gallery-hand-value">
                                 <span data-gallery-detail="rightHand"></span>
                                 <span class="openpose-gallery-hand-zoom" hidden>${UiIcons.svg('zoomIn', { size: 14, className: 'openpose-ui-icon' })}</span>
@@ -1118,15 +1137,15 @@ export const galleryOverlayHtml = `
                 <div class="openpose-overlay-content openpose-gallery-wrapper">
                     <div class="openpose-gallery-header">
                         <div class="openpose-gallery-note-row">
-                            <div class="openpose-gallery-note">These poses are loaded from the configured pose libraries. Add JSON files to any configured library and reload to show them in the Gallery and Presets selector.</div>
+                            <div class="openpose-gallery-note">${t("gallery.note.libraries")}</div>
                             <div class="openpose-gallery-actions">
                                 <div class="openpose-gallery-search">
-                                    <input class="openpose-gallery-search-input openpose-gallery-header-ctrl" data-action="gallery-search" type="search" placeholder="Search filename or path…" aria-label="Search poses by filename or path" autocomplete="off" spellcheck="false" />
-                                    <button class="openpose-gallery-search-clear" data-action="gallery-search-clear" type="button" title="Clear search" aria-label="Clear gallery search" hidden>${UiIcons.svg('x', { size: 14, className: 'openpose-ui-icon' })}</button>
+                                    <input class="openpose-gallery-search-input openpose-gallery-header-ctrl" data-action="gallery-search" type="search" placeholder="${t("gallery.search.placeholder")}" aria-label="${t("gallery.search.aria")}" autocomplete="off" spellcheck="false" />
+                                    <button class="openpose-gallery-search-clear" data-action="gallery-search-clear" type="button" title="${t("gallery.search.clear_title")}" aria-label="${t("gallery.search.clear_aria")}" hidden>${UiIcons.svg('x', { size: 14, className: 'openpose-ui-icon' })}</button>
                                 </div>
-                                <span class="openpose-gallery-stats-badge openpose-gallery-header-ctrl">0 poses from 0 files in 0 libraries</span>
-                                <button class="openpose-btn openpose-btn-small openpose-gallery-view-toggle openpose-gallery-header-ctrl" data-action="gallery-toggle-view-mode">View: Medium Icons</button>
-                                <button class="openpose-btn openpose-btn-small openpose-refresh-btn openpose-gallery-header-ctrl" data-action="presets-reload" title="Reload presets">\u{1F504}</button>
+                                <span class="openpose-gallery-stats-badge openpose-gallery-header-ctrl">${formatGalleryStats(0, 0, 0)}</span>
+                                <button class="openpose-btn openpose-btn-small openpose-gallery-view-toggle openpose-gallery-header-ctrl" data-action="gallery-toggle-view-mode">${t("gallery.overlay.view.medium")}</button>
+                                <button class="openpose-btn openpose-btn-small openpose-refresh-btn openpose-gallery-header-ctrl" data-action="presets-reload" title="${t("gallery.action.reload_presets")}">\u{1F504}</button>
                             </div>
                         </div>
                     </div>
@@ -1144,6 +1163,7 @@ export const galleryOverlayHtml = `
         </div>
     </div>
 `;
+}
 
 export function setupGalleryOverlayStyles(container) {
     const resolveTheme = () => {
@@ -1388,7 +1408,7 @@ export function setupGalleryOverlayStyles(container) {
     });
 
     container.querySelectorAll(".openpose-gallery-collection-pill").forEach((badge) => {
-        badge.style.marginLeft = "auto";
+
         badge.style.fontSize = "10px";
         badge.style.fontWeight = "600";
         badge.style.letterSpacing = "0.5px";
@@ -1809,8 +1829,7 @@ function updateGalleryBadges(container) {
         const poseCount = items.length;
         const fileCount = sourceFiles.size;
         const libraryCount = libraries.size;
-        const libraryText = libraryCount === 1 ? "library" : "libraries";
-        statsBadge.textContent = `${poseCount} poses from ${fileCount} files in ${libraryCount} ${libraryText}`;
+        statsBadge.textContent = formatGalleryStats(poseCount, fileCount, libraryCount);
     }
 
     // Update collection badges with pose counts
@@ -1818,14 +1837,14 @@ function updateGalleryBadges(container) {
         const section = badge.closest(".openpose-gallery-section");
         if (section) {
             const itemCount = section.querySelectorAll(".openpose-gallery-item").length;
-            badge.textContent = `COLLECTION \u00B7 ${itemCount} poses`;
+            badge.textContent = `${t("gallery.badge.collection")} · ${t("gallery.count.poses", { count: itemCount })}`;
         }
     });
 }
 
 export const galleryOverlay = {
     id: "gallery",
-    buildUI: () => galleryOverlayHtml,
+    buildUI: buildGalleryOverlayHtml,
     applyStyles: setupGalleryOverlayStyles,
     initUI: setupGalleryOverlayStyles
 };
@@ -1840,7 +1859,7 @@ registerModule({
     labelKey: "gallery.label",
     order: 10,
     slot: "overlay",
-    buildUI: () => galleryOverlayHtml,
+    buildUI: buildGalleryOverlayHtml,
     initUI: (container, openpose) => {
         galleryState.manager = setupGalleryManager(container, openpose);
         galleryOverlay.initUI(container);
@@ -1869,7 +1888,7 @@ registerModule({
         if (galleryState.manager && info?.filename) {
             galleryState.manager.emptyPoseFiles.push({
                 filename: info.displayFilename || info.filename,
-                reason: info.reason || "Invalid file"
+                reason: info.reason || t("gallery.state.invalid_file")
             });
         }
     },

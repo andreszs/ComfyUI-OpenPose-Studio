@@ -1724,7 +1724,7 @@ class OpenPosePanel {
 			canvas_height: DEFAULT_CANVAS_HEIGHT
 		};
 		// Mark built-in preset as plugin-provided
-		defaultPreset.group = "Built-in poses";
+		defaultPreset.group = t("gallery.group.builtin");
 
 		// Built-in defaults are defined statically above; no runtime JSON load required
 		try {
@@ -1782,7 +1782,7 @@ class OpenPosePanel {
 						console.warn(`[OpenPose Studio] Failed to load ${displayFilename}`);
 						this.moduleManager?.notifyPresetFileError?.({
 							...fileContext,
-							reason: "No poses found in this file. Try selecting another file. You can also verify it's valid JSON using an online validator like jsonlint.com"
+							reason: t("gallery.error.no_poses_in_file")
 						});
 						continue;
 					}
@@ -1794,20 +1794,20 @@ class OpenPosePanel {
 						console.warn(`[OpenPose Studio] Invalid JSON in ${displayFilename}:`, parseError);
 						this.moduleManager?.notifyPresetFileError?.({
 							...fileContext,
-							reason: "Invalid JSON format"
+							reason: t("gallery.error.invalid_json")
 						});
 						continue;
 					}
 
 					const normalized = normalizePresetData(payload, filename);
 					if (!normalized || !normalized.presets || normalized.presets.length === 0) {
-						let reason = "Unsupported format";
+						let reason = t("gallery.error.unsupported_format");
 						if (normalized && normalized.presets && normalized.presets.length === 0) {
-							reason = "Empty collection";
+							reason = t("gallery.error.empty_collection");
 						} else if (Array.isArray(payload.people) || Array.isArray(payload.keypoints)) {
-							reason = "Missing or invalid keypoints";
+							reason = t("gallery.error.invalid_keypoints");
 						} else if (payload && typeof payload === "object" && Object.keys(payload).length > 0) {
-							reason = "No valid poses found";
+							reason = t("gallery.error.no_valid_poses");
 						}
 						this.moduleManager?.notifyPresetFileError?.({ ...fileContext, reason });
 						console.warn(`[OpenPose Studio] Invalid preset file: ${displayFilename} (${reason})`);
@@ -1874,7 +1874,7 @@ class OpenPosePanel {
 					console.warn(`[OpenPose Studio] Error loading ${displayFilename}:`, fileError);
 					this.moduleManager?.notifyPresetFileError?.({
 						...fileContext,
-						reason: "Failed to process file"
+						reason: t("gallery.error.failed_process_file")
 					});
 				}
 			}
