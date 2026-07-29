@@ -1701,8 +1701,9 @@ class OpenPosePanel {
 			this.setCanvasAreaVisible(true);
 			this.setSidebarsVisible(true);
 			this.setOverlayPlaceholderWidths(false);
-			this.setSidebarControlsDisabled(false);
-			this.setBackgroundControlsEnabled(!!this.backgroundImage);
+			const handEditActive = !!this.renderer?.isHandEditModeActive?.();
+			this.setSidebarControlsDisabled(handEditActive);
+			this.setBackgroundControlsEnabled(!!this.backgroundImage, { mode: !handEditActive });
 			this.scheduleCanvasFit();
 			return;
 		}
