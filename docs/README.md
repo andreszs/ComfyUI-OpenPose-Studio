@@ -279,7 +279,7 @@ Practical notes:
 
 The **Gallery** tab provides visual browsing of all available poses with live preview thumbnails. It automatically discovers and organizes poses without manual configuration.
 
-![Pose Gallery](../locales/en/openpose-studio-gallery.png)
+![Pose Gallery](../locales/en/openpose-studio-gallery-showcase.jpg)
 
 ### View modes
 
