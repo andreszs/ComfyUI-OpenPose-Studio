@@ -1,0 +1,38 @@
+{
+  "OpenPoseStudio": {
+    "display_name": "OpenPose Studio",
+    "description": "पोज़ JSON को इमेज के रूप में रेंडर करता है, साथ ही फ़िल्टर किया गया JSON और POSE_KEYPOINT आउटपुट देता है।",
+    "inputs": {
+      "pose_json": {
+        "name": "पोज़ JSON",
+        "tooltip": "पोज़ JSON डेटा (लेगेसी और मानक फ़ॉर्मेट समर्थित हैं)।"
+      },
+      "render_body": {
+        "name": "शरीर रेंडर करें",
+        "tooltip": "शरीर के कीपॉइंट रेंडर करें।"
+      },
+      "render_hand": {
+        "name": "हाथ रेंडर करें",
+        "tooltip": "हाथों के कीपॉइंट रेंडर करें।"
+      },
+      "render_face": {
+        "name": "चेहरा रेंडर करें",
+        "tooltip": "चेहरे के कीपॉइंट रेंडर करें।"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "इमेज",
+        "tooltip": "रेंडर की गई पोज़ इमेज।"
+      },
+      "1": {
+        "name": "JSON",
+        "tooltip": "रेंडर विकल्पों के आधार पर फ़िल्टर किया गया पोज़ JSON।"
+      },
+      "2": {
+        "name": "KPS",
+        "tooltip": "बाद के नोड्स के लिए POSE_KEYPOINT संरचना।"
+      }
+    }
+  }
+}

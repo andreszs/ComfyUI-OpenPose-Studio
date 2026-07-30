@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.1.1] - 2026-07-30
+
+### Added
+- Added Hindi localization for OpenPose Studio node definitions, the full editor interface, and documentation.
+- Added a Hindi README with localized screenshots for the node, editor, Gallery, hand tools, rendering, and workflow examples.
+
+### Changed
+- Added Hindi to the language selector and localized README navigation across all supported documentation.
+- Removed unused legacy Gallery screenshots from localized assets.
+
+### Fixed
+- Localized the Gallery tab and Gallery labels in the Hindi interface.
+
+---
+
 ## [2.1.0] - 2026-07-29
 
 ### Added

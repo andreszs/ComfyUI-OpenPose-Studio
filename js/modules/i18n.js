@@ -20,6 +20,7 @@ const AVAILABLE_LANGS = [
   { code: "de", label: "Deutsch" },
   { code: "es", label: "Español" },
   { code: "fr", label: "Français" },
+  { code: "hi", label: "हिन्दी" },
   { code: "pt", label: "Português" },
   { code: "ru", label: "Русский" },
   { code: "zh", label: "中文（简体）" },
