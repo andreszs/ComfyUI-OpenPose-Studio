@@ -1,5 +1,5 @@
 ﻿import { t } from "./i18n.js";
-import { showToast, showConfirm, copyToClipboard } from "../utils.js";
+import { showToast, showConfirm, copyToClipboard, getPersistedSetting, setPersistedSetting } from "../utils.js";
 import { registerModule } from "./index.js";
 import { UiIcons } from "../ui-icons.js";
 
@@ -19,8 +19,18 @@ export const ABOUT_INFO = {
 
 // Configuration: Update TOML URL
 const UPDATE_TOML_URL = "https://raw.githubusercontent.com/andreszs/comfyui-openpose-studio/main/pyproject.toml";
+const AUTO_UPDATE_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
+const AUTO_UPDATE_CHECKED_AT_KEY = "updates.lastAutoCheckAt";
+const AUTO_UPDATE_CHECKED_VERSION_KEY = "updates.lastAutoCheckVersion";
+const AVAILABLE_UPDATE_VERSION_KEY = "updates.availableVersion";
+const UPDATE_MANAGER_COMMAND = "Comfy.Manager.ShowUpdateAvailablePacks";
+const MANAGER_COMMAND_FALLBACKS = [
+    "Comfy.OpenManagerDialog",
+    "Comfy.Manager.CustomNodesManager.ShowCustomNodesMenu",
+];
 const TOAST_API_MIN_VERSION = "1.2.27";
 const README_GITHUB_URL = "https://github.com/andreszs/comfyui-openpose-studio/blob/main/docs/README.md";
+let lastAutoUpdateCheckAt = 0;
 
 // Build About overlay HTML with current language
 export function buildAboutOverlayHtml() {
@@ -424,7 +434,7 @@ function extractVersionFromToml(tomlContent) {
 
 // Check for updates by fetching remote pyproject.toml
 // Returns: { success: boolean }
-async function checkForUpdates(localVersion) {
+async function checkForUpdates(localVersion, notifyFailure = true) {
     try {
         const response = await fetch(UPDATE_TOML_URL, {
             method: "GET",
@@ -458,8 +468,101 @@ async function checkForUpdates(localVersion) {
         const errorMsg = err.message || "Unknown error";
         const statusMatch = errorMsg.match(/HTTP error: (\d+)/);
         const statusCode = statusMatch ? statusMatch[1] : "unknown";
-        showToast("warn", t("about.update.failed.toast_title"), t("about.update.failed.toast_body", { statusCode }));
+        if (notifyFailure) {
+            showToast("warn", t("about.update.failed.toast_title"), t("about.update.failed.toast_body", { statusCode }));
+        }
         return { success: false };
+    }
+}
+
+function showUpdateAvailableToast(localVersion, remoteVersion, lifeMs = 4000) {
+    showToast(
+        "info",
+        t("about.update.available.toast_title"),
+        t("about.update.available.toast_body", {
+            current: localVersion,
+            latest: remoteVersion,
+        }),
+        lifeMs,
+    );
+}
+
+function updateAvailableBadge(container, localVersion, remoteVersion) {
+    const badge = container.querySelector(".openpose-update-badge");
+    const hasUpdate = remoteVersion
+        && compareVersions(parseVersion(remoteVersion), parseVersion(localVersion)) > 0;
+
+    if (!hasUpdate) {
+        if (badge) {
+            badge.hidden = true;
+            badge.textContent = "";
+            badge.removeAttribute("title");
+        }
+        return false;
+    }
+
+    if (badge) {
+        badge.textContent = `${t("about.update.available.toast_title")} · v${remoteVersion} 🔔`;
+        badge.title = t("about.update.badge.tooltip");
+        badge.hidden = false;
+    }
+    return true;
+}
+
+function setAvailableUpdate(container, localVersion, remoteVersion = null) {
+    if (updateAvailableBadge(container, localVersion, remoteVersion)) {
+        setPersistedSetting(AVAILABLE_UPDATE_VERSION_KEY, remoteVersion);
+    } else {
+        setPersistedSetting(AVAILABLE_UPDATE_VERSION_KEY, null);
+    }
+}
+
+function openExtensionManager(openpose) {
+    const command = window?.app?.extensionManager?.command;
+    if (!command || typeof command.execute !== "function") {
+        showToast("warn", "Extension Manager", t("about.update.manager.open_failed"));
+        return;
+    }
+
+    const commandIds = [UPDATE_MANAGER_COMMAND, ...MANAGER_COMMAND_FALLBACKS];
+    const commandId = typeof command.isRegistered === "function"
+        ? commandIds.find((id) => command.isRegistered(id))
+        : UPDATE_MANAGER_COMMAND;
+    if (!commandId) {
+        showToast("warn", "Extension Manager", t("about.update.manager.open_failed"));
+        return;
+    }
+
+    openpose?.requestClose?.();
+    window.setTimeout(() => {
+        command.execute(commandId).catch((error) => {
+            console.error("[OpenPose Studio] Failed to open Extension Manager:", error);
+            showToast("warn", "Extension Manager", t("about.update.manager.open_failed"));
+        });
+    }, 180);
+}
+
+async function checkForUpdatesOnOpen(container, localVersion) {
+    const now = Date.now();
+    const persistedCheckAt = Number(getPersistedSetting(AUTO_UPDATE_CHECKED_AT_KEY, "0")) || 0;
+    const persistedVersion = getPersistedSetting(AUTO_UPDATE_CHECKED_VERSION_KEY, null);
+    const lastCheckAt = Math.max(lastAutoUpdateCheckAt, persistedCheckAt);
+    if (persistedVersion === localVersion
+        && lastCheckAt > 0
+        && now - lastCheckAt < AUTO_UPDATE_CHECK_INTERVAL_MS) {
+        return;
+    }
+
+    lastAutoUpdateCheckAt = now;
+    setPersistedSetting(AUTO_UPDATE_CHECKED_AT_KEY, now);
+    setPersistedSetting(AUTO_UPDATE_CHECKED_VERSION_KEY, localVersion);
+
+    const result = await checkForUpdates(localVersion, false);
+    if (result.success && result.hasUpdate) {
+        setAvailableUpdate(container, localVersion, result.remoteVersion);
+        showUpdateAvailableToast(localVersion, result.remoteVersion, 10000);
+    } else if (result.success) {
+        setAvailableUpdate(container, localVersion);
     }
 }
 
@@ -495,7 +598,7 @@ function fetchOpenPoseEditorVersion() {
     })();
 }
 
-function initAboutOverlay(container) {
+function initAboutOverlay(container, openpose) {
   setupAboutOverlayStyles(container);
 
   const aboutContent = container.querySelector(".openpose-overlay-content");
@@ -504,6 +607,7 @@ function initAboutOverlay(container) {
   const checkUpdatesBtn = container.querySelector(
     ".openpose-check-updates-btn",
   );
+  const updateBadge = container.querySelector(".openpose-update-badge");
   const usdcQrImg = container.querySelector(".openpose-support-qr-usdc img");
   const usdcBadgeLink = container.querySelector(
     '.openpose-support-badge-link[href="#openpose-usdc"]',
@@ -512,6 +616,11 @@ function initAboutOverlay(container) {
   const hasToastApi =
     (toastApi && typeof toastApi.add === "function") ||
     (window?.app?.ui && typeof window.app.ui.showToast === "function");
+
+  if (updateBadge && !updateBadge.dataset.managerActionReady) {
+    updateBadge.dataset.managerActionReady = "1";
+    updateBadge.addEventListener("click", () => openExtensionManager(openpose));
+  }
 
   if (usdcBadgeLink && usdcQrImg && !usdcBadgeLink.dataset.clickReady) {
     usdcBadgeLink.dataset.clickReady = "1";
@@ -541,6 +650,11 @@ function initAboutOverlay(container) {
         : t("about.version.loaded");
     }
 
+    if (version !== "unknown") {
+      const availableVersion = getPersistedSetting(AVAILABLE_UPDATE_VERSION_KEY, null);
+      setAvailableUpdate(container, version, availableVersion);
+    }
+
     // Setup check for updates button click handler
     if (checkUpdatesBtn && version !== "unknown") {
       let isDownloadMode = false;
@@ -560,21 +674,16 @@ function initAboutOverlay(container) {
           if (result.success && result.hasUpdate) {
             // New version available: switch to download mode
             isDownloadMode = true;
+            setAvailableUpdate(container, version, result.remoteVersion);
             checkUpdatesBtn.textContent = t("about.btn.how_to_update.label");
             checkUpdatesBtn.title = t("about.update.available.btn_title", {
               current: version,
               latest: result.remoteVersion,
             });
-            showToast(
-              "info",
-              t("about.update.available.toast_title"),
-              t("about.update.available.toast_body", {
-                current: version,
-                latest: result.remoteVersion,
-              }),
-            );
+            showUpdateAvailableToast(version, result.remoteVersion);
           } else if (result.success) {
             // Up to date
+            setAvailableUpdate(container, version);
             checkUpdatesBtn.textContent = t("about.btn.check_updates.label");
             showToast(
               "success",
@@ -590,6 +699,10 @@ function initAboutOverlay(container) {
           checkUpdatesBtn.style.opacity = "0.85";
         });
       });
+    }
+
+    if (version !== "unknown") {
+      checkForUpdatesOnOpen(container, version);
     }
   });
 
@@ -650,7 +763,7 @@ registerModule({
     order: 40,
     slot: "overlay",
     buildUI: buildAboutOverlayHtml,
-    initUI: (container) => aboutOverlay.initUI(container),
+    initUI: (container, openpose) => aboutOverlay.initUI(container, openpose),
     onActivate: ({ openpose }) => {
         if (!openpose) {
             return;

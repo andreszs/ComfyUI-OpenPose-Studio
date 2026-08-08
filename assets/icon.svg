@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-labelledby="title desc">
+  <title id="title">OpenPose Studio icon</title>
+  <desc id="desc">OP monogram in violet and magenta.</desc>
+  <defs>
+    <linearGradient id="panel" x1="42" y1="32" x2="360" y2="370" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#342038"/>
+      <stop offset="1" stop-color="#17131d"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="82" y1="94" x2="318" y2="304" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d678ff"/>
+      <stop offset="1" stop-color="#ff4fa3"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" rx="88" fill="#11131a"/>
+  <rect x="28" y="28" width="344" height="344" rx="72" fill="url(#panel)" stroke="url(#accent)" stroke-width="10"/>
+  <text x="200" y="252" fill="url(#accent)" font-family="Arial, Helvetica, sans-serif" font-size="150" font-weight="800" letter-spacing="-8" text-anchor="middle">OP</text>
+  <circle cx="86" cy="314" r="9" fill="#d678ff"/>
+  <circle cx="116" cy="314" r="9" fill="#ff4fa3"/>
+  <path d="M146 314h168" stroke="url(#accent)" stroke-width="10" stroke-linecap="round" opacity=".55"/>
+</svg>

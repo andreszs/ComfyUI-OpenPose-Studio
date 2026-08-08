@@ -31,6 +31,7 @@ export const BLENDER_AXIS_Y = "#d45353";
 export const PREVIEW_WIDTH = 200;
 export const PREVIEW_HEIGHT = 200;
 export const MISSING_KEYPOINT_DRAG_TYPE = "text/openpose-missing-keypoint";
+export const MISSING_HAND_DRAG_TYPE = "text/openpose-missing-hand";
 
 export const POSES_LIST_URL = "/openpose/poses";
 export const POSES_FILE_URL = "/openpose/poses/";
@@ -220,6 +221,146 @@ export async function showConfirm(title, message, options = null) {
     // Ignore fallback errors
   }
   return false;
+}
+
+let choiceDialogId = 0;
+
+export function showChoiceDialog({
+  host,
+  title = "",
+  message = "",
+  choices = [],
+  closeLabel = "Close",
+} = {}) {
+  if (typeof document === "undefined" || !host || !Array.isArray(choices) || choices.length === 0) {
+    return Promise.resolve(null);
+  }
+
+  return new Promise((resolve) => {
+    const id = ++choiceDialogId;
+    const previousFocus = document.activeElement;
+    const backdrop = document.createElement("div");
+    backdrop.className = "openpose-choice-backdrop";
+
+    const dialog = document.createElement("section");
+    dialog.className = "openpose-choice-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", `openpose-choice-title-${id}`);
+    dialog.setAttribute("aria-describedby", `openpose-choice-message-${id}`);
+
+    const header = document.createElement("header");
+    header.className = "openpose-choice-header";
+
+    const titleElement = document.createElement("h2");
+    titleElement.id = `openpose-choice-title-${id}`;
+    titleElement.className = "openpose-choice-title";
+    titleElement.textContent = title;
+
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = "openpose-choice-close";
+    closeButton.textContent = "×";
+    closeButton.title = closeLabel;
+    closeButton.setAttribute("aria-label", closeLabel);
+
+    header.appendChild(titleElement);
+    header.appendChild(closeButton);
+
+    const messageElement = document.createElement("p");
+    messageElement.id = `openpose-choice-message-${id}`;
+    messageElement.className = "openpose-choice-message";
+    messageElement.textContent = message;
+
+    const actions = document.createElement("div");
+    actions.className = "openpose-choice-actions";
+    const choiceButtons = choices.map((choice) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "openpose-choice-option";
+      button.dataset.choiceValue = String(choice.value);
+
+      if (choice.icon) {
+        const icon = document.createElement("span");
+        icon.className = "openpose-choice-option-icon";
+        icon.textContent = choice.icon;
+        icon.setAttribute("aria-hidden", "true");
+        button.appendChild(icon);
+      }
+
+      const label = document.createElement("span");
+      label.className = "openpose-choice-option-label";
+      label.textContent = choice.label;
+      button.appendChild(label);
+
+      actions.appendChild(button);
+      return button;
+    });
+
+    dialog.appendChild(header);
+    dialog.appendChild(messageElement);
+    dialog.appendChild(actions);
+    backdrop.appendChild(dialog);
+    host.appendChild(backdrop);
+
+    let settled = false;
+    const finish = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      backdrop.classList.remove("is-open");
+      window.setTimeout(() => {
+        backdrop.remove();
+        if (previousFocus?.isConnected && typeof previousFocus.focus === "function") {
+          previousFocus.focus();
+        }
+        resolve(value);
+      }, 150);
+    };
+
+    closeButton.addEventListener("click", () => finish(null));
+    choiceButtons.forEach((button, index) => {
+      button.addEventListener("click", () => finish(choices[index].value));
+    });
+    backdrop.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      if (event.target === backdrop) {
+        finish(null);
+      }
+    });
+    backdrop.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        finish(null);
+        return;
+      }
+      if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && choiceButtons.includes(document.activeElement)) {
+        event.preventDefault();
+        const currentIndex = choiceButtons.indexOf(document.activeElement);
+        const direction = event.key === "ArrowRight" ? 1 : -1;
+        choiceButtons[(currentIndex + direction + choiceButtons.length) % choiceButtons.length].focus();
+        return;
+      }
+      if (event.key === "Tab") {
+        const focusable = [closeButton, ...choiceButtons];
+        const currentIndex = focusable.indexOf(document.activeElement);
+        if (event.shiftKey && currentIndex <= 0) {
+          event.preventDefault();
+          focusable[focusable.length - 1].focus();
+        } else if (!event.shiftKey && currentIndex === focusable.length - 1) {
+          event.preventDefault();
+          focusable[0].focus();
+        }
+      }
+    }, true);
+
+    window.requestAnimationFrame(() => {
+      backdrop.classList.add("is-open");
+      (choiceButtons[0] || closeButton).focus();
+    });
+  });
 }
 
 /**

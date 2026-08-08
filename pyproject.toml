@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "comfyui-openpose-studio"
-version = "2.1.1"
+version = "2.2.0"
 description = "Create and edit multi-person OpenPose poses visually, with presets and ControlNet-ready image, JSON, and keypoint outputs."
 readme = "docs/README.md"
 requires-python = ">=3.10"
@@ -19,5 +19,5 @@ Documentation = "https://github.com/andreszs/comfyui-openpose-studio/blob/main/d
 [tool.comfy]
 PublisherId = "andreszs"
 DisplayName = "OpenPose Studio"
-Icon = ""
+Icon = "https://raw.githubusercontent.com/andreszs/comfyui-openpose-studio/main/assets/icon.svg"
 Banner = "https://raw.githubusercontent.com/andreszs/comfyui-openpose-studio/refs/heads/main/assets/banner_182.gif"

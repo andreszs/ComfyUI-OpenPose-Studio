@@ -14,6 +14,7 @@ import {
 import { OpenPoseCanvas2D } from "./canvas2d.js";
 import {
 	showToast,
+	showChoiceDialog,
 	getFormatDisplayName,
 	getComfyThemeSafe,
 	getThemeOverlayColor,
@@ -49,6 +50,7 @@ import {
 	PREVIEW_WIDTH,
 	PREVIEW_HEIGHT,
 	MISSING_KEYPOINT_DRAG_TYPE,
+	MISSING_HAND_DRAG_TYPE,
 	getPersistedSetting,
 	setPersistedSetting,
 	injectGlobalAlertStyles
@@ -593,6 +595,10 @@ class OpenPosePanel {
             const types = Array.from(event?.dataTransfer?.types || []);
             return types.includes(MISSING_KEYPOINT_DRAG_TYPE);
         };
+        const isMissingHandDrag = (event) => {
+            const types = Array.from(event?.dataTransfer?.types || []);
+            return types.includes(MISSING_HAND_DRAG_TYPE);
+        };
 
         if (this.previewCanvas) {
             this.previewCanvas.setAttribute("draggable", "true");
@@ -801,6 +807,7 @@ class OpenPosePanel {
                 this._dragLeaveTimeout = null;
             }
             this._dragOverCanvas = false;
+			this.renderer?.setHandInsertPreviewPointer?.(null);
             setCanvasDropHighlight(false, event, reason || "clear");
         };
         const forceClearCanvasDropHighlight = (reason, event) => {
@@ -812,6 +819,7 @@ class OpenPosePanel {
                 this._dragLeaveTimeout = null;
             }
             this._dragOverCanvas = false;
+			this.renderer?.setHandInsertPreviewPointer?.(null);
             this._canvasDropVisible = false;
             dropHighlightTarget.classList.remove("openpose-drop-highlight");
             dropHighlightTarget.style.outline = "";
@@ -821,7 +829,8 @@ class OpenPosePanel {
         const handleCanvasDrag = (event) => {
             const isPreset = isPresetDrag(event);
             const isMissingKeypoint = isMissingKeypointDrag(event);
-            if ((!this._draggingPreset || !isPreset) && (!this._draggingMissingKeypoint || !isMissingKeypoint)) {
+			const isMissingHand = isMissingHandDrag(event);
+			if ((!this._draggingPreset || !isPreset) && (!this._draggingMissingKeypoint || !isMissingKeypoint) && (!this._draggingMissingHand || !isMissingHand)) {
                 this._dragOverCanvas = false;
                 clearCanvasDropHighlight(event, "drag-ignore");
                 return;
@@ -831,10 +840,15 @@ class OpenPosePanel {
             if (event.dataTransfer) {
                 event.dataTransfer.dropEffect = "copy";
             }
-            if (isPreset || isMissingKeypoint) {
+			if (isPreset || isMissingKeypoint || isMissingHand) {
                 this._dragOverCanvas = true;
                 setCanvasDropHighlight(true, event, "drag-over");
             }
+			if (isMissingHand) {
+				this.renderer?.setHandInsertPreviewPointer?.(
+					this.renderer.screenToLogical(event.clientX, event.clientY)
+				);
+			}
         };
         if (dropTarget) {
             ensureDebugId(dropTarget);
@@ -857,11 +871,13 @@ class OpenPosePanel {
                     }
                 }, 0);
             });
-            dropTarget.addEventListener("drop", (event) => {
+            dropTarget.addEventListener("drop", async (event) => {
                 const isPreset = isPresetDrag(event);
                 const missingKeypointId = event.dataTransfer?.getData(MISSING_KEYPOINT_DRAG_TYPE);
                 const isMissingKeypoint = Boolean(missingKeypointId);
-                if (isPreset || isMissingKeypoint) {
+				const missingHandSide = event.dataTransfer?.getData(MISSING_HAND_DRAG_TYPE);
+				const isMissingHand = missingHandSide === "left" || missingHandSide === "right";
+				if (isPreset || isMissingKeypoint || isMissingHand) {
                     event.preventDefault();
                     event.stopPropagation();
                 }
@@ -874,7 +890,44 @@ class OpenPosePanel {
 					if (presetId) {
 						this.addPresetToCanvas(presetId, { formatId: draggedFormatId });
 					}
-                } else if (isMissingKeypoint) {
+				} else if (isMissingHand) {
+					this._draggingMissingHand = false;
+					this.renderer?.setHandInsertPreviewSide?.(null);
+					const selectedPoseIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
+					if (selectedPoseIndex == null || selectedPoseIndex < 0) {
+						showToast("warn", "Pose Editor", t("toast.no_pose_selected"));
+						return;
+					}
+					const logical = this.renderer.screenToLogical(event.clientX, event.clientY);
+					const handLabel = t(`pose_editor.keypoints.${missingHandSide}_hand`);
+					const selectedView = await showChoiceDialog({
+						host: this.container,
+						title: t("pose_editor.hand_orientation.title"),
+						message: t("pose_editor.hand_orientation.message", { hand: handLabel }),
+						choices: [
+							{ value: "palm", icon: "✋", label: t("pose_editor.hand_orientation.palm") },
+							{ value: "back", icon: "🤚", label: t("pose_editor.hand_orientation.back") },
+						],
+						closeLabel: t("pose_editor.hand_orientation.close"),
+					});
+					if (!selectedView) {
+						return;
+					}
+					const result = this.renderer.insertNeutralHand(
+						selectedPoseIndex,
+						missingHandSide,
+						logical.x,
+						logical.y,
+						selectedView
+					);
+					if (result) {
+						showToast(
+							"success",
+							t("toast.hand_inserted_title"),
+							t(`toast.hand_inserted_${result.facing}`, { hand: handLabel })
+						);
+					}
+				} else if (isMissingKeypoint) {
                     this._draggingMissingKeypoint = false;
                     const keypointIdNum = parseInt(missingKeypointId, 10);
                     if (!Number.isFinite(keypointIdNum) || keypointIdNum < 0) {
@@ -917,6 +970,8 @@ class OpenPosePanel {
         this._clearCanvasDropHighlight = clearCanvasDropHighlight;
         this._forceClearCanvasDropHighlight = forceClearCanvasDropHighlight;
         const globalDragClear = (event) => {
+			this._draggingMissingHand = false;
+			this.renderer?.setHandInsertPreviewSide?.(null);
             forceClearCanvasDropHighlight("global-clear", event);
         };
         document.addEventListener("dragend", globalDragClear, true);
@@ -928,7 +983,7 @@ class OpenPosePanel {
             clearInterval(this._dragHighlightWatchdog);
         }
         this._dragHighlightWatchdog = setInterval(() => {
-            if (!this._draggingPreset && !this._draggingMissingKeypoint) {
+			if (!this._draggingPreset && !this._draggingMissingKeypoint && !this._draggingMissingHand) {
                 forceClearCanvasDropHighlight("watchdog-not-dragging");
                 return;
             }

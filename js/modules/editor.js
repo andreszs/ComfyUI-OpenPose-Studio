@@ -9,6 +9,7 @@ import {
 	DEFAULT_CANVAS_HEIGHT,
 	DEFAULT_POSE_COCO18,
 	MISSING_KEYPOINT_DRAG_TYPE,
+	MISSING_HAND_DRAG_TYPE,
 	drawBoneWithOutline,
 	drawKeypointWithOutline,
 	scaleKeypointsToCanvas,
@@ -235,6 +236,38 @@ function createKeypointRemoveControl() {
 		control.style.color = "var(--openpose-text)";
 	});
 	return control;
+}
+
+function setKeypointStatusIconState(statusIcon, state) {
+	statusIcon.textContent = "";
+	statusIcon.classList.remove("is-present", "is-missing", "is-disabled");
+	if (state) {
+		statusIcon.classList.add(`is-${state}`);
+	}
+	statusIcon.style.opacity = state === "present" ? "1" : "0.7";
+}
+
+function createKeypointStatusIcon(state) {
+	const statusIcon = document.createElement("span");
+	statusIcon.className = "openpose-coco-status-icon openpose-kp-status";
+	statusIcon.style.flexShrink = "0";
+	statusIcon.style.width = "16px";
+	statusIcon.style.minWidth = "16px";
+	statusIcon.style.flex = "0 0 16px";
+	statusIcon.style.height = "20px";
+	statusIcon.style.minHeight = "20px";
+	statusIcon.style.display = "flex";
+	statusIcon.style.alignItems = "center";
+	statusIcon.style.justifyContent = "center";
+	statusIcon.style.fontSize = "14px";
+	statusIcon.style.fontWeight = "bold";
+	statusIcon.style.color = "var(--openpose-text)";
+	statusIcon.style.padding = "0";
+	statusIcon.style.margin = "0";
+	statusIcon.style.lineHeight = "20px";
+	statusIcon.style.alignSelf = "center";
+	setKeypointStatusIconState(statusIcon, state);
+	return statusIcon;
 }
 
 function normalizeBackgroundMode(value) {
@@ -894,8 +927,17 @@ addPose(keypoints = undefined, faceKeypoints = null, handLeftKeypoints = null, h
 		if (e.key === "Delete") {
 			const selectedIndex = this.renderer?.getSelectedPoseIndex();
 			if (selectedIndex !== null && selectedIndex >= 0) {
+				const selectedHand = this.renderer?.getSelectedHand?.();
 				const selectedKeypointIds = this.renderer?.selectedKeypointIds;
-				if (selectedKeypointIds && selectedKeypointIds.size > 0) {
+				if (selectedHand?.poseIndex === selectedIndex) {
+					const isLeft = selectedHand.side === "left";
+					const didClear = isLeft
+						? this.renderer.clearHandLeftKeypoints(selectedIndex)
+						: this.renderer.clearHandRightKeypoints(selectedIndex);
+					if (didClear) {
+						showToast("success", "Pose Editor", t(isLeft ? "toast.left_hand_removed" : "toast.right_hand_removed"));
+					}
+				} else if (selectedKeypointIds && selectedKeypointIds.size > 0) {
 					// Delete key with active keypoint selection: remove only the selected keypoints
 					for (const kpId of selectedKeypointIds) {
 						this.renderer.clearKeypoint(selectedIndex, kpId);
@@ -1029,9 +1071,7 @@ export const poseEditorSubsystemWorkflow = {
 			leftContent.appendChild(swatch);
 			leftContent.appendChild(name);
 
-			const statusIcon = document.createElement("span");
-			statusIcon.className = "openpose-coco-status-icon openpose-kp-status";
-			statusIcon.classList.add(isPresent ? "is-present" : "is-missing");
+			const statusIcon = createKeypointStatusIcon(isPresent ? "present" : (isEditable ? "missing" : "disabled"));
 
 			const rightContent = document.createElement("div");
 			rightContent.className = "openpose-hand-keypoint-controls";
@@ -1484,38 +1524,9 @@ ${tabsSectionHtml}
 			leftContent.appendChild(name);
 
 			// Right container: status indicator
-			const statusIcon = document.createElement("span");
-			statusIcon.className = "openpose-coco-status-icon openpose-kp-status";
-			statusIcon.style.flexShrink = "0";
-			statusIcon.style.width = "16px";
-			statusIcon.style.minWidth = "16px";
-			statusIcon.style.flex = "0 0 16px";
-			statusIcon.style.height = "20px";
-			statusIcon.style.minHeight = "20px";
-			statusIcon.style.display = "flex";
-			statusIcon.style.alignItems = "center";
-			statusIcon.style.justifyContent = "center";
-			statusIcon.style.fontSize = "14px";
-			statusIcon.style.fontWeight = "bold";
-			statusIcon.style.color = "var(--openpose-text)";
-			statusIcon.style.padding = "0";
-			statusIcon.style.margin = "0";
-			statusIcon.style.lineHeight = "20px";
-			statusIcon.style.alignSelf = "center";
-
-			if (isDisabled) {
-				statusIcon.textContent = "";
-				statusIcon.classList.add("is-disabled");
-			} else if (isPresent) {
-				statusIcon.textContent = "";
-				statusIcon.classList.add("is-present");
-			} else if (isMissing) {
-				statusIcon.textContent = "";
-				statusIcon.classList.add("is-missing");
-			} else {
-				// No pose selected and keypoint absent from fallback display — treat as non-editable
-				statusIcon.classList.add("is-disabled");
-			}
+			const statusIcon = createKeypointStatusIcon(
+				isDisabled ? "disabled" : (isPresent ? "present" : (isMissing ? "missing" : "disabled"))
+			);
 
 			const rightContent = document.createElement("div");
 			rightContent.style.display = "flex";
@@ -1629,9 +1640,16 @@ ${tabsSectionHtml}
 			selectedExtras.hand_right_keypoints_2d.length > 0 &&
 			selectedExtras.hand_right_keypoints_2d.some(kp => kp);
 
-		const addExtraActionRow = ({ label, emoji, onEdit = null, onHover = null, onRemove }) => {
+		const addExtraActionRow = ({ label, emoji, side = null, missing = false, inactive = false, onEdit = null, onHover = null, onRemove = null }) => {
 			const item = document.createElement("div");
 			item.className = "openpose-coco-keypoint-item";
+			if (missing) {
+				item.classList.add("openpose-keypoint-missing");
+			}
+			if (inactive) {
+				item.classList.add("openpose-hand-row-inactive");
+				item.classList.add("openpose-keypoint-disabled");
+			}
 			item.style.display = "flex";
 			item.style.alignItems = "center";
 			item.style.justifyContent = "space-between";
@@ -1645,14 +1663,16 @@ ${tabsSectionHtml}
 			item.style.color = "var(--openpose-input-text)";
 			item.style.minHeight = "20px";
 			item.style.cursor = "default";
-			item.addEventListener("mouseenter", () => {
-				item.style.backgroundColor = "var(--openpose-primary-hover-bg)";
-				onHover?.(true);
-			});
-			item.addEventListener("mouseleave", () => {
-				item.style.backgroundColor = "var(--openpose-input-bg)";
-				onHover?.(false);
-			});
+			if (!inactive) {
+				item.addEventListener("mouseenter", () => {
+					item.style.backgroundColor = "var(--openpose-primary-hover-bg)";
+					onHover?.(true);
+				});
+				item.addEventListener("mouseleave", () => {
+					item.style.backgroundColor = "var(--openpose-input-bg)";
+					onHover?.(false);
+				});
+			}
 
 			const leftContent = document.createElement("div");
 			leftContent.style.display = "flex";
@@ -1695,7 +1715,13 @@ ${tabsSectionHtml}
 			rightContent.style.flexShrink = "0";
 			rightContent.style.width = onEdit ? "56px" : "36px";
 			rightContent.style.minWidth = onEdit ? "56px" : "36px";
+			rightContent.style.height = "20px";
+			rightContent.style.minHeight = "20px";
 			rightContent.style.justifyContent = "flex-end";
+
+			if (missing) {
+				rightContent.appendChild(createKeypointStatusIcon("missing"));
+			}
 
 			if (onEdit) {
 				const editControl = document.createElement("button");
@@ -1735,20 +1761,43 @@ ${tabsSectionHtml}
 				rightContent.appendChild(editControl);
 			}
 
-			const removeControl = createRemoveControl();
-			removeControl.dataset.removeDisabled = "0";
-			removeControl.dataset.removeBaseOpacity = "0.7";
-			removeControl.style.opacity = "0.7";
-			removeControl.style.cursor = "pointer";
-			removeControl.title = t("pose_editor.keypoints.remove_title", { target: label });
-			removeControl.addEventListener("click", (event) => {
-				event.stopPropagation();
-				onRemove();
-			});
-
 			item.appendChild(leftContent);
-			rightContent.appendChild(removeControl);
+			if (onRemove) {
+				const removeControl = createRemoveControl();
+				removeControl.dataset.removeDisabled = "0";
+				removeControl.dataset.removeBaseOpacity = "0.7";
+				removeControl.style.opacity = "0.7";
+				removeControl.style.cursor = "pointer";
+				removeControl.title = t("pose_editor.keypoints.remove_title", { target: label });
+				removeControl.addEventListener("click", (event) => {
+					event.stopPropagation();
+					onRemove();
+				});
+				rightContent.appendChild(removeControl);
+			}
 			item.appendChild(rightContent);
+
+			if (missing && side) {
+				item.style.cursor = "grab";
+				item.setAttribute("draggable", "true");
+				item.addEventListener("dragstart", (event) => {
+					if (!event.dataTransfer) {
+						event.preventDefault();
+						return;
+					}
+					item.style.cursor = "grabbing";
+					event.dataTransfer.setData(MISSING_HAND_DRAG_TYPE, side);
+					event.dataTransfer.setData("text/plain", label);
+					event.dataTransfer.effectAllowed = "copy";
+					this._draggingMissingHand = true;
+					this.renderer?.setHandInsertPreviewSide?.(side);
+				});
+				item.addEventListener("dragend", () => {
+					item.style.cursor = "grab";
+					this._draggingMissingHand = false;
+					this.renderer?.setHandInsertPreviewSide?.(null);
+				});
+			}
 
 			this.cocoKeypointsList.appendChild(item);
 		};
@@ -1770,53 +1819,46 @@ ${tabsSectionHtml}
 				}
 			});
 		}
-		if (hasLeftHand) {
+		const addHandActionRow = (side, present, canEditHand) => {
+			const isLeft = side === "left";
+			const label = t(`pose_editor.keypoints.${side}_hand`);
 			addExtraActionRow({
-				label: t("pose_editor.keypoints.left_hand"),
-				emoji: "\u270B",
-				onHover: (hovered) => this.renderer?.setSidebarHoveredHandSide?.(hovered ? "left" : null),
-				onEdit: () => {
-					const activeIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
-					if (activeIndex != null && activeIndex >= 0) {
-						this.renderer.enterHandEditMode(activeIndex, "left");
+				label,
+				emoji: isLeft ? "\u270B" : "\u{1F91A}",
+				side: canEditHand ? side : null,
+				missing: canEditHand && !present,
+				inactive: !canEditHand,
+				onHover: canEditHand && present
+					? (hovered) => this.renderer?.setSidebarHoveredHandSide?.(hovered ? side : null)
+					: null,
+				onEdit: canEditHand && present
+					? () => {
+						const activeIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
+						if (activeIndex != null && activeIndex >= 0) {
+							this.renderer.enterHandEditMode(activeIndex, side);
+						}
 					}
-				},
-				onRemove: () => {
-					const activeIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
-					if (activeIndex == null || activeIndex < 0) {
-						return;
+					: null,
+				onRemove: canEditHand && present
+					? () => {
+						const activeIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
+						if (activeIndex == null || activeIndex < 0) {
+							return;
+						}
+						const didClear = isLeft
+							? this.renderer.clearHandLeftKeypoints(activeIndex)
+							: this.renderer.clearHandRightKeypoints(activeIndex);
+						if (didClear) {
+							showToast("success", "Pose Editor", t(isLeft ? "toast.left_hand_removed" : "toast.right_hand_removed"));
+							this.refreshCocoKeypointsPanel();
+						}
 					}
-					const didClear = this.renderer.clearHandLeftKeypoints(activeIndex);
-					if (didClear) {
-						showToast("success", "Pose Editor", t("toast.left_hand_removed"));
-						this.refreshCocoKeypointsPanel();
-					}
-				}
+					: null
 			});
-		}
-		if (hasRightHand) {
-			addExtraActionRow({
-				label: t("pose_editor.keypoints.right_hand"),
-				emoji: "\u{1F91A}",
-				onHover: (hovered) => this.renderer?.setSidebarHoveredHandSide?.(hovered ? "right" : null),
-				onEdit: () => {
-					const activeIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
-					if (activeIndex != null && activeIndex >= 0) {
-						this.renderer.enterHandEditMode(activeIndex, "right");
-					}
-				},
-				onRemove: () => {
-					const activeIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
-					if (activeIndex == null || activeIndex < 0) {
-						return;
-					}
-					const didClear = this.renderer.clearHandRightKeypoints(activeIndex);
-					if (didClear) {
-						showToast("success", "Pose Editor", t("toast.right_hand_removed"));
-						this.refreshCocoKeypointsPanel();
-					}
-				}
-			});
+		};
+		if (activePose) {
+			addHandActionRow("left", hasLeftHand, !!selectedPose);
+			addHandActionRow("right", hasRightHand, !!selectedPose);
 		}
 		
 		// Apply styles to all rows
@@ -1838,9 +1880,7 @@ ${tabsSectionHtml}
 				item.classList.toggle("openpose-keypoint-missing", isEditable && !isPresent);
 				item.classList.toggle("openpose-hand-keypoint-missing", isEditable && !isPresent);
 				if (statusIcon) {
-					statusIcon.classList.toggle("is-present", isPresent);
-					statusIcon.classList.toggle("is-missing", isEditable && !isPresent);
-					statusIcon.classList.toggle("is-disabled", !isEditable && !isPresent);
+					setKeypointStatusIconState(statusIcon, isPresent ? "present" : (isEditable ? "missing" : "disabled"));
 				}
 			}
 			return;
@@ -1887,14 +1927,11 @@ ${tabsSectionHtml}
 				// Neutral state: uniformly dimmed, no hover highlight
 				name.style.color = "var(--openpose-input-text)";
 				item.style.backgroundColor = "var(--openpose-input-bg)";
-				item.style.opacity = "0.5";
+				item.style.opacity = "";
 				item.classList.add("openpose-keypoint-disabled");
 				if (statusIcon) {
 					statusIcon.style.color = "var(--openpose-text)";
-					statusIcon.style.opacity = "0.7";
-					statusIcon.textContent = "";
-					statusIcon.classList.remove("is-present", "is-missing");
-					statusIcon.classList.add("is-disabled");
+					setKeypointStatusIconState(statusIcon, "disabled");
 				}
 				item.classList.remove("openpose-keypoint-missing");
 				continue;
@@ -1906,16 +1943,7 @@ ${tabsSectionHtml}
 			const isCanvasHovered = keypointId === canvasHoveredKeypointId;
 			const isMissing = !isPresent;
 			if (statusIcon) {
-				statusIcon.classList.remove("is-present", "is-missing", "is-disabled");
-				if (isMissing) {
-					statusIcon.textContent = "";
-					statusIcon.classList.add("is-missing");
-					statusIcon.style.opacity = "0.7";
-				} else {
-					statusIcon.textContent = "";
-					statusIcon.classList.add("is-present");
-					statusIcon.style.opacity = "1";
-				}
+				setKeypointStatusIconState(statusIcon, isMissing ? "missing" : "present");
 			}
 
 			// Priority: direct sidebar hover > canvas hover > disabled > missing > normal
@@ -3281,6 +3309,7 @@ function buildPoseEditorOverlayHtml() {
     </div>
 	<div class="ope-openpose-shell-drag-handle ope-openpose-modal-drag-handle" data-role="drag-handle" aria-hidden="true"></div>
 	<div class="openpose-tab-controls ope-openpose-shell-header-right ope-openpose-modal-controls">
+		<button class="openpose-update-badge" type="button" hidden></button>
 		<button class="openpose-tab-contribute" data-action="open-about" title="Open About">${t("pose_editor.tab.contribute")} 💙</button>
         <button class="openpose-tab-maximize" data-action="toggle-maximize"></button>
         <button class="openpose-tab-close" data-action="close-editor">\u{2716}\u{FE0F}</button>

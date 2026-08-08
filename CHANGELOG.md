@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.2.0] - 2026-08-08
+
+### Added
+- Added optional drag-to-insert neutral left and right hands to poses without hand keypoints, with localized insertion feedback and user-selected palm or back-of-hand orientation.
+- Added a wrist guide while dragging a missing hand onto a pose with the corresponding body wrist.
+- Added a localized two-option orientation dialog for choosing the palm or back view before inserting a hand.
+- Added whole-hand dragging from the selected hand area, moving the corresponding body wrist when the hand is connected.
+- Added a discreet automatic update check when opening the editor, limited to once every 12 hours, with localized Extension Manager guidance and a persistent badge that opens the native update manager when a new version is available.
+
+### Changed
+- Prioritized body keypoints over overlapping hand regions and limited hand interaction to the active pose while preserving hand preselection when no pose is selected.
+- Highlighted unselected poses with brighter, more saturated skeleton colors during hover preselection.
+- Unified body and hand sidebar status controls, dimensions, disabled states, and handle styling.
+
+### Fixed
+- Fixed deleting a selected hand so it no longer removes the complete pose.
+- Kept left and right hand rows visible and visually consistent with or without an active pose or existing hand keypoints.
+
+---
+
 ## [2.1.1] - 2026-07-30
 
 ### Added
