@@ -18,6 +18,7 @@ OpenPose Studio é uma extensão avançada para ComfyUI que permite criar, edita
 ## Índice
 
 - ✨ [Funcionalidades](#funcionalidades)
+- 📱 [Interface móvel responsiva](#interface-móvel-responsiva)
 - 📦 [Instalação](#instalação)
 - 🎯 [Uso](#uso)
 - 🖐️ [Edição de mãos](#edição-de-mãos)
@@ -72,6 +73,16 @@ OpenPose Studio é uma extensão avançada para ComfyUI que permite criar, edita
 - Persistência entre reinicializações: modo de visualização da galeria + configurações de overlay de fundo restauradas no lançamento
 - Integrações nativas do ComfyUI: toasts + diálogos (com fallback seguro)
 
+## Interface móvel responsiva
+
+O OpenPose Studio é totalmente responsivo e compatível com controles por toque em navegadores móveis. O Editor mantém o canvas utilizável em telas estreitas, apresenta as ferramentas de Preset e COCO Keypoints como visualizações focadas e oferece uma Gallery compacta com várias densidades de miniaturas.
+
+<p align="center">
+  <img src="../assets/openpose-studio-mobile-responsive.png" alt="Interface móvel responsiva do OpenPose Studio com as visualizações Canvas, Preset, COCO Keypoints e Gallery" width="100%" />
+</p>
+
+<p align="center"><sub>Edição no canvas, controles de Preset, gerenciamento de keypoints ausentes e visualização Small Icons da Gallery no Android.</sub></p>
+
 ---
 
 Se você tiver uma ideia para uma nova funcionalidade, adoraria ouvi-la — podemos ser capazes de implementá-la rapidamente. Envie feedback, ideias ou sugestões pela página de Issues do repositório: https://github.com/andreszs/comfyui-openpose-studio/issues
@@ -80,14 +91,33 @@ Se você tiver uma ideia para uma nova funcionalidade, adoraria ouvi-la — pode
 ## Instalação
 
 ### Requisitos
+
 - ComfyUI (build recente)
 - Python 3.10+
 
-### Passos
+### Opção 1: Extension Manager nativo (recomendada)
 
-1. Clone este repositório em `ComfyUI/custom_nodes/`.
-2. Reinicie o ComfyUI.
-3. Confirme que os nodes aparecem em `image > OpenPose Studio`.
+1. Abra o **Extension Manager** nativo do ComfyUI e depois o **Nodes Manager**.
+2. Pesquise `openpose-studio` e selecione **OpenPose Studio**.
+3. Clique em **Install** e reinicie o ComfyUI quando a instalação terminar.
+
+<p align="center">
+  <img src="../assets/openpose-studio-extension-manager-install.png" alt="Instalação do OpenPose Studio pelo Extension Manager nativo do ComfyUI" width="100%" />
+</p>
+
+### Opção 2: Instalação manual
+
+Abra um terminal em `ComfyUI/custom_nodes/` e clone o repositório:
+
+```bash
+git clone https://github.com/andreszs/comfyui-openpose-studio.git
+```
+
+Reinicie o ComfyUI depois de clonar o repositório.
+
+### Verificar a instalação
+
+Confirme que **OpenPose Studio** aparece no menu de nodes em `image > OpenPose Studio`.
 
 ---
 
@@ -273,9 +303,10 @@ A aba **Gallery** fornece navegação visual de todas as poses disponíveis com 
 
 ### Modos de visualização
 
-A Gallery suporta três modos de exibição:
+A Gallery suporta quatro modos de exibição:
 - **Large** — pré-visualizações maiores para seleção visual rápida
 - **Medium** — tamanho e densidade de pré-visualização equilibrados
+- **Small** — grade densa de ícones otimizada para layouts estreitos e móveis
 - **Tiles** — grade compacta com metadados extras (ex. **tamanho do canvas**, **contagem de keypoints** e outros detalhes da pose)
 
 ### Funcionalidades

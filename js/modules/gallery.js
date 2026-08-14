@@ -12,7 +12,8 @@ import { registerModule } from "./index.js";
 import { UiIcons } from "../ui-icons.js";
 
 const GALLERY_VIEW_MODE_KEY = "openpose_editor.gallery.viewMode";
-const GALLERY_VIEW_MODES = new Set(["medium", "large", "tiles"]);
+const GALLERY_VIEW_MODES = new Set(["medium", "large", "small", "tiles"]);
+const COMPACT_GALLERY_BATCH_SIZE = 120;
 const HAND_EDGES = [
     [0, 1], [1, 2], [2, 3], [3, 4],
     [0, 5], [5, 6], [6, 7], [7, 8],
@@ -184,8 +185,116 @@ class GalleryManager {
         this.searchQuery = "";
         this.selectedPresetId = null;
         this.focusedHandSide = null;
+        this.compactRenderLimit = COMPACT_GALLERY_BATCH_SIZE;
+        this.lastCompact = null;
+        this.needsRefresh = true;
+        this.thumbnailObserver = null;
+        this.thumbnailRenderers = new WeakMap();
         this.setViewMode(this.viewMode);
         this.clearSelection();
+    }
+
+    markDirty() {
+        this.needsRefresh = true;
+    }
+
+    stopThumbnailObserver(release = false) {
+        this.thumbnailObserver?.disconnect();
+        this.thumbnailObserver = null;
+        if (!release) {
+            return;
+        }
+        this.galleryContainer?.querySelectorAll(".openpose-gallery-thumbnail").forEach((surface) => {
+            const thumbnail = this.thumbnailRenderers.get(surface);
+            if (!thumbnail?.rendered) {
+                return;
+            }
+            if (surface.tagName === "IMG") {
+                surface.removeAttribute("src");
+            } else {
+                surface.width = 1;
+                surface.height = 1;
+            }
+            thumbnail.rendered = false;
+        });
+    }
+
+    startThumbnailObserver() {
+        this.stopThumbnailObserver();
+        const surfaces = Array.from(this.galleryContainer?.querySelectorAll(".openpose-gallery-thumbnail") || []);
+        if (surfaces.length === 0) {
+            return;
+        }
+        if (typeof IntersectionObserver !== "function") {
+            surfaces.forEach((surface) => this.renderThumbnail(surface));
+            return;
+        }
+        this.thumbnailObserver = new IntersectionObserver((entries) => {
+            for (const entry of entries) {
+                if (entry.isIntersecting) {
+                    this.renderThumbnail(entry.target);
+                    continue;
+                }
+                const thumbnail = this.thumbnailRenderers.get(entry.target);
+                if (!thumbnail?.rendered) {
+                    continue;
+                }
+                if (entry.target.tagName === "IMG") {
+                    continue;
+                }
+                entry.target.width = 1;
+                entry.target.height = 1;
+                thumbnail.rendered = false;
+            }
+        }, {
+            root: this.galleryContainer,
+            rootMargin: "320px 160px"
+        });
+        surfaces.forEach((surface) => this.thumbnailObserver.observe(surface));
+        const rootRect = this.galleryContainer.getBoundingClientRect();
+        const minY = rootRect.top - 320;
+        const maxY = rootRect.bottom + 320;
+        for (const surface of surfaces) {
+            const rect = surface.getBoundingClientRect();
+            if (rect.bottom < minY) {
+                continue;
+            }
+            if (rect.top > maxY) {
+                break;
+            }
+            this.renderThumbnail(surface);
+        }
+    }
+
+    queueThumbnail(surface, size, render) {
+        surface.classList.add("openpose-gallery-thumbnail");
+        if (surface.tagName === "IMG") {
+            surface.alt = "";
+            surface.draggable = false;
+        } else {
+            surface.width = 1;
+            surface.height = 1;
+        }
+        this.thumbnailRenderers.set(surface, {
+            size,
+            render,
+            rendered: false
+        });
+    }
+
+    renderThumbnail(surface) {
+        const thumbnail = this.thumbnailRenderers.get(surface);
+        if (!thumbnail || thumbnail.rendered) {
+            return;
+        }
+        const canvas = surface.tagName === "IMG" ? document.createElement("canvas") : surface;
+        canvas.width = thumbnail.size;
+        canvas.height = thumbnail.size;
+        thumbnail.render(canvas);
+        if (surface.tagName === "IMG") {
+            surface.src = canvas.toDataURL("image/png");
+        }
+        thumbnail.rendered = true;
     }
 
     clearSelection() {
@@ -226,6 +335,7 @@ class GalleryManager {
         if (!this.galleryContainer) {
             return;
         }
+        this.stopThumbnailObserver();
         this.clearSelection();
         this.galleryContainer.innerHTML = "";
         const loading = document.createElement("div");
@@ -311,7 +421,6 @@ class GalleryManager {
             name: this.openpose.normalizePoseName(preset.label || preset.id || t("gallery.fallback.pose")),
             file: getGalleryFilename(preset),
             location,
-            format: details.detectedFormat?.displayName || details.detectedFormat?.id || "\u2014",
             canvas: Number.isFinite(canvasWidth) && canvasWidth > 0 && Number.isFinite(canvasHeight) && canvasHeight > 0
                 ? `${Math.round(canvasWidth)} \u00D7 ${Math.round(canvasHeight)} px`
                 : "\u2014",
@@ -511,6 +620,7 @@ class GalleryManager {
         }
         this.openpose.addPresetToCanvas(this.selectedPresetId);
         this.openpose.setActiveTab("editor");
+        this.openpose.setEditorPane("canvas");
     }
 
     setSearchQuery(value) {
@@ -519,6 +629,7 @@ class GalleryManager {
             return;
         }
         this.searchQuery = nextQuery;
+        this.compactRenderLimit = COMPACT_GALLERY_BATCH_SIZE;
         this.refresh();
     }
 
@@ -552,7 +663,7 @@ class GalleryManager {
     }
 
     setViewMode(mode) {
-        const next = mode === "large" || mode === "tiles" ? mode : "medium";
+        const next = GALLERY_VIEW_MODES.has(mode) ? mode : "medium";
         this.viewMode = next;
         storeGalleryViewMode(next);
         if (!this.galleryContainer) {
@@ -561,6 +672,7 @@ class GalleryManager {
         this.galleryContainer.classList.remove(
             "gallery-view--medium",
             "gallery-view--large",
+            "gallery-view--small",
             "gallery-view--tiles"
         );
         this.galleryContainer.classList.add(`gallery-view--${next}`);
@@ -572,6 +684,9 @@ class GalleryManager {
         }
         if (this.viewMode === "tiles") {
             return 120;
+        }
+        if (this.viewMode === "small") {
+            return 96;
         }
         return 140;
     }
@@ -688,6 +803,7 @@ class GalleryManager {
         if (!this.galleryContainer) {
             return;
         }
+        this.stopThumbnailObserver();
         this.setViewMode(this.viewMode);
         this.updateLibraryWarning();
 
@@ -718,6 +834,9 @@ class GalleryManager {
         const groups = new Map();
         const order = [];
         const previewSize = this.getPreviewSize();
+        const compact = this.container.classList.contains("ope-openpose-compact");
+        const renderLimit = compact ? this.compactRenderLimit : Number.POSITIVE_INFINITY;
+        let renderedCount = 0;
 
         for (const preset of galleryPresets) {
             const sourceId = preset.galleryGroupKey || op.getPresetSourceId(preset);
@@ -730,9 +849,11 @@ class GalleryManager {
 
         order.forEach((sourceId) => {
             const presets = groups.get(sourceId) || [];
-            if (!presets.length) {
+            const visiblePresets = presets.slice(0, Math.max(0, renderLimit - renderedCount));
+            if (!visiblePresets.length) {
                 return;
             }
+            renderedCount += visiblePresets.length;
             const section = document.createElement("div");
             section.className = "openpose-gallery-section";
 
@@ -777,7 +898,7 @@ class GalleryManager {
             const carousel = document.createElement("div");
             carousel.className = "openpose-gallery-carousel";
 
-            presets.forEach((preset) => {
+            visiblePresets.forEach((preset) => {
                 const item = document.createElement("div");
                 item.className = "openpose-gallery-item";
                 item._galleryPresetId = preset.id;
@@ -799,9 +920,15 @@ class GalleryManager {
                 } = getGalleryPresetDetails(preset);
                 const personLabel = t("gallery.count.people", { count: personCount });
 
-                const canvas = document.createElement("canvas");
-                canvas.width = previewSize;
-                canvas.height = previewSize;
+                const thumbnailSurface = document.createElement(compact ? "img" : "canvas");
+                this.queueThumbnail(thumbnailSurface, previewSize, (target) => {
+                    op.renderPresetThumbnail(
+                        target,
+                        preset.keypoints,
+                        preset.canvas_width || preset.width,
+                        preset.canvas_height || preset.height
+                    );
+                });
 
                 const label = document.createElement("div");
                 label.className = "openpose-gallery-item-title";
@@ -856,7 +983,7 @@ class GalleryManager {
                 meta.appendChild(metaPeople);
                 meta.appendChild(metaKp);
 
-                item.appendChild(canvas);
+                item.appendChild(thumbnailSurface);
                 item.appendChild(label);
                 item.appendChild(meta);
                 if (preset.galleryBadge === "nonstandard") {
@@ -867,7 +994,6 @@ class GalleryManager {
                     item.appendChild(badge);
                 }
 
-                op.renderPresetThumbnail(canvas, preset.keypoints, preset.canvas_width || preset.width, preset.canvas_height || preset.height);
                 item.addEventListener("click", () => {
                     this.selectPreset(preset, item);
                 });
@@ -887,7 +1013,8 @@ class GalleryManager {
         });
 
         // Render invalid files in a single "Invalid Files" category
-        if (filteredEmptyPoseFiles.length > 0) {
+        const visibleEmptyPoseFiles = filteredEmptyPoseFiles.slice(0, Math.max(0, renderLimit - renderedCount));
+        if (visibleEmptyPoseFiles.length > 0) {
             const section = document.createElement("div");
             section.className = "openpose-gallery-section";
 
@@ -898,14 +1025,29 @@ class GalleryManager {
 
             const carousel = document.createElement("div");
             carousel.className = "openpose-gallery-carousel";
-            for (const { filename, reason } of filteredEmptyPoseFiles) {
+            for (const { filename, reason } of visibleEmptyPoseFiles) {
                 const item = document.createElement("div");
                 item.className = "openpose-gallery-item";
                 item.title = `${filename}: ${reason}`;
 
-                const canvas = document.createElement("canvas");
-                canvas.width = previewSize;
-                canvas.height = previewSize;
+                const thumbnailSurface = document.createElement(compact ? "img" : "canvas");
+                this.queueThumbnail(thumbnailSurface, previewSize, (target) => {
+                    const ctx = target.getContext("2d");
+                    if (!ctx) {
+                        return;
+                    }
+                    const previewSurface = op.getPreviewSurfaceFill();
+                    ctx.clearRect(0, 0, target.width, target.height);
+                    if (previewSurface) {
+                        ctx.fillStyle = previewSurface;
+                        ctx.fillRect(0, 0, target.width, target.height);
+                    }
+                    ctx.fillStyle = "#FFD700";
+                    ctx.font = "bold 80px Arial";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText("\u26A0\uFE0F", target.width / 2, target.height / 2);
+                });
 
                 const label = document.createElement("div");
                 label.className = "openpose-gallery-item-title";
@@ -926,24 +1068,24 @@ class GalleryManager {
                 meta.appendChild(metaSize);
                 meta.appendChild(metaInfo);
 
-                item.appendChild(canvas);
+                item.appendChild(thumbnailSurface);
                 item.appendChild(label);
                 item.appendChild(meta);
 
                 // Render warning sign on canvas
-                const ctx = canvas.getContext("2d");
+                const ctx = thumbnailSurface.getContext?.("2d");
                 if (ctx) {
                     const previewSurface = op.getPreviewSurfaceFill();
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.clearRect(0, 0, thumbnailSurface.width, thumbnailSurface.height);
                     if (previewSurface) {
                         ctx.fillStyle = previewSurface;
-                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.fillRect(0, 0, thumbnailSurface.width, thumbnailSurface.height);
                     }
                     ctx.fillStyle = "#FFD700";
                     ctx.font = "bold 80px Arial";
                     ctx.textAlign = "center";
                     ctx.textBaseline = "middle";
-                    ctx.fillText("⚠️", canvas.width / 2, canvas.height / 2);
+                    ctx.fillText("⚠️", thumbnailSurface.width / 2, thumbnailSurface.height / 2);
                 }
 
                 item.addEventListener("click", () => {
@@ -952,13 +1094,38 @@ class GalleryManager {
 
                 carousel.appendChild(item);
             }
+            renderedCount += visibleEmptyPoseFiles.length;
 
             section.appendChild(carousel);
             this.galleryContainer.appendChild(section);
         }
 
+        const totalItems = galleryPresets.length + filteredEmptyPoseFiles.length;
+        if (compact && renderedCount < totalItems) {
+            const row = document.createElement("div");
+            row.className = "openpose-gallery-load-more-row";
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "openpose-btn openpose-btn-secondary openpose-gallery-load-more";
+            const nextCount = Math.min(COMPACT_GALLERY_BATCH_SIZE, totalItems - renderedCount);
+            button.textContent = t("gallery.action.load_more", { count: nextCount });
+            button.addEventListener("click", () => {
+                const scrollTop = this.galleryContainer.scrollTop;
+                this.compactRenderLimit += COMPACT_GALLERY_BATCH_SIZE;
+                this.refresh();
+                requestAnimationFrame(() => {
+                    this.galleryContainer.scrollTop = scrollTop;
+                });
+            });
+            row.appendChild(button);
+            this.galleryContainer.appendChild(row);
+        }
+
         galleryOverlay.applyStyles(this.container);
+        this.startThumbnailObserver();
         this.updateStatsBadge(galleryPresets, allGalleryPresets);
+        this.needsRefresh = false;
+        this.lastCompact = compact;
         const selectedPreset = galleryPresets.find((preset) => preset.id === this.selectedPresetId);
         if (selectedPreset) {
             requestAnimationFrame(() => this.selectPreset(selectedPreset));
@@ -968,12 +1135,69 @@ class GalleryManager {
     }
 
     refreshOnShow() {
-        this.refresh();
+        const compact = this.container.classList.contains("ope-openpose-compact");
+        if (this.needsRefresh || this.lastCompact !== compact) {
+            this.refresh();
+            return;
+        }
+        requestAnimationFrame(() => this.startThumbnailObserver());
+    }
+
+    releaseThumbnails() {
+        this.stopThumbnailObserver(true);
     }
 }
 
 export function setupGalleryManager(container, openposeInstance) {
     return new GalleryManager(container, openposeInstance);
+}
+
+function setupGalleryCompactNavigation(container) {
+    const overlay = container?.querySelector(".openpose-gallery-overlay");
+    const buttons = Array.from(overlay?.querySelectorAll("[data-gallery-pane-target]") || []);
+    const panes = Array.from(overlay?.querySelectorAll("[data-gallery-pane]") || []);
+    if (!overlay || buttons.length === 0 || panes.length === 0) {
+        return null;
+    }
+
+    const setPane = (paneName) => {
+        const nextPane = paneName === "preview" ? "preview" : "browse";
+        buttons.forEach((button) => {
+            const active = button.dataset.galleryPaneTarget === nextPane;
+            button.classList.toggle("is-active", active);
+            button.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        panes.forEach((pane) => {
+            pane.classList.toggle("is-active", pane.dataset.galleryPane === nextPane);
+        });
+    };
+
+    buttons.forEach((button) => {
+        if (button.dataset.galleryPaneReady) {
+            return;
+        }
+        button.dataset.galleryPaneReady = "1";
+        button.addEventListener("click", () => setPane(button.dataset.galleryPaneTarget));
+    });
+    if (!overlay.dataset.galleryCompactReady) {
+        overlay.dataset.galleryCompactReady = "1";
+        const showSelectedPreview = (event) => {
+            if (!container.classList.contains("ope-openpose-compact")) {
+                return;
+            }
+            if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") {
+                return;
+            }
+            const item = event.target.closest(".openpose-gallery-item");
+            if (item?._galleryPresetId) {
+                requestAnimationFrame(() => setPane("preview"));
+            }
+        };
+        overlay.addEventListener("click", showSelectedPreview);
+        overlay.addEventListener("keydown", showSelectedPreview);
+    }
+    setPane("browse");
+    return setPane;
 }
 
 function setupGalleryControls(container, openposeInstance, galleryManager) {
@@ -1032,21 +1256,17 @@ function setupGalleryControls(container, openposeInstance, galleryManager) {
     const viewToggle = container.querySelector('[data-action="gallery-toggle-view-mode"]');
     if (viewToggle && !viewToggle.dataset.galleryViewReady) {
         viewToggle.dataset.galleryViewReady = "1";
-        const viewOrder = ["medium", "large", "tiles"];
-        const viewIcons = {
-            medium: "\u{1F5BC}\u{FE0F}",
-            large: "\u{1F5BC}\u{FE0F}",
-            tiles: "\u{1FAAA}"
-        };
+        const viewOrder = ["large", "medium", "small", "tiles"];
+        const viewIcon = "\u{1F5BC}\u{FE0F}";
         const viewLabels = {
             medium: t("gallery.overlay.view.medium"),
             large: t("gallery.view.large"),
+            small: t("gallery.view.small"),
             tiles: t("gallery.view.tiles")
         };
         const updateLabel = () => {
             const mode = galleryManager.viewMode || "medium";
-            const icon = viewIcons[mode] || viewIcons.medium;
-            viewToggle.textContent = `${icon} ${viewLabels[mode] || viewLabels.medium}`;
+            viewToggle.textContent = `${viewIcon} ${viewLabels[mode] || viewLabels.medium}`;
         };
         updateLabel();
         viewToggle.addEventListener("click", () => {
@@ -1087,12 +1307,16 @@ function setupGalleryControls(container, openposeInstance, galleryManager) {
 export function buildGalleryOverlayHtml() {
     return `
     <div class="openpose-overlay openpose-gallery-overlay" data-overlay="gallery">
-        <div class="openpose-sidebar openpose-gallery-sidebar">
+        <div class="openpose-view-tabs openpose-gallery-compact-tabs" role="tablist" aria-label="${t("gallery.label")}">
+            <button class="openpose-view-tab is-active" type="button" role="tab" aria-selected="true" data-gallery-pane-target="browse">${UiIcons.svg('layers', { size: 16, className: 'openpose-ui-icon' })}<span>${t("gallery.label")}</span></button>
+            <button class="openpose-view-tab" type="button" role="tab" aria-selected="false" data-gallery-pane-target="preview">${UiIcons.svg('canvas', { size: 16, className: 'openpose-ui-icon' })}<span>${t("gallery.preview.title")}</span></button>
+        </div>
+        <div class="openpose-sidebar openpose-gallery-sidebar" data-gallery-pane="preview">
             <div class="openpose-sidebar-card">
                 <div class="openpose-preset-preview-frame">
                     <canvas class="openpose-preset-preview openpose-gallery-selected-preview" aria-label="${t("gallery.preview.selected_aria")}"></canvas>
                 </div>
-                <button class="openpose-btn openpose-apply-btn openpose-gallery-insert-btn" data-action="gallery-insert-pose" disabled>${t("gallery.action.insert_pose")}</button>
+                <button class="openpose-btn openpose-primary-btn openpose-primary-action-btn openpose-gallery-insert-btn" type="button" data-action="gallery-insert-pose" disabled>${UiIcons.svg('plus', { size: 16, className: 'openpose-primary-action-icon' })}<span>${t("gallery.action.insert_pose")}</span></button>
                 <div class="openpose-gallery-details">
                     <div class="openpose-gallery-details-empty">${t("gallery.details.select_pose")}</div>
                     <div class="openpose-gallery-details-content" hidden>
@@ -1104,10 +1328,6 @@ export function buildGalleryOverlayHtml() {
                         <div class="openpose-gallery-details-row">
                             <span>${t("gallery.details.location")}</span>
                             <strong class="openpose-gallery-details-path" data-gallery-detail="location"></strong>
-                        </div>
-                        <div class="openpose-gallery-details-row">
-                            <span>${t("gallery.details.format")}</span>
-                            <strong data-gallery-detail="format"></strong>
                         </div>
                         <div class="openpose-gallery-details-row">
                             <span>${t("gallery.details.canvas")}</span>
@@ -1143,7 +1363,7 @@ export function buildGalleryOverlayHtml() {
                 </div>
             </div>
         </div>
-        <div class="openpose-gallery-main">
+        <div class="openpose-gallery-main is-active" data-gallery-pane="browse">
             <div class="openpose-overlay-card openpose-gallery-card">
                 <div class="openpose-overlay-content openpose-gallery-wrapper">
                     <div class="openpose-gallery-header">
@@ -1265,7 +1485,7 @@ export function setupGalleryOverlayStyles(container) {
         ctrl.style.verticalAlign = "middle";
     });
 
-    container.querySelectorAll(".openpose-gallery-main .openpose-btn").forEach((btn) => {
+    container.querySelectorAll(".openpose-gallery-main .openpose-btn:not(.openpose-primary-btn)").forEach((btn) => {
         btn.style.padding = "6px 12px";
         btn.style.border = "1px solid var(--openpose-border)";
         btn.style.borderRadius = "4px";
@@ -1662,14 +1882,15 @@ export function setupGalleryOverlayStyles(container) {
         }
     });
 
-    container.querySelectorAll(".openpose-gallery-item canvas").forEach((canvas) => {
-        canvas.style.width = "100%";
-        canvas.style.height = "100%";
-        canvas.style.borderRadius = "6px";
-        canvas.style.background = "var(--openpose-canvas-bg)";
-        canvas.style.border = "1px solid var(--openpose-canvas-border)";
-        canvas.style.boxShadow = previewShadow;
-        canvas.style.display = "block";
+    container.querySelectorAll(".openpose-gallery-thumbnail").forEach((thumbnail) => {
+        thumbnail.style.width = "100%";
+        thumbnail.style.height = "100%";
+        thumbnail.style.objectFit = "contain";
+        thumbnail.style.borderRadius = "6px";
+        thumbnail.style.background = "var(--openpose-canvas-bg)";
+        thumbnail.style.border = "1px solid var(--openpose-canvas-border)";
+        thumbnail.style.boxShadow = previewShadow;
+        thumbnail.style.display = "block";
     });
 
     container.querySelectorAll(".openpose-gallery-warning").forEach((warning) => {
@@ -1793,6 +2014,11 @@ export function setupGalleryOverlayStyles(container) {
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)) !important;
     gap: 12px !important;
 }
+.openpose-gallery-content.gallery-view--small .openpose-gallery-carousel {
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)) !important;
+    gap: 6px !important;
+    padding: 8px !important;
+}
 .openpose-gallery-content.gallery-view--tiles .openpose-gallery-carousel {
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
     gap: 8px !important;
@@ -1809,7 +2035,7 @@ export function setupGalleryOverlayStyles(container) {
 .openpose-gallery-content.gallery-view--tiles .openpose-gallery-item-title {
     display: none !important;
 }
-.openpose-gallery-content.gallery-view--tiles .openpose-gallery-item canvas {
+.openpose-gallery-content.gallery-view--tiles .openpose-gallery-thumbnail {
     width: 80px !important;
     height: 80px !important;
     flex: 0 0 auto !important;
@@ -1856,6 +2082,14 @@ export function setupGalleryOverlayStyles(container) {
     color: var(--openpose-text) !important;
     outline: none;
 }
+.openpose-gallery-load-more-row {
+    display: flex;
+    justify-content: center;
+    padding: 8px 16px 18px;
+}
+.openpose-gallery-load-more {
+    min-width: 160px;
+}
 `;
         container.appendChild(style);
     }
@@ -1896,7 +2130,8 @@ export const galleryOverlay = {
 
 const galleryState = {
     manager: null,
-    fileMeta: new Map()
+    fileMeta: new Map(),
+    setCompactPane: null
 };
 
 registerModule({
@@ -1908,6 +2143,7 @@ registerModule({
     initUI: (container, openpose) => {
         galleryState.manager = setupGalleryManager(container, openpose);
         galleryOverlay.initUI(container);
+        galleryState.setCompactPane = setupGalleryCompactNavigation(container);
         setupGalleryControls(container, openpose, galleryState.manager);
     },
     onActivate: ({ openpose }) => {
@@ -1919,11 +2155,16 @@ registerModule({
         openpose.setCanvasAreaVisible(true);
         openpose.setSidebarControlsDisabled(true);
         openpose.setBackgroundControlsEnabled(false);
-        galleryState.manager?.refresh();
+        galleryState.setCompactPane?.("browse");
+        galleryState.manager?.refreshOnShow();
+    },
+    onDeactivate: () => {
+        galleryState.manager?.releaseThumbnails();
     },
     onPresetsLoadStart: () => {
         galleryState.fileMeta.clear();
         if (galleryState.manager) {
+            galleryState.manager.markDirty();
             galleryState.manager.collectionFiles.clear();
             galleryState.manager.emptyPoseFiles = [];
             galleryState.manager.renderLoading();
@@ -1973,6 +2214,7 @@ registerModule({
     },
     onPresetsLoaded: (info, context) => {
         galleryState.manager?.clearSelection();
+        galleryState.manager?.markDirty();
         if (context?.manager?.isActive("gallery")) {
             galleryState.manager?.refresh();
         }

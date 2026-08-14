@@ -18,6 +18,7 @@ OpenPose Studio는 간결하고 편리한 인터페이스로 OpenPose 포즈를 
 ## 목차
 
 - ✨ [기능](#기능)
+- 📱 [반응형 모바일 인터페이스](#반응형-모바일-인터페이스)
 - 📦 [설치](#설치)
 - 🎯 [사용법](#사용법)
 - 🖐️ [손 편집](#손-편집)
@@ -72,6 +73,16 @@ OpenPose Studio는 간결하고 편리한 인터페이스로 OpenPose 포즈를 
 - 재시작 간 설정 유지: 갤러리 보기 모드 + 배경 오버레이 설정을 실행 시 복원
 - 네이티브 ComfyUI 통합: 토스트 + 대화상자(안전한 폴백 포함)
 
+## 반응형 모바일 인터페이스
+
+OpenPose Studio는 모바일 브라우저에서 완전한 반응형 레이아웃과 터치 조작을 지원합니다. Editor는 좁은 화면에서도 Canvas를 편리하게 사용할 수 있도록 유지하고, Preset 및 COCO Keypoints 도구를 집중형 보기로 제공하며, 여러 썸네일 밀도를 지원하는 컴팩트한 Gallery를 제공합니다.
+
+<p align="center">
+  <img src="../assets/openpose-studio-mobile-responsive.png" alt="Canvas, Preset, COCO Keypoints 및 Gallery 보기를 보여 주는 OpenPose Studio 반응형 모바일 인터페이스" width="100%" />
+</p>
+
+<p align="center"><sub>Android에서의 Canvas 편집, Preset 컨트롤, 누락된 Keypoints 관리 및 Gallery의 Small Icons 보기.</sub></p>
+
 ---
 
 새 기능 아이디어가 있다면 꼭 들려주세요. 빠르게 구현할 수 있을지도 모릅니다. 피드백, 아이디어 또는 제안은 저장소 Issues 페이지로 제출해 주세요: https://github.com/andreszs/comfyui-openpose-studio/issues
@@ -80,14 +91,33 @@ OpenPose Studio는 간결하고 편리한 인터페이스로 OpenPose 포즈를 
 ## 설치
 
 ### 요구 사항
+
 - ComfyUI (최신 빌드)
 - Python 3.10+
 
-### 단계
+### 옵션 1: 네이티브 Extension Manager(권장)
 
-1. 이 리포지토리를 `ComfyUI/custom_nodes/`에 클론합니다.
-2. ComfyUI를 재시작합니다.
-3. `image > OpenPose Studio` 아래에 노드가 나타나는지 확인합니다.
+1. ComfyUI의 네이티브 **Extension Manager**를 연 다음 **Nodes Manager**를 엽니다.
+2. `openpose-studio`를 검색하고 **OpenPose Studio**를 선택합니다.
+3. **Install**을 클릭하고 설치가 완료되면 ComfyUI를 재시작합니다.
+
+<p align="center">
+  <img src="../assets/openpose-studio-extension-manager-install.png" alt="ComfyUI 네이티브 Extension Manager에서 OpenPose Studio 설치" width="100%" />
+</p>
+
+### 옵션 2: 수동 설치
+
+`ComfyUI/custom_nodes/`에서 터미널을 열고 저장소를 클론합니다.
+
+```bash
+git clone https://github.com/andreszs/comfyui-openpose-studio.git
+```
+
+저장소를 클론한 후 ComfyUI를 재시작합니다.
+
+### 설치 확인
+
+노드 메뉴의 `image > OpenPose Studio` 아래에 **OpenPose Studio**가 표시되는지 확인합니다.
 
 ---
 
@@ -273,9 +303,10 @@ COCO-18은 **18개의 신체 키포인트**를 사용합니다. 포즈는 `pose_
 
 ### 보기 모드
 
-Gallery는 세 가지 표시 모드를 지원합니다:
+Gallery는 네 가지 표시 모드를 지원합니다:
 - **Large** - 빠른 시각적 선택을 위한 큰 미리보기
 - **Medium** - 미리보기 크기와 밀도의 균형
+- **Small** - 좁은 화면과 모바일 레이아웃에 최적화된 고밀도 아이콘 그리드
 - **Tiles** - 추가 메타데이터(예: **캔버스 크기**, **키포인트 개수**, 기타 포즈 상세 정보)를 포함한 컴팩트 그리드
 
 ### 기능

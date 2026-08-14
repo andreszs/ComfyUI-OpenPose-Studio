@@ -18,6 +18,7 @@ OpenPose Studio 是一款高级 ComfyUI 扩展，提供简洁流畅的界面，�
 ## 目录
 
 - ✨ [功能特性](#功能特性)
+- 📱 [响应式移动界面](#响应式移动界面)
 - 📦 [安装](#安装)
 - 🎯 [使用方法](#使用方法)
 - 🖐️ [手部编辑](#手部编辑)
@@ -72,6 +73,16 @@ OpenPose Studio 是一款高级 ComfyUI 扩展，提供简洁流畅的界面，�
 - 重启后持久化：启动时恢复图库视图模式与背景叠加设置
 - 原生 ComfyUI 集成：toasts + dialogs（含安全回退）
 
+## 响应式移动界面
+
+OpenPose Studio 在移动浏览器中提供完全响应式且触控友好的界面。Editor 可在窄屏上保持 Canvas 易于使用，将 Preset 和 COCO Keypoints 工具显示为独立视图，并提供支持多种缩略图密度的紧凑 Gallery。
+
+<p align="center">
+  <img src="../assets/openpose-studio-mobile-responsive.png" alt="展示 Canvas、Preset、COCO Keypoints 和 Gallery 视图的 OpenPose Studio 响应式移动界面" width="100%" />
+</p>
+
+<p align="center"><sub>Android 上的 Canvas 编辑、Preset 控件、缺失 Keypoints 管理以及 Gallery 的 Small Icons 视图。</sub></p>
+
 ---
 
 如果你有新功能想法，我很愿意听取，我们可能可以很快实现。请通过仓库 Issues 页面提交反馈、想法或建议：https://github.com/andreszs/comfyui-openpose-studio/issues
@@ -80,14 +91,33 @@ OpenPose Studio 是一款高级 ComfyUI 扩展，提供简洁流畅的界面，�
 ## 安装
 
 ### 要求
+
 - ComfyUI（最新构建）
 - Python 3.10+
 
-### 步骤
+### 选项 1：原生 Extension Manager（推荐）
 
-1. 将此仓库克隆到 `ComfyUI/custom_nodes/`。
-2. 重启 ComfyUI。
-3. 确认节点出现在 `image > OpenPose Studio` 下。
+1. 打开 ComfyUI 原生 **Extension Manager**，然后打开 **Nodes Manager**。
+2. 搜索 `openpose-studio` 并选择 **OpenPose Studio**。
+3. 点击 **Install**，安装完成后重启 ComfyUI。
+
+<p align="center">
+  <img src="../assets/openpose-studio-extension-manager-install.png" alt="通过 ComfyUI 原生 Extension Manager 安装 OpenPose Studio" width="100%" />
+</p>
+
+### 选项 2：手动安装
+
+在 `ComfyUI/custom_nodes/` 中打开终端并克隆仓库：
+
+```bash
+git clone https://github.com/andreszs/comfyui-openpose-studio.git
+```
+
+克隆仓库后重启 ComfyUI。
+
+### 验证安装
+
+确认节点菜单的 `image > OpenPose Studio` 下显示 **OpenPose Studio**。
 
 ---
 
@@ -273,9 +303,10 @@ Keypoint 顺序（索引 → 名称）：
 
 ### 视图模式
 
-Gallery 支持三种显示模式：
+Gallery 支持四种显示模式：
 - **Large** - 更大的预览，便于快速视觉选择
 - **Medium** - 预览大小与密度的平衡
+- **Small** - 针对窄屏和移动布局优化的高密度图标网格
 - **Tiles** - 紧凑网格，显示额外元数据（例如 **canvas size**、**keypoint counts** 及其他姿态详情）
 
 ### 功能

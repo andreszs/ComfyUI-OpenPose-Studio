@@ -1665,128 +1665,33 @@ export function injectGlobalAlertStyles() {
 }
 
 // ============================================================================
-// Donation Footer (shared by Pose Editor and Pose Merger sidebars)
+// Support link (shared by Pose Editor and Pose Merger sidebars)
 // ============================================================================
 
-const DONATE_KOFI_URL = "https://ko-fi.com/D1D716OLPM";
-const DONATE_PAYPAL_URL = "https://www.paypal.com/ncp/payment/GEEM324PDD9NC";
-const DONATE_USDC_ADDRESS = "0xe36a336fC6cc9Daae657b4A380dA492AB9601e73";
-const DONATION_HEARTS = ["❤️", "🧡", "💛", "💚", "💙", "💜"];
-const DONATION_HEART_MIN_DELAY = 30000;
-const DONATION_HEART_MAX_DELAY = 60000;
-const lastDonationHeart = { editor: null, merger: null };
-
-function getRandomDonationHeart(currentHeart) {
-  const choices = DONATION_HEARTS.filter((heart) => heart !== currentHeart);
-  return choices[Math.floor(Math.random() * choices.length)];
-}
-
 /**
- * Returns the donation footer HTML (support text + 3 buttons).
+ * Returns the support link shown in editor sidebars.
  * Drop this inside any sidebar card; call applyDonationFooterStyles() after.
  */
 export function buildDonationFooterHtml() {
   return `
     <div class="openpose-donation-footer">
-      <div class="openpose-donation-footer-text"><span class="openpose-donation-heart" aria-hidden="true">💙</span> ${t("pose_editor.support.text")}</div>
-      <div class="openpose-donation-footer-btns">
-        <button class="openpose-btn openpose-support-btn" type="button" data-url="${DONATE_KOFI_URL}" title="${t("pose_editor.support.tooltip.kofi")}">Ko-fi</button>
-        <button class="openpose-btn openpose-support-btn" type="button" data-url="${DONATE_PAYPAL_URL}" title="${t("pose_editor.support.tooltip.paypal")}">PayPal</button>
-        <button class="openpose-btn openpose-support-btn" type="button" data-action="usdc" title="${t("pose_editor.support.tooltip.usdc")}">USDC</button>
-      </div>
+      <button class="openpose-donation-footer-text" type="button" data-action="open-about"><span class="openpose-donation-heart" aria-hidden="true">💙</span> ${t("pose_editor.support.text")}</button>
     </div>`;
 }
 
 /**
- * Apply styles + wire click/hover handlers for every .openpose-donation-footer
+ * Apply styles and wire every support link inside `container`.
  * found inside `container`.  Safe to call repeatedly (guards via dataset flags).
  */
-export function applyDonationFooterStyles(container) {
+export function applyDonationFooterStyles(container, onOpenAbout) {
   if (!container) return;
 
   container.querySelectorAll(".openpose-donation-footer").forEach((footer) => {
     footer.classList.add("openpose-donation-footer-styled");
-
-    const heart = footer.querySelector(".openpose-donation-heart");
-    if (heart && !heart.dataset.colorChangeReady) {
-      heart.dataset.colorChangeReady = "1";
-      const location = footer.closest(".openpose-merge-sidebar-card") ? "merger" : "editor";
-      heart.textContent = getRandomDonationHeart(lastDonationHeart[location]);
-      lastDonationHeart[location] = heart.textContent;
-      const scheduleColorChange = () => {
-        const delay = DONATION_HEART_MIN_DELAY + Math.random() * (DONATION_HEART_MAX_DELAY - DONATION_HEART_MIN_DELAY);
-        window.setTimeout(() => {
-          if (!footer.isConnected) return;
-          heart.textContent = getRandomDonationHeart(heart.textContent);
-          lastDonationHeart[location] = heart.textContent;
-          scheduleColorChange();
-        }, delay);
-      };
-      scheduleColorChange();
+    const link = footer.querySelector('[data-action="open-about"]');
+    if (link && !link.dataset.clickReady && typeof onOpenAbout === "function") {
+      link.dataset.clickReady = "1";
+      link.addEventListener("click", onOpenAbout);
     }
-
-    footer.querySelectorAll(".openpose-support-btn").forEach((btn) => {
-      if (!btn) return;
-      const btnUrl = btn.dataset.url || "";
-      const btnAction = btn.dataset.action || "";
-      const isKofi = btnUrl.includes("ko-fi");
-      const isPaypal = btnUrl.includes("paypal");
-      const isUsdc = btnAction === "usdc";
-      const accentColor = isKofi ? "#FF5E5B" : isPaypal ? "#009CDE" : isUsdc ? "#D4A017" : null;
-      const wipeColor = isKofi ? "rgba(255, 94, 91, 0.18)"
-        : isPaypal ? "rgba(0, 156, 222, 0.18)"
-        : isUsdc ? "rgba(212, 160, 23, 0.18)"
-        : null;
-      btn.classList.add("openpose-donate-btn", "openpose-donate-btn-base");
-      if (isKofi) btn.classList.add("openpose-donate-btn-kofi");
-      if (isPaypal) btn.classList.add("openpose-donate-btn-paypal");
-      if (isUsdc) btn.classList.add("openpose-donate-btn-usdc");
-      if (accentColor) {
-        btn.style.setProperty("--donate-accent", wipeColor);
-      }
-
-      if (!btn.dataset.clickReady) {
-        btn.dataset.clickReady = "1";
-        if (isUsdc) {
-          btn.addEventListener("click", async () => {
-            const confirmed = await showConfirm(
-              t("about.usdc.confirm.title"),
-              t("about.usdc.confirm.message"),
-            );
-            if (!confirmed) return;
-            if (!DONATE_USDC_ADDRESS) {
-              showToast("warn", t("about.usdc.toast_title"), t("about.usdc.not_found"));
-              return;
-            }
-            try {
-              if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-                await navigator.clipboard.writeText(DONATE_USDC_ADDRESS);
-              } else {
-                const textarea = document.createElement("textarea");
-                textarea.value = DONATE_USDC_ADDRESS;
-                textarea.setAttribute("readonly", "true");
-                textarea.style.position = "absolute";
-                textarea.style.left = "-9999px";
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand("copy");
-                document.body.removeChild(textarea);
-              }
-              showToast("info", t("about.usdc.copied.title"), t("about.usdc.copied.body"));
-            } catch (err) {
-              console.error("[OpenPose Studio] Failed to copy USDC address:", err);
-              showToast("error", t("about.usdc.toast_title"), t("about.usdc.copy_failed"));
-            }
-          });
-        } else {
-          const url = btn.dataset.url;
-          if (url) {
-            btn.addEventListener("click", () => {
-              window.open(url, "_blank", "noopener,noreferrer");
-            });
-          }
-        }
-      }
-    });
   });
 }

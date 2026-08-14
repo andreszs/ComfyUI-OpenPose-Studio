@@ -1,6 +1,7 @@
 import { initI18n, t, onLangChange } from "./i18n.js";
 
 const registry = [];
+const MOBILE_MORE_MODULE_IDS = new Set(["merge", "guide", "about"]);
 
 function setupOverlays(container, canvasWrapperEl) {
     const overlays = Array.from(container.querySelectorAll(".openpose-overlay"));
@@ -242,6 +243,7 @@ export function createModuleManager(container, openpose) {
             return;
         }
         tabHost.innerHTML = "";
+        container.querySelector(".openpose-mobile-more-menu")?.remove();
         state.modules.forEach((mod) => {
             if (!mod.labelKey) {
                 return;
@@ -254,6 +256,70 @@ export function createModuleManager(container, openpose) {
                 button.title = mod.title;
             }
             tabHost.appendChild(button);
+        });
+
+        const moreButton = document.createElement("button");
+        moreButton.className = "openpose-tab openpose-mobile-more-tab";
+        moreButton.type = "button";
+        moreButton.textContent = t("pose_editor.tab.more");
+        moreButton.setAttribute("aria-haspopup", "menu");
+        moreButton.setAttribute("aria-expanded", "false");
+        tabHost.appendChild(moreButton);
+
+        const menu = document.createElement("div");
+        menu.className = "openpose-mobile-more-menu";
+        menu.setAttribute("role", "menu");
+        menu.hidden = true;
+        state.modules.forEach((mod) => {
+            if (!mod.labelKey || !MOBILE_MORE_MODULE_IDS.has(mod.id)) {
+                return;
+            }
+            const item = document.createElement("button");
+            item.className = "openpose-mobile-more-item";
+            item.type = "button";
+            item.dataset.tab = mod.id;
+            item.setAttribute("role", "menuitem");
+            item.textContent = t(mod.labelKey);
+            item.addEventListener("click", () => {
+                menu.hidden = true;
+                moreButton.setAttribute("aria-expanded", "false");
+                openpose.setActiveTab(mod.id);
+            });
+            menu.appendChild(item);
+        });
+        container.querySelector(".openpose-tab-bar")?.appendChild(menu);
+
+        moreButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const opening = menu.hidden;
+            menu.hidden = !opening;
+            moreButton.setAttribute("aria-expanded", opening ? "true" : "false");
+            if (opening) {
+                const tabBar = container.querySelector(".openpose-tab-bar");
+                const tabBarRect = tabBar?.getBoundingClientRect();
+                const buttonRect = moreButton.getBoundingClientRect();
+                if (tabBar && tabBarRect) {
+                    const desiredLeft = buttonRect.left - tabBarRect.left;
+                    const maxLeft = Math.max(0, tabBar.clientWidth - menu.offsetWidth);
+                    menu.style.left = `${Math.min(Math.max(0, desiredLeft), maxLeft)}px`;
+                }
+            }
+        });
+        menu.addEventListener("click", (event) => event.stopPropagation());
+        if (!container.dataset.mobileMoreDismissReady) {
+            container.dataset.mobileMoreDismissReady = "1";
+            container.addEventListener("click", () => {
+                const currentMenu = container.querySelector(".openpose-mobile-more-menu");
+                const currentButton = container.querySelector(".openpose-mobile-more-tab");
+                if (currentMenu) currentMenu.hidden = true;
+                currentButton?.setAttribute("aria-expanded", "false");
+            });
+        }
+
+        const moreActive = MOBILE_MORE_MODULE_IDS.has(openpose.activeTab);
+        moreButton.classList.toggle("is-active", moreActive);
+        menu.querySelectorAll("[data-tab]").forEach((item) => {
+            item.classList.toggle("is-active", item.dataset.tab === openpose.activeTab);
         });
     }
 

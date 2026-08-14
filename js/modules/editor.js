@@ -121,25 +121,6 @@ function ensureOpenPoseInjectedStyles() {
 			line-height: 1.25;
 		}
 
-		/* Donate-button wipe fill (left-to-right on hover) */
-		.openpose-donate-btn {
-			position: relative;
-			overflow: hidden;
-		}
-		.openpose-donate-btn::before {
-			content: "";
-			position: absolute;
-			inset: 0;
-			background: var(--donate-accent, rgba(255,255,255,0.10));
-			transform: scaleX(0);
-			transform-origin: left;
-			transition: transform 0.22s ease;
-			z-index: 0;
-			pointer-events: none;
-		}
-		.openpose-donate-btn:hover::before {
-			transform: scaleX(1);
-		}
 	`;
 	document.head.appendChild(style);
 }
@@ -206,10 +187,10 @@ function createKeypointRemoveControl() {
 	control.style.background = "transparent";
 	control.style.padding = "0";
 	control.style.margin = "0";
-	control.style.width = "16px";
-	control.style.minWidth = "16px";
-	control.style.height = "16px";
-	control.style.minHeight = "16px";
+	control.style.width = "28px";
+	control.style.minWidth = "28px";
+	control.style.height = "28px";
+	control.style.minHeight = "28px";
 	control.style.display = "inline-flex";
 	control.style.alignItems = "center";
 	control.style.justifyContent = "center";
@@ -415,6 +396,167 @@ export function isAnyKeypointOutOfBounds(poses, canvasWidth, canvasHeight) {
 }
 
 export const poseEditorCanvasWorkflow = {
+	setupMissingInsertHandle(handle, item, insert, label) {
+		if (!handle || !item || !insert) {
+			return;
+		}
+		handle.classList.add("openpose-keypoint-insert-handle");
+		handle.title = label;
+		handle.setAttribute("aria-label", label);
+		handle.setAttribute("role", "button");
+		handle.setAttribute("draggable", "true");
+		handle.addEventListener("pointerdown", (event) => {
+			if (event.pointerType !== "mouse") {
+				this.beginPointerInsertDrag(event, handle, item, insert, label);
+			}
+		});
+		handle.addEventListener("dragstart", (event) => {
+			if (!event.dataTransfer) {
+				event.preventDefault();
+				return;
+			}
+			item.classList.add("is-pointer-dragging");
+			if (insert.type === "hand") {
+				event.dataTransfer.setData(MISSING_HAND_DRAG_TYPE, insert.side);
+				this._draggingMissingHand = true;
+				this.renderer?.setHandInsertPreviewSide?.(insert.side);
+			} else {
+				event.dataTransfer.setData(MISSING_KEYPOINT_DRAG_TYPE, `${insert.keypointId}`);
+				this._draggingMissingKeypoint = true;
+			}
+			event.dataTransfer.setData("text/plain", label);
+			event.dataTransfer.effectAllowed = "copy";
+		});
+		handle.addEventListener("dragend", () => {
+			item.classList.remove("is-pointer-dragging");
+			this._draggingMissingKeypoint = false;
+			this._draggingMissingHand = false;
+			this.renderer?.setHandInsertPreviewSide?.(null);
+		});
+	},
+
+	beginPointerInsertDrag(event, handle, item, insert, label) {
+		if (event.isPrimary === false || event.button !== 0) {
+			return;
+		}
+		this._cancelPointerInsertDrag?.("replaced");
+		event.preventDefault();
+		event.stopPropagation();
+
+		const pointerId = event.pointerId;
+		const startX = event.clientX;
+		const startY = event.clientY;
+		let dragging = false;
+		let overCanvas = false;
+		let dragFeedback = null;
+
+		const updateDragFeedback = (pointerEvent) => {
+			if (!dragFeedback) {
+				dragFeedback = document.createElement("div");
+				dragFeedback.className = "openpose-pointer-drag-feedback";
+				const swatch = item.querySelector(".openpose-coco-color-swatch")?.cloneNode(true);
+				if (swatch) {
+					dragFeedback.appendChild(swatch);
+				}
+				const text = document.createElement("span");
+				text.textContent = label || handle.getAttribute("aria-label") || "Keypoint";
+				dragFeedback.appendChild(text);
+				const add = document.createElement("span");
+				add.className = "openpose-pointer-drag-feedback-add";
+				add.textContent = "+";
+				dragFeedback.appendChild(add);
+				document.body.appendChild(dragFeedback);
+			}
+			dragFeedback.classList.toggle("is-over-canvas", overCanvas);
+			dragFeedback.style.transform = `translate3d(${pointerEvent.clientX + 14}px, ${pointerEvent.clientY - 52}px, 0)`;
+		};
+
+		const isOverCanvas = (pointerEvent) => {
+			const rect = this.canvasElem?.getBoundingClientRect();
+			return !!rect && rect.width > 0 && rect.height > 0
+				&& pointerEvent.clientX >= rect.left && pointerEvent.clientX <= rect.right
+				&& pointerEvent.clientY >= rect.top && pointerEvent.clientY <= rect.bottom;
+		};
+
+		const updatePointer = (pointerEvent) => {
+			if (pointerEvent.pointerId !== pointerId) {
+				return;
+			}
+			if (!dragging && Math.hypot(pointerEvent.clientX - startX, pointerEvent.clientY - startY) >= 6) {
+				dragging = true;
+				item.classList.add("is-pointer-dragging");
+				if (insert.type === "hand") {
+					this._draggingMissingHand = true;
+					this.renderer?.setHandInsertPreviewSide?.(insert.side);
+				} else {
+					this._draggingMissingKeypoint = true;
+				}
+				updateDragFeedback(pointerEvent);
+			}
+			if (!dragging) {
+				return;
+			}
+			pointerEvent.preventDefault();
+			overCanvas = isOverCanvas(pointerEvent);
+			this._dragOverCanvas = overCanvas;
+			this._setCanvasDropHighlight?.(overCanvas, pointerEvent, "pointer-drag");
+			updateDragFeedback(pointerEvent);
+			if (insert.type === "hand") {
+				this.renderer?.setHandInsertPreviewPointer?.(
+					overCanvas ? this.renderer.screenToLogical(pointerEvent.clientX, pointerEvent.clientY) : null
+				);
+			}
+		};
+
+		const cleanup = (reason = "pointer-drag-end") => {
+			window.removeEventListener("pointermove", updatePointer, true);
+			window.removeEventListener("pointerup", finishPointer, true);
+			window.removeEventListener("pointercancel", cancelPointer, true);
+			item.classList.remove("is-pointer-dragging");
+			this._draggingMissingKeypoint = false;
+			this._draggingMissingHand = false;
+			this._dragOverCanvas = false;
+			this.renderer?.setHandInsertPreviewSide?.(null);
+			this.renderer?.setHandInsertPreviewPointer?.(null);
+			dragFeedback?.remove();
+			dragFeedback = null;
+			this._pointerInsertDrag = null;
+			this._cancelPointerInsertDrag = null;
+			this._forceClearCanvasDropHighlight?.(reason);
+		};
+
+		const finishPointer = (pointerEvent) => {
+			if (pointerEvent.pointerId !== pointerId) {
+				return;
+			}
+			pointerEvent.preventDefault();
+			pointerEvent.stopPropagation();
+			overCanvas = dragging && isOverCanvas(pointerEvent);
+			cleanup(overCanvas ? "pointer-drop" : "pointer-drag-end");
+			if (overCanvas) {
+				if (insert.type === "hand") {
+					void this.placeMissingHandAt(insert.side, pointerEvent.clientX, pointerEvent.clientY);
+				} else {
+					this.placeMissingKeypointAt(insert.keypointId, pointerEvent.clientX, pointerEvent.clientY);
+				}
+			} else if (!dragging) {
+				this.beginCanvasInsert?.(insert);
+			}
+		};
+
+		const cancelPointer = (pointerEvent) => {
+			if (pointerEvent.pointerId === pointerId) {
+				cleanup("pointer-drag-cancel");
+			}
+		};
+
+		this._pointerInsertDrag = { pointerId, handle, insert };
+		this._cancelPointerInsertDrag = cleanup;
+		window.addEventListener("pointermove", updatePointer, true);
+		window.addEventListener("pointerup", finishPointer, true);
+		window.addEventListener("pointercancel", cancelPointer, true);
+	},
+
 	setupEditorControls(container) {
 		this.fileInput = container.querySelector(".openpose-file-input");
 		this.fileInput.addEventListener("change", this.onLoad.bind(this));
@@ -424,7 +566,18 @@ export const poseEditorCanvasWorkflow = {
 			const presetId = this.presetSelect ? this.presetSelect.value : null;
 			this.addPresetToCanvas(presetId);
 		});
-		container.querySelector('[data-action="remove"]').addEventListener("click", () => {
+		container.querySelector('[data-action="remove"]').addEventListener("click", async () => {
+			const selectedIndex = this.renderer.getSelectedPoseIndex();
+			if (selectedIndex < 0) {
+				return;
+			}
+			const confirmed = await showConfirm(
+				t("pose_editor.confirm.remove_pose.title"),
+				t("pose_editor.confirm.remove_pose.body", { number: selectedIndex + 1 }),
+			);
+			if (!confirmed) {
+				return;
+			}
 			this.removePose();
 			this.recordHistory();
 			this.saveToNode();
@@ -432,8 +585,8 @@ export const poseEditorCanvasWorkflow = {
 		});
 		container.querySelector('[data-action="reset"]').addEventListener("click", async () => {
 			const confirmed = await showConfirm(
-				"Clear all poses?",
-				"This cannot be undone.",
+				t("pose_editor.confirm.clear_all.title"),
+				t("pose_editor.confirm.clear_all.body"),
 			);
 			if (!confirmed) {
 				return;
@@ -457,11 +610,10 @@ export const poseEditorCanvasWorkflow = {
 		});
 		container.querySelector('[data-action="save"]').addEventListener("click", () => this.save());
 		container.querySelector('[data-action="load"]').addEventListener("click", () => this.load());
-		const undoActionBtn = container.querySelector('[data-action="undo"]');
-		if (undoActionBtn) {
-			undoActionBtn.addEventListener("click", () => this.undo());
-			this.undoButton = undoActionBtn;
-		}
+		this.undoButtons = Array.from(container.querySelectorAll('[data-action="undo"]'));
+		this.undoButtons.forEach((button) => {
+			button.addEventListener("click", () => this.undo());
+		});
 		container.querySelector('[data-action="ok"]').addEventListener("click", () => this.confirmAndClose());
 		container.querySelector('[data-action="preset-prev"]').addEventListener("click", () => {
 			this.stepPreset(-1);
@@ -481,11 +633,6 @@ export const poseEditorCanvasWorkflow = {
 			});
 		};
 		this.bindPresetReloadButtons(container);
-		const cancelActionBtn = container.querySelector('[data-action="cancel"]');
-		if (cancelActionBtn) {
-			cancelActionBtn.addEventListener("click", () => this.requestClose());
-		}
-
 		// Background controls
 		this.bgFileInput = container.querySelector(".openpose-bg-file-input");
 		this.bgModeSelect = container.querySelector(".openpose-bg-mode-select");
@@ -832,25 +979,19 @@ export const poseEditorCanvasWorkflow = {
 		// Show success feedback only if not silent
 		if (!silent) {
 			const fmtName = detectedFormat && detectedFormat.displayName ? detectedFormat.displayName : "Pose";
-			const hasExtras = (Array.isArray(faceKeypoints) && faceKeypoints.length > 0) ||
-				(Array.isArray(handLeftKeypoints) && handLeftKeypoints.length > 0) ||
-				(Array.isArray(handRightKeypoints) && handRightKeypoints.length > 0);
-			const msg = hasExtras 
-			? t("toast.pose_added_with_note", { formatName: fmtName })
-			: t("toast.pose_added", { formatName: fmtName });
-		showToast("success", "Pose Editor", msg);
-	}
-	if (!silent && adjustedKeypointCount > 0) {
-		const messageKey = adjustedKeypointCount === 1
-			? "toast.keypoint_auto_adjusted"
-			: "toast.keypoints_auto_adjusted";
-		showToast(
-			"warn",
-			"OpenPose Studio",
-			t(messageKey, { count: adjustedKeypointCount }),
-			6000
-		);
-	}
+			showToast("success", "Pose Editor", t("toast.pose_added", { formatName: fmtName }));
+		}
+		if (!silent && adjustedKeypointCount > 0) {
+			const messageKey = adjustedKeypointCount === 1
+				? "toast.keypoint_auto_adjusted"
+				: "toast.keypoints_auto_adjusted";
+			showToast(
+				"warn",
+				"OpenPose Studio",
+				t(messageKey, { count: adjustedKeypointCount }),
+				6000
+			);
+		}
 },
 
 addPose(keypoints = undefined, faceKeypoints = null, handLeftKeypoints = null, handRightKeypoints = null, formatId = null) {
@@ -1074,8 +1215,10 @@ export const poseEditorSubsystemWorkflow = {
 			const statusIcon = createKeypointStatusIcon(isPresent ? "present" : (isEditable ? "missing" : "disabled"));
 
 			const rightContent = document.createElement("div");
-			rightContent.className = "openpose-hand-keypoint-controls";
-			rightContent.appendChild(statusIcon);
+			rightContent.className = "openpose-hand-keypoint-controls openpose-keypoint-row-controls";
+			if (!isPresent || !isEditable) {
+				rightContent.appendChild(statusIcon);
+			}
 
 			if (isPresent && isEditable) {
 				const removeControl = createKeypointRemoveControl();
@@ -1101,22 +1244,12 @@ export const poseEditorSubsystemWorkflow = {
 					this.renderer?.setHoveredHandEditKeypointId?.(null);
 				});
 			} else if (!isPresent && isEditable) {
-				item.setAttribute("draggable", "true");
-				item.addEventListener("dragstart", (event) => {
-					if (!event.dataTransfer) {
-						event.preventDefault();
-						return;
-					}
-					item.style.cursor = "grabbing";
-					event.dataTransfer.setData(MISSING_KEYPOINT_DRAG_TYPE, `${keypointId}`);
-					event.dataTransfer.setData("text/plain", keypointLabel);
-					event.dataTransfer.effectAllowed = "copy";
-					this._draggingMissingKeypoint = true;
-				});
-				item.addEventListener("dragend", () => {
-					item.style.cursor = "grab";
-					this._draggingMissingKeypoint = false;
-				});
+				this.setupMissingInsertHandle(
+					statusIcon,
+					item,
+					{ type: "keypoint", keypointId },
+					keypointLabel,
+				);
 			}
 			this.cocoKeypointsList.appendChild(item);
 		}
@@ -1147,7 +1280,7 @@ export const poseEditorSubsystemWorkflow = {
 			? this.cocoKeypointsList.closest(".openpose-coco-keypoints-card")
 			: null;
 		if (donationRoot) {
-			applyDonationFooterStyles(donationRoot);
+			applyDonationFooterStyles(donationRoot, () => this.setActiveTab("about"));
 		}
 		const handEditMode = this.renderer?.getHandEditModeInfo?.();
 		if (handEditMode) {
@@ -1529,14 +1662,17 @@ ${tabsSectionHtml}
 			);
 
 			const rightContent = document.createElement("div");
+			rightContent.className = "openpose-keypoint-row-controls";
 			rightContent.style.display = "flex";
 			rightContent.style.alignItems = "center";
 			rightContent.style.gap = "4px";
 			rightContent.style.flexShrink = "0";
 			rightContent.style.width = "36px";
 			rightContent.style.minWidth = "36px";
-			rightContent.style.justifyContent = "flex-end";
-			rightContent.appendChild(statusIcon);
+			rightContent.style.justifyContent = "center";
+			if (!isPresent || !canEdit) {
+				rightContent.appendChild(statusIcon);
+			}
 
 			if (isPresent && canEdit) {
 				const removeControl = createRemoveControl();
@@ -1593,23 +1729,12 @@ ${tabsSectionHtml}
 					this.refreshCocoKeypointRowStyles();
 				});
 			} else if (isMissing && canEdit) {
-				item.style.cursor = "grab";
-				item.setAttribute("draggable", "true");
-				item.addEventListener("dragstart", (event) => {
-					if (!event.dataTransfer) {
-						event.preventDefault();
-						return;
-					}
-					item.style.cursor = "grabbing";
-					event.dataTransfer.setData(MISSING_KEYPOINT_DRAG_TYPE, `${keypointId}`);
-					event.dataTransfer.setData("text/plain", keypointLabel);
-					event.dataTransfer.effectAllowed = "copy";
-					this._draggingMissingKeypoint = true;
-				});
-				item.addEventListener("dragend", () => {
-					item.style.cursor = "grab";
-					this._draggingMissingKeypoint = false;
-				});
+				this.setupMissingInsertHandle(
+					statusIcon,
+					item,
+					{ type: "keypoint", keypointId },
+					keypointLabel,
+				);
 			} else {
 				item.style.cursor = "default";
 				item.style.opacity = "0.6";
@@ -1709,6 +1834,7 @@ ${tabsSectionHtml}
 			leftContent.appendChild(name);
 
 			const rightContent = document.createElement("div");
+			rightContent.className = "openpose-keypoint-row-controls";
 			rightContent.style.display = "flex";
 			rightContent.style.alignItems = "center";
 			rightContent.style.gap = "4px";
@@ -1717,10 +1843,11 @@ ${tabsSectionHtml}
 			rightContent.style.minWidth = onEdit ? "56px" : "36px";
 			rightContent.style.height = "20px";
 			rightContent.style.minHeight = "20px";
-			rightContent.style.justifyContent = "flex-end";
+			rightContent.style.justifyContent = "center";
 
-			if (missing) {
-				rightContent.appendChild(createKeypointStatusIcon("missing"));
+			const insertHandle = missing ? createKeypointStatusIcon("missing") : null;
+			if (insertHandle) {
+				rightContent.appendChild(insertHandle);
 			}
 
 			if (onEdit) {
@@ -1778,25 +1905,12 @@ ${tabsSectionHtml}
 			item.appendChild(rightContent);
 
 			if (missing && side) {
-				item.style.cursor = "grab";
-				item.setAttribute("draggable", "true");
-				item.addEventListener("dragstart", (event) => {
-					if (!event.dataTransfer) {
-						event.preventDefault();
-						return;
-					}
-					item.style.cursor = "grabbing";
-					event.dataTransfer.setData(MISSING_HAND_DRAG_TYPE, side);
-					event.dataTransfer.setData("text/plain", label);
-					event.dataTransfer.effectAllowed = "copy";
-					this._draggingMissingHand = true;
-					this.renderer?.setHandInsertPreviewSide?.(side);
-				});
-				item.addEventListener("dragend", () => {
-					item.style.cursor = "grab";
-					this._draggingMissingHand = false;
-					this.renderer?.setHandInsertPreviewSide?.(null);
-				});
+				this.setupMissingInsertHandle(
+					insertHandle,
+					item,
+					{ type: "hand", side },
+					label,
+				);
 			}
 
 			this.cocoKeypointsList.appendChild(item);
@@ -2126,16 +2240,13 @@ ${tabsSectionHtml}
 	},
 
 	updateUndoButton() {
-		if (!this.undoButton) {
+		if (!this.undoButtons?.length) {
 			return;
 		}
 		const enabled = this.undo_history.length > 1;
-		this.undoButton.disabled = !enabled;
-		this.undoButton.style.opacity = enabled ? "1" : "0.5";
-		this.undoButton.style.cursor = enabled ? "pointer" : "not-allowed";
-		this.undoButton.style.background = enabled
-			? "var(--openpose-btn-bg)"
-			: "var(--openpose-btn-disabled-bg)";
+		this.undoButtons.forEach((button) => {
+			button.disabled = !enabled;
+		});
 	},
 
 	undo() {
@@ -2474,13 +2585,7 @@ ${tabsSectionHtml}
 		// Show success feedback only if not silent
 		if (!silent) {
 			const fmtName = detectedFormat && detectedFormat.displayName ? detectedFormat.displayName : "Pose";
-			const hasExtras = (Array.isArray(faceKeypoints) && faceKeypoints.length > 0) ||
-				(Array.isArray(handLeftKeypoints) && handLeftKeypoints.length > 0) ||
-				(Array.isArray(handRightKeypoints) && handRightKeypoints.length > 0);
-			const msg = hasExtras 
-				? t("toast.pose_added_with_note", { formatName: fmtName })
-				: t("toast.pose_added", { formatName: fmtName });
-			showToast("success", "Pose Editor", msg);
+			showToast("success", "Pose Editor", t("toast.pose_added", { formatName: fmtName }));
 		}
 		return null;
 	},
@@ -3303,20 +3408,28 @@ export const poseEditorPresetWorkflow = {
 function buildPoseEditorOverlayHtml() {
 	return `
 <div class="openpose-tab-bar ope-openpose-shell-tabs-row ope-openpose-modal-titlebar ope-openpose-modal-tabs">
-	<div class="openpose-tab-scroll-area ope-openpose-shell-header-left">
-        <button class="openpose-tab is-active" data-tab="editor">${t("pose_editor.tab.editor")}</button>
-        <div class="openpose-tab-modules" data-module-slot="tabs"></div>
-    </div>
+	<div class="openpose-tab-scroll-shell">
+		<div class="openpose-tab-scroll-area ope-openpose-shell-header-left">
+            <button class="openpose-tab is-active" data-tab="editor">${t("pose_editor.tab.editor")}</button>
+            <div class="openpose-tab-modules" data-module-slot="tabs"></div>
+        </div>
+	</div>
 	<div class="ope-openpose-shell-drag-handle ope-openpose-modal-drag-handle" data-role="drag-handle" aria-hidden="true"></div>
 	<div class="openpose-tab-controls ope-openpose-shell-header-right ope-openpose-modal-controls">
 		<button class="openpose-update-badge" type="button" hidden></button>
-		<button class="openpose-tab-contribute" data-action="open-about" title="Open About">${t("pose_editor.tab.contribute")} 💙</button>
+		<button class="openpose-tab-contribute" data-action="open-about" title="${t("pose_editor.tab.contribute")}" aria-label="${t("pose_editor.tab.contribute")}"><span class="openpose-contribute-label">${t("pose_editor.tab.contribute")}</span><span class="openpose-contribute-icon" aria-hidden="true">💙</span></button>
         <button class="openpose-tab-maximize" data-action="toggle-maximize"></button>
         <button class="openpose-tab-close" data-action="close-editor">\u{2716}\u{FE0F}</button>
     </div>
 </div>
+<div class="openpose-view-tabs openpose-editor-compact-tabs" role="tablist" aria-label="${t("pose_editor.tab.editor")}">
+	<button class="openpose-view-tab is-active" type="button" role="tab" aria-selected="true" data-editor-pane-target="canvas" title="${t("gallery.details.canvas")}">${UiIcons.svg('canvas', { size: 16, className: 'openpose-ui-icon' })}<span>${t("gallery.details.canvas")}</span></button>
+	<button class="openpose-view-tab" type="button" role="tab" aria-selected="false" data-editor-pane-target="pose" title="${t("pose_editor.label.preset")}">${UiIcons.svg('sliders', { size: 16, className: 'openpose-ui-icon' })}<span>${t("pose_editor.label.preset")}</span></button>
+	<button class="openpose-view-tab" type="button" role="tab" aria-selected="false" data-editor-pane-target="keypoints" title="${t("pose_editor.keypoints.label")}">${UiIcons.svg('layers', { size: 16, className: 'openpose-ui-icon' })}<span>${t("pose_editor.keypoints.label")}</span></button>
+</div>
 <div class="openpose-main ope-openpose-shell-main">
-    <div class="openpose-sidebar">
+	<button class="openpose-btn openpose-undo-btn openpose-canvas-undo-btn" type="button" data-action="undo" title="${t("pose_editor.btn.undo_edit")}" aria-label="${t("pose_editor.btn.undo_edit")}">${UiIcons.svg('undo', { size: 18, className: 'openpose-ui-icon' })}</button>
+    <div class="openpose-sidebar" data-editor-pane="pose">
         <div class="openpose-sidebar-card">
             <div class="openpose-preset-header">
                 <label class="openpose-label">${t("pose_editor.label.preset")}</label>
@@ -3334,7 +3447,7 @@ function buildPoseEditorOverlayHtml() {
                 <button class="openpose-btn openpose-btn-icon" data-action="add" title="${t("pose_editor.btn.add_pose")}">${UiIcons.svg('plus', { size: 14, className: 'openpose-ui-icon' })}</button>
                 <button class="openpose-btn openpose-btn-icon" data-action="remove" title="${t("pose_editor.btn.remove_pose")}">${UiIcons.svg('minus', { size: 14, className: 'openpose-ui-icon' })}</button>
                 <button class="openpose-btn openpose-btn-icon" data-action="reset" title="${t("pose_editor.btn.clear_canvas")}">${UiIcons.svg('pencil', { size: 14, className: 'openpose-ui-icon' })}</button>
-                <button class="openpose-btn openpose-btn-icon" data-action="undo" title="${t("pose_editor.btn.undo_edit")}">${UiIcons.svg('undo', { size: 14, className: 'openpose-ui-icon' })}</button>
+                <button class="openpose-btn openpose-btn-icon openpose-undo-btn" data-action="undo" title="${t("pose_editor.btn.undo_edit")}">${UiIcons.svg('undo', { size: 14, className: 'openpose-ui-icon' })}</button>
             </div>
             <div class="openpose-section-group">
                 <div class="openpose-section-header">
@@ -3391,22 +3504,17 @@ function buildPoseEditorOverlayHtml() {
                 <label class="openpose-label-inline">${t("pose_editor.label.opacity")}</label>
                 <input class="openpose-opacity-slider" type="range" min="0" max="100" value="50" />
             </div>
-            <div class="openpose-spacer"></div>
-            <div class="openpose-footer-actions-row">
-                <button class="openpose-btn openpose-cancel-btn" data-action="cancel">${t("pose_editor.btn.cancel")}</button>
-                <button class="openpose-btn openpose-apply-btn" data-action="ok">${t("pose_editor.btn.apply")}</button>
-            </div>
         </div>
     </div>
     <div class="openpose-sidebar openpose-sidebar-placeholder openpose-sidebar-placeholder-left"></div>
-    <div class="openpose-canvas-area">
+    <div class="openpose-canvas-area is-active" data-editor-pane="canvas">
         <div class="canvas-container">
-            <canvas class="openpose-editor-canvas"></canvas>
+			<canvas class="openpose-editor-canvas"></canvas>
             <div class="canvas-drag-overlay"></div>
         </div>
     </div>
     <div class="openpose-sidebar openpose-sidebar-placeholder openpose-sidebar-placeholder-right"></div>
-    <div class="openpose-sidebar openpose-sidebar-right">
+    <div class="openpose-sidebar openpose-sidebar-right" data-editor-pane="keypoints">
         <div class="openpose-sidebar-card openpose-coco-keypoints-card">
             <div class="openpose-coco-keypoints-header">
                 <label class="openpose-label openpose-coco-keypoints-label">${t("pose_editor.keypoints.label")}</label>
@@ -3418,6 +3526,9 @@ function buildPoseEditorOverlayHtml() {
     </div>
     <div class="openpose-module-slot openpose-module-overlay-slot" data-module-slot="overlay"></div>
 <div class="openpose-module-slot openpose-module-panels-slot" data-module-slot="module-panels"></div>
+	<div class="openpose-editor-actions">
+		<button class="openpose-btn openpose-primary-action-btn openpose-apply-btn" type="button" data-action="ok" title="${t("pose_editor.btn.apply")}" aria-label="${t("pose_editor.btn.apply")}">${UiIcons.svg('check', { size: 16, className: 'openpose-primary-action-icon' })}<span class="openpose-apply-label">${t("pose_editor.btn.apply")}</span></button>
+	</div>
 </div>
 <input class="openpose-file-input" type="file" accept=".json" />
 <input class="openpose-bg-file-input" type="file" accept="image/*" />
@@ -3451,6 +3562,7 @@ export function applyTabButtonStyles(tabButtons, activeTab, tabStyles = {}) {
 
 const OPENPOSE_EDITOR_SHELL_STYLESHEET_ID = "openpose-editor-shell-stylesheet";
 const OPENPOSE_EDITOR_SHELL_STYLESHEET_URL = "/extensions/comfyui-openpose-studio/assets/openpose_editor.css";
+let openPoseEditorShellStylesheetReady = null;
 
 function resolveExtensionAssetUrl(assetName) {
 	if (assetName === "openpose_editor.css") {
@@ -3460,15 +3572,36 @@ function resolveExtensionAssetUrl(assetName) {
 }
 
 function ensureOpenPoseEditorShellStylesheet() {
-	if (document.getElementById(OPENPOSE_EDITOR_SHELL_STYLESHEET_ID)) {
-		return;
+	if (openPoseEditorShellStylesheetReady) {
+		return openPoseEditorShellStylesheetReady;
 	}
-	const link = document.createElement("link");
-	link.id = OPENPOSE_EDITOR_SHELL_STYLESHEET_ID;
-	link.rel = "stylesheet";
-	link.href = resolveExtensionAssetUrl("openpose_editor.css");
-	document.head.appendChild(link);
+
+	let link = document.getElementById(OPENPOSE_EDITOR_SHELL_STYLESHEET_ID);
+	if (link?.sheet) {
+		openPoseEditorShellStylesheetReady = Promise.resolve();
+		return openPoseEditorShellStylesheetReady;
+	}
+
+	const isNewLink = !link;
+	if (isNewLink) {
+		link = document.createElement("link");
+		link.id = OPENPOSE_EDITOR_SHELL_STYLESHEET_ID;
+		link.rel = "stylesheet";
+		link.href = resolveExtensionAssetUrl("openpose_editor.css");
+	}
+
+	openPoseEditorShellStylesheetReady = new Promise((resolve) => {
+		link.addEventListener("load", resolve, { once: true });
+		link.addEventListener("error", resolve, { once: true });
+	});
+
+	if (isNewLink) {
+		document.head.appendChild(link);
+	}
+	return openPoseEditorShellStylesheetReady;
 }
+
+const initialOpenPoseEditorShellStylesheetReady = ensureOpenPoseEditorShellStylesheet();
 
 export function applyPoseEditorStyles(container, options = {}) {
     if (!container) {
@@ -3503,10 +3636,6 @@ export function applyPoseEditorStyles(container, options = {}) {
     
     // --- Keypoint hover logic using hoveredKeypointName ---
     if (!container._hoveredKeypointName) container._hoveredKeypointName = null;
-    const footerActionsRow = container.querySelector(".openpose-footer-actions-row");
-    if (footerActionsRow) {
-		footerActionsRow.classList.add("ope-openpose-shell-footer-row");
-    }
 }
 
 export const poseEditorOverlay = {
@@ -3514,5 +3643,6 @@ export const poseEditorOverlay = {
     buildUI: buildPoseEditorOverlayHtml,
     applyStyles: applyPoseEditorStyles,
     initUI: applyPoseEditorStyles,
-    applyTabButtonStyles
+    applyTabButtonStyles,
+	stylesReady: initialOpenPoseEditorShellStylesheetReady
 };

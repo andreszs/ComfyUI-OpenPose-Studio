@@ -18,6 +18,7 @@ OpenPose Studio は、洗練された使いやすいインターフェースで 
 ## 目次
 
 - ✨ [機能](#機能)
+- 📱 [レスポンシブモバイルインターフェース](#レスポンシブモバイルインターフェース)
 - 📦 [インストール](#インストール)
 - 🎯 [使い方](#使い方)
 - 🖐️ [手の編集](#手の編集)
@@ -72,6 +73,16 @@ OpenPose Studio は、洗練された使いやすいインターフェースで 
 - 再起動後も設定を復元：ギャラリー表示モード + 背景オーバーレイ設定を起動時に復元
 - ComfyUI ネイティブ統合：トースト + ダイアログ（安全なフォールバック付き）
 
+## レスポンシブモバイルインターフェース
+
+OpenPose Studio はモバイルブラウザで完全にレスポンシブに動作し、タッチ操作にも対応しています。Editor は狭い画面でも Canvas を使いやすく保ち、Preset と COCO Keypoints のツールを個別のビューとして表示し、複数のサムネイル密度を備えたコンパクトな Gallery を提供します。
+
+<p align="center">
+  <img src="../assets/openpose-studio-mobile-responsive.png" alt="Canvas、Preset、COCO Keypoints、Gallery の各ビューを表示する OpenPose Studio のレスポンシブモバイルインターフェース" width="100%" />
+</p>
+
+<p align="center"><sub>Android での Canvas 編集、Preset コントロール、欠けた Keypoints の管理、Gallery の Small Icons ビュー。</sub></p>
+
 ---
 
 新機能のアイデアがあれば、ぜひ聞かせてください。素早く実装できるかもしれません。フィードバック・アイデア・提案は、リポジトリの Issues から送ってください： https://github.com/andreszs/comfyui-openpose-studio/issues
@@ -79,14 +90,33 @@ OpenPose Studio は、洗練された使いやすいインターフェースで 
 ## インストール
 
 ### 要件
+
 - ComfyUI（最新ビルド）
 - Python 3.10+
 
-### 手順
+### オプション 1：ネイティブ Extension Manager（推奨）
 
-1. このリポジトリを `ComfyUI/custom_nodes/` にクローンします。
-2. ComfyUI を再起動します。
-3. `image > OpenPose Studio` にノードが表示されることを確認します。
+1. ComfyUI のネイティブ **Extension Manager** を開き、続いて **Nodes Manager** を開きます。
+2. `openpose-studio` を検索し、**OpenPose Studio** を選択します。
+3. **Install** をクリックし、インストール完了後に ComfyUI を再起動します。
+
+<p align="center">
+  <img src="../assets/openpose-studio-extension-manager-install.png" alt="ComfyUI のネイティブ Extension Manager から OpenPose Studio をインストール" width="100%" />
+</p>
+
+### オプション 2：手動インストール
+
+`ComfyUI/custom_nodes/` でターミナルを開き、リポジトリをクローンします。
+
+```bash
+git clone https://github.com/andreszs/comfyui-openpose-studio.git
+```
+
+リポジトリをクローンした後、ComfyUI を再起動します。
+
+### インストールの確認
+
+ノードメニューの `image > OpenPose Studio` に **OpenPose Studio** が表示されることを確認します。
 
 ---
 
@@ -243,6 +273,14 @@ COCO-18 は **18 個の body キーポイント** を使用します。ポーズ
 **Gallery** タブでは、利用可能なすべてのポーズをライブプレビューのサムネイルで視覚的に閲覧できます。手動設定なしで自動的に発見・整理します。
 
 ![Pose Gallery](../locales/ja/openpose-studio-gallery-showcase.png)
+
+### 表示モード
+
+Gallery は 4 つの表示モードに対応しています。
+- **Large** — 素早く視覚的に選択できる大きなプレビュー
+- **Medium** — プレビューサイズと密度のバランス
+- **Small** — 狭い画面やモバイルレイアウト向けの高密度アイコングリッド
+- **Tiles** — **Canvas サイズ**、**Keypoints 数**などの追加メタデータを含むコンパクトなグリッド
 
 ### 機能
 

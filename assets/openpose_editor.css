@@ -1,5 +1,8 @@
 .ope-openpose-modal.ope-openpose-shell-panel,
 .ope-openpose-modal.ope-openpose-modal-shell {
+    min-width: 0 !important;
+    max-width: none !important;
+    box-sizing: border-box;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -223,6 +226,9 @@
 
 .ope-openpose-modal .ope-openpose-dialog-content {
     flex: 1 1 auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     min-height: 0;
     overflow: hidden;
     padding: 0;
@@ -231,8 +237,12 @@
     flex-direction: column;
 }
 
-.ope-openpose-modal.openpose-container {
+.ope-openpose-modal.openpose-container,
+.ope-openpose-modal .openpose-container {
+    position: relative;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -248,6 +258,7 @@
 .ope-openpose-modal .ope-openpose-shell-tabs-row,
 .ope-openpose-modal .ope-openpose-modal-titlebar,
 .ope-openpose-modal .ope-openpose-modal-tabs {
+    position: relative;
     display: flex;
     gap: 0;
     align-items: center;
@@ -262,12 +273,30 @@
     display: flex;
     gap: 8px;
     align-items: center;
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     min-width: 0;
     overflow-x: auto;
     overflow-y: hidden;
+    scroll-snap-type: x proximity;
     scrollbar-width: none;
     -ms-overflow-style: none;
+}
+
+.ope-openpose-modal .openpose-tab-scroll-shell {
+    position: relative;
+    display: flex;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.ope-openpose-modal .openpose-mobile-more-tab,
+.ope-openpose-modal .openpose-mobile-more-menu {
+    display: none;
+}
+
+.ope-openpose-modal .openpose-mobile-more-menu[hidden] {
+    display: none !important;
 }
 
 .ope-openpose-modal .ope-openpose-shell-header-left::-webkit-scrollbar {
@@ -363,6 +392,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 4px;
     padding: 4px 10px;
     border: 1px solid color-mix(in srgb, var(--openpose-primary-bg) 35%, transparent);
     border-radius: 999px;
@@ -412,6 +442,7 @@
 }
 
 .ope-openpose-modal .ope-openpose-shell-main {
+    position: relative;
     display: flex;
     flex-direction: row;
     flex: 1 1 auto;
@@ -419,6 +450,207 @@
     min-height: 0;
     min-width: 0;
     width: 100%;
+}
+
+.ope-openpose-modal .openpose-view-tabs {
+    display: none;
+    flex: 0 0 auto;
+    gap: 4px;
+    padding: 6px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    border-bottom: 1px solid var(--openpose-border);
+    background: var(--openpose-panel-bg);
+}
+
+.ope-openpose-modal.ope-openpose-compact.ope-openpose-editor-active .openpose-editor-compact-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ope-openpose-modal .openpose-view-tab {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 4px;
+    box-sizing: border-box;
+    overflow: hidden;
+    border: 1px solid var(--openpose-border);
+    border-radius: 6px;
+    background: var(--openpose-btn-bg);
+    color: var(--openpose-text-muted);
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ope-openpose-modal .openpose-view-tab > .openpose-ui-icon {
+    flex: 0 0 auto;
+}
+
+.ope-openpose-modal .openpose-view-tab > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.ope-openpose-modal .openpose-view-tab.is-active {
+    border-color: var(--openpose-primary-bg);
+    background: var(--openpose-primary-bg);
+    color: var(--openpose-primary-text);
+}
+
+.ope-openpose-modal.ope-openpose-compact.ope-openpose-editor-active .ope-openpose-shell-main > [data-editor-pane]:not(.is-active) {
+    display: none !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact.ope-openpose-editor-active .ope-openpose-shell-main > [data-editor-pane].is-active {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: 100%;
+    scroll-snap-align: start;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-sidebar {
+    width: 100%;
+    min-width: 0;
+    padding: 6px;
+    overflow: hidden;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-sidebar-right {
+    padding: 6px;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-sidebar .openpose-sidebar-card {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.ope-openpose-modal .ope-openpose-shell-main > .openpose-editor-actions {
+    position: absolute !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 20;
+    box-sizing: border-box;
+    pointer-events: none;
+}
+
+.ope-openpose-modal.openpose-container:not(.ope-openpose-editor-active) .ope-openpose-shell-main > .openpose-editor-actions,
+.ope-openpose-modal .openpose-container:not(.ope-openpose-editor-active) .ope-openpose-shell-main > .openpose-editor-actions {
+    display: none !important;
+}
+
+.ope-openpose-modal:not(.ope-openpose-compact) .openpose-editor-actions {
+    right: auto !important;
+    bottom: 26px !important;
+    left: 26px !important;
+    width: calc(var(--ope-openpose-sidebar-width, 280px) - 52px);
+}
+
+.ope-openpose-modal:not(.ope-openpose-compact) .openpose-sidebar[data-editor-pane="pose"] .openpose-sidebar-card {
+    padding-bottom: 60px;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-editor-actions {
+    right: max(12px, env(safe-area-inset-right, 0px)) !important;
+    top: 8px !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: 44px;
+    height: 44px;
+}
+
+.ope-openpose-modal.ope-openpose-compact:not(.ope-openpose-editor-canvas-active) .openpose-editor-actions {
+    display: none !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile.ope-openpose-shell-panel,
+.ope-openpose-modal.ope-openpose-mobile.ope-openpose-modal-shell {
+    border-radius: 0;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .ope-openpose-shell-tabs-row {
+    padding-top: max(2px, env(safe-area-inset-top, 0));
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-update-badge {
+    display: none !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-tab-close {
+    width: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-tab-scroll-shell {
+    flex: 1 1 auto;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .ope-openpose-shell-header-left {
+    width: 100%;
+    gap: 2px;
+    overflow: hidden;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-tab-modules {
+    flex: 3 1 0;
+    min-width: 0;
+    gap: 2px;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-tab[data-tab="editor"],
+.ope-openpose-modal.ope-openpose-mobile .openpose-tab-modules > .openpose-tab:not([data-tab="merge"]):not([data-tab="guide"]):not([data-tab="about"]) {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .ope-openpose-shell-drag-handle {
+    display: none;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .ope-openpose-shell-header-right {
+    gap: 2px;
+    margin-left: 2px;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-tab-contribute {
+    display: inline-flex !important;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 4px;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-contribute-label {
+    display: none;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-contribute-icon {
+    font-size: 15px;
+    line-height: 1;
 }
 
 .ope-openpose-modal .openpose-module-slot {
@@ -463,16 +695,6 @@
 .ope-openpose-modal .openpose-sidebar-placeholder-right {
     display: none;
     padding: 10px 10px 10px 6px;
-}
-
-.ope-openpose-modal .ope-openpose-shell-footer-row {
-    display: flex;
-    gap: 8px;
-    align-items: stretch;
-}
-
-.ope-openpose-modal .ope-openpose-shell-footer-row .openpose-btn {
-    flex: 1;
 }
 
 @media (max-width: 900px) {
@@ -538,7 +760,7 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.14);
 }
 
-.ope-openpose-modal .openpose-sidebar .openpose-btn:not(.openpose-apply-btn):not(.openpose-cancel-btn):not(.openpose-support-btn),
+.ope-openpose-modal .openpose-sidebar .openpose-btn:not(.openpose-apply-btn):not(.openpose-support-btn):not(.openpose-primary-btn),
 .openpose-sidebar-btn-styled {
     padding: 6px 12px;
     border: 1px solid var(--openpose-border);
@@ -550,7 +772,7 @@
     font-size: 13px;
 }
 
-.ope-openpose-modal .openpose-sidebar .openpose-btn:not(.openpose-apply-btn):not(.openpose-cancel-btn):not(.openpose-support-btn):hover:not(:disabled),
+.ope-openpose-modal .openpose-sidebar .openpose-btn:not(.openpose-apply-btn):not(.openpose-support-btn):not(.openpose-primary-btn):hover:not(:disabled),
 .openpose-sidebar-btn-styled:hover:not(:disabled) {
     background: var(--openpose-btn-hover-bg);
 }
@@ -715,37 +937,63 @@
     flex: 1;
 }
 
-.ope-openpose-modal .openpose-sidebar .openpose-apply-btn,
-.ope-openpose-modal .openpose-sidebar .openpose-cancel-btn {
-    padding: 8px 12px;
-    border: 1px solid var(--openpose-border);
+.ope-openpose-modal .openpose-primary-action-btn {
+    width: 100%;
+    min-height: 32px;
+    padding: 6px 12px;
+    gap: 6px;
+    border: 1px solid var(--openpose-primary-bg);
     border-radius: 4px;
+    background: var(--openpose-primary-bg);
+    color: var(--openpose-primary-text);
     cursor: pointer;
     font-family: Arial, sans-serif;
-    font-size: 14px;
+    font-size: 12px;
+    font-weight: 600;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: none;
+    pointer-events: auto;
 }
 
-.ope-openpose-modal .openpose-sidebar .openpose-apply-btn {
-    background: var(--openpose-primary-bg);
-    color: var(--openpose-primary-text);
-    font-weight: bold;
-}
-
-.ope-openpose-modal .openpose-sidebar .openpose-apply-btn:hover {
+.ope-openpose-modal .openpose-primary-action-btn:hover:not(:disabled) {
     background: var(--openpose-primary-hover-bg);
 }
 
-.ope-openpose-modal .openpose-sidebar .openpose-cancel-btn {
-    background: var(--openpose-btn-bg);
-    color: var(--openpose-text);
-    font-weight: 600;
+.ope-openpose-modal .openpose-primary-action-btn:focus-visible {
+    outline: 2px solid var(--openpose-primary-text);
+    outline-offset: 2px;
 }
 
-.ope-openpose-modal .openpose-sidebar .openpose-cancel-btn:hover {
-    background: var(--openpose-btn-hover-bg);
+.ope-openpose-modal.ope-openpose-compact .openpose-editor-actions .openpose-apply-btn {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-editor-actions .openpose-apply-label {
+    display: none;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-editor-actions .openpose-primary-action-icon {
+    width: 20px;
+    height: 20px;
+}
+
+.ope-openpose-modal .openpose-primary-btn {
+    border-color: var(--openpose-primary-bg);
+    background: var(--openpose-primary-bg);
+    color: var(--openpose-primary-text);
+    font-weight: 700;
+}
+
+.ope-openpose-modal .openpose-primary-btn:hover:not(:disabled) {
+    background: var(--openpose-primary-hover-bg);
 }
 
 .ope-openpose-modal .openpose-section-header {
@@ -824,10 +1072,20 @@
 }
 
 .ope-openpose-modal .openpose-editor-canvas {
+    display: block;
     border-radius: 0.25rem;
     border: 1px solid var(--openpose-canvas-border);
     box-shadow: var(--openpose-canvas-shadow);
     box-sizing: border-box;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.ope-openpose-modal .openpose-canvas-area.openpose-canvas-insert-pending .openpose-editor-canvas {
+    border-color: var(--openpose-primary-bg);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--openpose-primary-bg) 45%, transparent), var(--openpose-canvas-shadow);
+    cursor: crosshair;
 }
 
 .ope-openpose-modal .openpose-canvas-area .canvas-container {
@@ -844,6 +1102,71 @@
     position: relative;
     overflow: hidden;
     box-sizing: border-box;
+}
+
+.ope-openpose-modal .openpose-canvas-undo-btn {
+    display: none;
+}
+
+.ope-openpose-modal .openpose-undo-btn:disabled {
+    background: var(--openpose-btn-disabled-bg);
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.ope-openpose-modal.ope-openpose-compact.ope-openpose-editor-active.ope-openpose-editor-canvas-active .openpose-canvas-undo-btn {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 6;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 1px solid var(--openpose-border);
+    border-radius: 50%;
+    background: var(--openpose-btn-bg);
+    color: var(--openpose-text);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+    cursor: pointer;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-canvas-undo-btn:hover:not(:disabled) {
+    background: var(--openpose-btn-hover-bg);
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-canvas-undo-btn:focus-visible {
+    outline: 2px solid var(--openpose-primary-bg);
+    outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+    .ope-openpose-modal .openpose-view-tab,
+    .ope-openpose-modal .ope-openpose-shell-tab,
+    .ope-openpose-modal .openpose-sidebar .openpose-btn,
+    .ope-openpose-modal .openpose-sidebar .openpose-btn-icon,
+    .ope-openpose-modal .openpose-editor-actions .openpose-apply-btn {
+        min-height: 44px;
+    }
+
+    .ope-openpose-modal .openpose-sidebar .openpose-btn-icon {
+        min-width: 44px;
+        height: 44px;
+    }
+
+    .ope-openpose-modal .openpose-coco-keypoint-item {
+        min-height: 44px;
+        padding-top: 6px;
+        padding-bottom: 6px;
+    }
+
+    .ope-openpose-modal .openpose-coco-status-icon {
+        min-height: 36px;
+    }
 }
 
 .ope-openpose-modal.openpose-hand-edit-active .openpose-canvas-area .canvas-container,
@@ -991,7 +1314,10 @@
 }
 
 .ope-openpose-modal .openpose-hand-keypoint-content {
-    display: flex;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    flex: 1 1 0;
     align-items: center;
     gap: 6px;
     min-width: 0;
@@ -1001,11 +1327,25 @@
 .ope-openpose-modal .openpose-hand-keypoint-controls {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: center;
     gap: 4px;
     flex: 0 0 36px;
     width: 36px;
     min-width: 36px;
+}
+
+.ope-openpose-modal .openpose-keypoint-row-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ope-openpose-modal .openpose-coco-remove-control {
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    flex: 0 0 28px !important;
 }
 
 .ope-openpose-modal .openpose-hand-keypoint-missing .openpose-coco-color-swatch,
@@ -1044,6 +1384,97 @@
     font-weight: bold;
     color: var(--openpose-text);
     position: relative;
+}
+
+.ope-openpose-modal .openpose-keypoint-insert-handle {
+    width: 28px !important;
+    min-width: 28px !important;
+    flex: 0 0 28px !important;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.ope-openpose-modal .openpose-keypoint-insert-handle:active,
+.ope-openpose-modal .openpose-coco-keypoint-item.is-pointer-dragging .openpose-keypoint-insert-handle {
+    color: var(--openpose-primary-bg);
+    cursor: grabbing;
+    opacity: 1 !important;
+}
+
+.ope-openpose-modal .openpose-coco-keypoint-item.is-pointer-dragging {
+    box-shadow: inset 0 0 0 1px var(--openpose-primary-bg);
+}
+
+.openpose-pointer-drag-feedback {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    max-width: min(220px, calc(100vw - 28px));
+    padding: 7px 9px;
+    border: 2px solid var(--openpose-primary-bg, #2879a8);
+    border-radius: 8px;
+    background: var(--openpose-panel-bg-secondary, #242424);
+    color: var(--openpose-text, #f0f0f0);
+    box-shadow: 0 5px 16px rgba(0, 0, 0, 0.45);
+    box-sizing: border-box;
+    font: 600 12px/1.2 Arial, sans-serif;
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+    will-change: transform;
+}
+
+.openpose-pointer-drag-feedback > span:not(.openpose-coco-color-swatch):not(.openpose-pointer-drag-feedback-add) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.openpose-pointer-drag-feedback .openpose-coco-color-swatch {
+    flex: 0 0 16px;
+    width: 16px !important;
+    height: 16px !important;
+}
+
+.openpose-pointer-drag-feedback-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--openpose-primary-bg, #2879a8);
+    color: var(--openpose-primary-text, #fff);
+    font-size: 16px;
+    line-height: 1;
+}
+
+.openpose-pointer-drag-feedback.is-over-canvas {
+    background: var(--openpose-primary-bg, #2879a8);
+    color: var(--openpose-primary-text, #fff);
+}
+
+.openpose-pointer-drag-feedback.is-over-canvas .openpose-pointer-drag-feedback-add {
+    background: var(--openpose-primary-text, #fff);
+    color: var(--openpose-primary-bg, #2879a8);
+}
+
+@media (pointer: coarse) {
+    .ope-openpose-modal .openpose-keypoint-insert-handle,
+    .ope-openpose-modal .openpose-coco-remove-control {
+        width: 36px !important;
+        min-width: 36px !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        flex-basis: 36px !important;
+    }
 }
 
 .ope-openpose-modal .openpose-coco-color-swatch {
@@ -1283,6 +1714,10 @@
     border-radius: 4px;
 }
 
+.ope-openpose-modal .openpose-support-mobile-label {
+    display: none;
+}
+
 .ope-openpose-modal .openpose-support-actions {
     align-items: stretch;
     gap: 16px;
@@ -1499,11 +1934,20 @@
     display: flex;
     flex-direction: column;
     flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     margin-top: 16px;
     gap: 8px;
 }
 
 .openpose-donation-footer-styled .openpose-donation-footer-text {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    border: 0;
+    background: transparent;
     color: var(--openpose-input-text);
     opacity: 0.75;
     font-family: Arial, sans-serif;
@@ -1514,6 +1958,18 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+.openpose-donation-footer-styled .openpose-donation-footer-text:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+
+.openpose-donation-footer-styled .openpose-donation-footer-text:focus-visible {
+    opacity: 1;
+    outline: 1px solid var(--openpose-border);
+    outline-offset: 2px;
 }
 
 .ope-openpose-modal .openpose-coco-keypoints-card > .openpose-donation-footer-styled {
@@ -1524,44 +1980,6 @@
     display: inline-block;
     width: 1.2em;
     text-align: center;
-}
-
-.openpose-donation-footer-styled .openpose-donation-footer-btns {
-    display: flex;
-    gap: 10px;
-    flex-wrap: nowrap;
-    width: 100%;
-    justify-content: space-between;
-}
-
-.openpose-donate-btn-base {
-    flex: 1 1 0;
-    min-width: 0;
-    padding: 6px 6px;
-    border: 1px solid var(--openpose-border);
-    border-radius: 4px;
-    background: var(--openpose-btn-bg);
-    color: var(--openpose-text);
-    cursor: pointer;
-    font-family: Arial, sans-serif;
-    font-size: 11px;
-    text-align: center;
-}
-
-.openpose-donate-btn-base:hover:not(:disabled) {
-    background: var(--openpose-btn-hover-bg);
-}
-
-.openpose-donate-btn-kofi {
-    border-left: 3px solid #FF5E5B;
-}
-
-.openpose-donate-btn-paypal {
-    border-left: 3px solid #009CDE;
-}
-
-.openpose-donate-btn-usdc {
-    border-left: 3px solid #D4A017;
 }
 
 @media (max-width: 900px) {
@@ -1616,4 +2034,496 @@
     .ope-openpose-modal .openpose-render-style-label {
         margin-bottom: -4px;
     }
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-overlay {
+    flex-direction: column !important;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.ope-openpose-modal.ope-openpose-compact .ope-openpose-shell-main,
+.ope-openpose-modal.ope-openpose-compact .openpose-overlay,
+.ope-openpose-modal.ope-openpose-compact .openpose-overlay-card,
+.ope-openpose-modal.ope-openpose-compact .openpose-overlay-content {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-compact-tabs,
+.ope-openpose-modal.ope-openpose-compact[data-active-tab="merge"] .openpose-merge-compact-tabs {
+    display: grid;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-compact-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-overlay [data-gallery-pane]:not(.is-active),
+.ope-openpose-modal.ope-openpose-compact[data-active-tab="merge"] .openpose-merge-panel:not(.is-active) {
+    display: none !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-overlay [data-gallery-pane].is-active {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-sidebar {
+    height: auto !important;
+    padding: 4px !important;
+    overflow: hidden !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-sidebar .openpose-sidebar-card,
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-card {
+    padding: 10px !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-main {
+    padding: 4px !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-carousel,
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-item,
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-thumbnail {
+    box-shadow: none !important;
+    transition: none !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-note-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    min-width: 0;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    width: 100% !important;
+    min-width: 0;
+    margin-left: 0 !important;
+    gap: 6px !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-search {
+    grid-column: 1 / -1;
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-gallery-search-input {
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact[data-active-tab="merge"] .ope-openpose-shell-main {
+    flex-direction: column;
+}
+
+.ope-openpose-modal.ope-openpose-compact[data-active-tab="merge"] .openpose-merge-compact-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ope-openpose-modal.ope-openpose-compact[data-active-tab="merge"] .openpose-merge-panel.is-active {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 6px !important;
+    overflow: hidden !important;
+    box-sizing: border-box;
+}
+
+.ope-openpose-modal.ope-openpose-compact[data-active-tab="merge"] .openpose-merge-main.is-active {
+    overflow: auto !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact[data-active-tab="merge"] .openpose-merge-table-wrap {
+    overflow: auto !important;
+    overscroll-behavior: contain;
+}
+
+.ope-openpose-modal.ope-openpose-compact[data-active-tab="merge"] .openpose-merge-table {
+    min-width: 640px;
+}
+
+.ope-openpose-modal.ope-openpose-compact[data-active-tab="merge"] .openpose-merge-sidebar-card {
+    width: 100%;
+    min-width: 0;
+    padding: 10px !important;
+    overflow-y: auto !important;
+    box-sizing: border-box;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-about-overlay,
+.ope-openpose-modal.ope-openpose-compact .openpose-about-overlay .openpose-overlay-card,
+.ope-openpose-modal.ope-openpose-compact .openpose-about-overlay .openpose-overlay-content,
+.ope-openpose-modal.ope-openpose-compact .openpose-about-list,
+.ope-openpose-modal.ope-openpose-compact .openpose-about-row {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-about-overlay .openpose-overlay-card {
+    padding: 10px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-about-card {
+    padding: 10px !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-about-header,
+.ope-openpose-modal.ope-openpose-compact .openpose-about-left,
+.ope-openpose-modal.ope-openpose-compact .openpose-about-right {
+    width: 100%;
+    min-width: 0;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-about-left,
+.ope-openpose-modal.ope-openpose-compact .openpose-about-right {
+    flex-wrap: wrap !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-about-title {
+    max-width: 100%;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-support-titlebar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    min-width: 0;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-support-badges {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
+    margin-left: 0 !important;
+    gap: 6px !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-support-badge-link,
+.ope-openpose-modal.ope-openpose-compact .openpose-support-badge-img {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-support-badge-link {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 7px 5px;
+    gap: 5px;
+    border: 1px solid var(--openpose-border) !important;
+    border-left-width: 3px !important;
+    background: var(--openpose-btn-bg) !important;
+    color: var(--openpose-text) !important;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-support-badge-kofi {
+    border-left-color: #ff5e5b !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-support-badge-paypal {
+    border-left-color: #009cde !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-support-badge-usdc {
+    border-left-color: #d4a017 !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-support-badge-img {
+    display: none !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-support-mobile-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+}
+
+@media (max-width: 340px) {
+    .ope-openpose-modal.ope-openpose-mobile .openpose-support-badges {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-support-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch !important;
+    gap: 10px !important;
+    width: 100%;
+    min-width: 0;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-support-middle {
+    grid-column: 1;
+    grid-row: auto;
+    min-width: 0;
+    padding: 10px !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-support-qr,
+.ope-openpose-modal.ope-openpose-compact .openpose-support-qr-link {
+    display: none !important;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-render-style-color-row {
+    display: grid !important;
+    grid-template-columns: 40px repeat(2, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-render-style-color {
+    grid-row: span 2;
+    align-self: stretch;
+    height: auto !important;
+    min-height: 62px;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-render-style-channel {
+    min-width: 0;
+}
+
+.ope-openpose-modal.ope-openpose-compact .openpose-render-style-channel-input {
+    width: 100% !important;
+    min-width: 0;
+}
+
+/* Keep the canvas available while inserting missing keypoints in compact layouts. */
+.ope-openpose-modal.ope-openpose-compact.ope-openpose-editor-active.ope-openpose-keypoints-split .ope-openpose-shell-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(160px, 48%) minmax(0, 1fr);
+}
+
+.ope-openpose-modal.ope-openpose-compact.ope-openpose-editor-active.ope-openpose-keypoints-split .ope-openpose-shell-main > [data-editor-pane="canvas"] {
+    display: flex !important;
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    min-height: 0;
+    height: auto !important;
+    padding: 4px 6px;
+}
+
+.ope-openpose-modal.ope-openpose-compact.ope-openpose-editor-active.ope-openpose-keypoints-split .ope-openpose-shell-main > [data-editor-pane="keypoints"] {
+    display: flex !important;
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    min-height: 0;
+    height: auto !important;
+    padding: 4px 6px 6px;
+}
+
+.ope-openpose-modal.ope-openpose-compact.ope-openpose-keypoints-split .openpose-coco-keypoints-card {
+    min-height: 0;
+    padding: 8px;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-view-tabs {
+    gap: 3px;
+    padding: 4px;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-view-tab {
+    min-height: 34px !important;
+    gap: 4px;
+    padding: 3px 4px;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-sidebar[data-editor-pane="pose"] .openpose-btn {
+    min-height: 34px !important;
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-sidebar[data-editor-pane="pose"] .openpose-btn-icon {
+    height: 34px !important;
+    min-width: 34px;
+    padding: 3px 6px;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-main {
+    padding: 2px !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-card {
+    padding: 6px !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-header {
+    padding-bottom: 6px !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-note-row {
+    gap: 5px !important;
+    margin-bottom: 4px !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-note {
+    font-size: 11px !important;
+    line-height: 1.35;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-section {
+    gap: 4px !important;
+    margin-bottom: 12px !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-title {
+    gap: 5px !important;
+    padding-bottom: 3px !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-title-badges {
+    gap: 4px !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-collection-pill,
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-custom-path-pill,
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-count-pill {
+    padding: 2px 5px !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-carousel {
+    gap: 6px !important;
+    padding: 6px !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-content.gallery-view--small .openpose-gallery-carousel {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 4px !important;
+    padding: 4px !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-content.gallery-view--small .openpose-gallery-item-title {
+    padding: 3px !important;
+    font-size: 9px !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-content.gallery-view--tiles .openpose-gallery-carousel {
+    gap: 4px !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-content.gallery-view--tiles .openpose-gallery-item {
+    gap: 8px !important;
+    padding: 4px !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-gallery-content.gallery-view--tiles .openpose-gallery-thumbnail {
+    width: 64px !important;
+    height: 64px !important;
+}
+
+@media (max-width: 319px) {
+    .ope-openpose-modal.ope-openpose-mobile .openpose-gallery-content.gallery-view--small .openpose-gallery-carousel {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+}
+
+.ope-openpose-modal.ope-openpose-mobile .ope-openpose-shell-tab {
+    min-height: 36px !important;
+    padding: 5px 3px;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-tab[data-tab="merge"],
+.ope-openpose-modal.ope-openpose-mobile .openpose-tab[data-tab="guide"],
+.ope-openpose-modal.ope-openpose-mobile .openpose-tab[data-tab="about"] {
+    display: none !important;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-mobile-more-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-mobile-more-tab::after {
+    content: "\25BE";
+    font-size: 9px;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-mobile-more-menu {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    z-index: 1100;
+    min-width: 150px;
+    padding: 4px;
+    border: 1px solid var(--openpose-border);
+    border-radius: 6px;
+    background: var(--openpose-panel-bg-secondary);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-mobile-more-menu:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-mobile-more-item {
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--openpose-text);
+    font: 600 12px Arial, sans-serif;
+    text-align: left;
+    cursor: pointer;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-mobile-more-item:hover,
+.ope-openpose-modal.ope-openpose-mobile .openpose-mobile-more-item:focus-visible,
+.ope-openpose-modal.ope-openpose-mobile .openpose-mobile-more-item.is-active {
+    background: var(--openpose-primary-bg);
+    color: var(--openpose-primary-text);
+    outline: none;
+}
+
+.ope-openpose-modal.ope-openpose-mobile .openpose-donation-footer-styled {
+    gap: 5px;
+}
+
+.ope-openpose-modal.ope-openpose-mobile.ope-openpose-keypoints-split .openpose-coco-keypoint-item {
+    min-height: 36px !important;
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
 }

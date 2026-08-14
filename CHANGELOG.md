@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.3.0] - 2026-08-14
+
+### Added
+- Added a fully responsive, touch-friendly interface for the Editor, Gallery, Poses Merger, and About views, including full-viewport phone layouts, compact pane navigation, and a mobile **More** menu.
+- Added touch and pen insertion for missing body keypoints and hands through drag-to-canvas or tap-then-place interactions, with larger hit targets and visual drag feedback.
+- Added a **Small Icons** Gallery view, compact 120-item batches with a localized **Load more** action, and lazy thumbnail rendering for large pose libraries.
+- Added a localized canvas watermark showing the current canvas dimensions and pose count.
+- Added a localized confirmation dialog before removing the selected pose.
+
+### Changed
+- Split the compact Editor into **Canvas**, **Preset**, and **COCO Keypoints** views; the compact Gallery into **Gallery** and **Preview** views; and the compact Poses Merger into **Added Files**, **Preview**, and **Actions** views.
+- Made the editor follow the browser's visual viewport, automatically maximize on narrow or short screens, and recalculate its layout after viewport resize and scroll changes.
+- Improved responsive and high-DPI canvas sizing by matching the backing store to the rendered canvas dimensions.
+- Opened the selected Gallery pose in its compact preview and returned directly to the Editor canvas after insertion.
+- Moved the primary apply and undo actions into compact, canvas-accessible controls and increased keypoint remove targets for touch use.
+- Simplified Gallery details by removing the redundant format row and consolidated sidebar support controls into the responsive About view.
+- Localized the new mobile navigation, Gallery, Merger, and confirmation controls across all 11 supported interface languages.
+- Documented the responsive mobile interface, the new **Small Icons** Gallery mode, and separate native Extension Manager and manual installation paths across all 11 supported README languages, with Android and Extension Manager showcase images.
+
+### Fixed
+- Fixed touch and pen pose, hand, transform-handle, and focused-hand selection by scaling interaction radii to the displayed canvas size.
+- Fixed interrupted pointer gestures so captured pointers, drag state, hand insertion previews, and canvas highlights are released consistently.
+- Fixed editor positioning and sizing around mobile browser chrome, device rotation, zoom, and on-screen keyboards.
+- Ensured the editor stylesheet finishes loading before the panel opens, preventing an incorrect initial layout.
+
+---
+
 ## [2.2.0] - 2026-08-08
 
 ### Added

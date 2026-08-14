@@ -458,7 +458,7 @@ class OpenPosePanel {
         this.sidebarWidth = 280;
         this.sidebarMinWidth = 220;
         this.panelRestoreWidth = DEFAULT_PANEL_CANVAS_WIDTH + 2 * this.sidebarWidth + 72;
-        this.panelRestoreHeight = DEFAULT_PANEL_CANVAS_HEIGHT + 240;
+        this.panelRestoreHeight = DEFAULT_PANEL_CANVAS_HEIGHT + 320;
         this.panelMaximizedMargin = 20;
         
         // Load persisted maximize state
@@ -468,6 +468,9 @@ class OpenPosePanel {
         this.schedulePanelLayout();
         this._resizeHandler = () => this.schedulePanelLayout();
         window.addEventListener("resize", this._resizeHandler);
+		this._visualViewportResizeHandler = () => this.schedulePanelLayout();
+		window.visualViewport?.addEventListener("resize", this._visualViewportResizeHandler);
+		window.visualViewport?.addEventListener("scroll", this._visualViewportResizeHandler);
         if (typeof ResizeObserver !== "undefined") {
             const target = document.documentElement || document.body;
             if (target) {
@@ -575,6 +578,7 @@ class OpenPosePanel {
         const canvasStage = container.querySelector(".openpose-canvas-area .canvas-container");
         this.canvasArea = canvasArea;
         this.canvasStage = canvasStage;
+		this.setupCompactEditorNavigation();
         if (canvasStage) {
 			logLayout("canvas-stage-init", {
 				clientWidth: canvasStage.clientWidth,
@@ -703,8 +707,11 @@ class OpenPosePanel {
 		// Instantiate native renderer as single source of truth
 		this.renderer = new OpenPoseCanvas2D(this.canvasElem, {
 			logicalWidth: this.canvasWidth,
-			logicalHeight: this.canvasHeight
+			logicalHeight: this.canvasHeight,
+			poseCountLabel: (count) => t("gallery.count.poses", { count })
 		});
+		this._pendingCanvasInsertHandler = (event) => this.handlePendingCanvasInsert(event);
+		this.canvasElem.addEventListener("pointerdown", this._pendingCanvasInsertHandler, true);
 		this.setCanvasBackgroundFill(this.canvasBackgroundFill);
 		this.setCanvasGridColor(this.canvasGridColor);
 		// Wire up change events for history/UI updates (geometry, add, delete, clear)
@@ -801,6 +808,7 @@ class OpenPosePanel {
                 : this._canvasDropOutlineOffsetBase;
             logDropHighlight(active, event, reason);
         };
+		this._setCanvasDropHighlight = setCanvasDropHighlight;
         const clearCanvasDropHighlight = (event, reason) => {
             if (this._dragLeaveTimeout) {
                 clearTimeout(this._dragLeaveTimeout);
@@ -893,83 +901,23 @@ class OpenPosePanel {
 				} else if (isMissingHand) {
 					this._draggingMissingHand = false;
 					this.renderer?.setHandInsertPreviewSide?.(null);
-					const selectedPoseIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
-					if (selectedPoseIndex == null || selectedPoseIndex < 0) {
-						showToast("warn", "Pose Editor", t("toast.no_pose_selected"));
-						return;
-					}
-					const logical = this.renderer.screenToLogical(event.clientX, event.clientY);
-					const handLabel = t(`pose_editor.keypoints.${missingHandSide}_hand`);
-					const selectedView = await showChoiceDialog({
-						host: this.container,
-						title: t("pose_editor.hand_orientation.title"),
-						message: t("pose_editor.hand_orientation.message", { hand: handLabel }),
-						choices: [
-							{ value: "palm", icon: "✋", label: t("pose_editor.hand_orientation.palm") },
-							{ value: "back", icon: "🤚", label: t("pose_editor.hand_orientation.back") },
-						],
-						closeLabel: t("pose_editor.hand_orientation.close"),
-					});
-					if (!selectedView) {
-						return;
-					}
-					const result = this.renderer.insertNeutralHand(
-						selectedPoseIndex,
-						missingHandSide,
-						logical.x,
-						logical.y,
-						selectedView
-					);
-					if (result) {
-						showToast(
-							"success",
-							t("toast.hand_inserted_title"),
-							t(`toast.hand_inserted_${result.facing}`, { hand: handLabel })
-						);
-					}
+					await this.placeMissingHandAt(missingHandSide, event.clientX, event.clientY);
 				} else if (isMissingKeypoint) {
                     this._draggingMissingKeypoint = false;
                     const keypointIdNum = parseInt(missingKeypointId, 10);
                     if (!Number.isFinite(keypointIdNum) || keypointIdNum < 0) {
                         return;
                     }
-                    const selectedPoseIndex = this.renderer ? this.renderer.getSelectedPoseIndex() : null;
-                    if (selectedPoseIndex == null || selectedPoseIndex < 0) {
-                        showToast("warn", "Pose Editor", t("toast.no_pose_selected"));
-                        return;
-                    }
-                    const poses = this.renderer ? this.renderer.getPoses() : [];
-                    const selectedPose = poses[selectedPoseIndex];
-                    if (!selectedPose) {
-                        return;
-                    }
-                    const logical = this.renderer.screenToLogical(event.clientX, event.clientY);
-                    const handEditMode = this.renderer.getHandEditModeInfo?.();
-                    if (handEditMode) {
-                        this.renderer.placeHandEditKeypoint?.(
-                            keypointIdNum,
-                            logical.x,
-                            logical.y
-                        );
-                        return;
-                    }
-                    const format = getFormatForPose(selectedPose.keypoints);
-                    if (!isFormatEditAllowed(format ? format.id : null)) {
-                        showToast("warn", "Pose Editor", t("toast.coco17_edit_disabled"));
-                        return;
-                    }
-                    const didPlace = this.renderer.placeKeypoint(selectedPoseIndex, keypointIdNum, logical.x, logical.y);
-                    if (didPlace) {
-                        this.recordHistory();
-                        this.saveToNode();
-                        this.refreshCocoKeypointsPanel();
-                    }
+					this.placeMissingKeypointAt(keypointIdNum, event.clientX, event.clientY);
                 }
             });
         }
         this._clearCanvasDropHighlight = clearCanvasDropHighlight;
         this._forceClearCanvasDropHighlight = forceClearCanvasDropHighlight;
         const globalDragClear = (event) => {
+			if (this._pointerInsertDrag) {
+				return;
+			}
 			this._draggingMissingHand = false;
 			this.renderer?.setHandInsertPreviewSide?.(null);
             forceClearCanvasDropHighlight("global-clear", event);
@@ -1063,6 +1011,7 @@ class OpenPosePanel {
 		this.panel.onClose = () => {
 			document.removeEventListener("keydown", keyHandler)
 			this.renderer?.cancelHandEditMode?.();
+			this._cancelPointerInsertDrag?.("panel-close");
 			this.stopPanelDrag();
 			if (this.panelDragHandle && this._panelDragMouseDownHandler) {
 				this.panelDragHandle.removeEventListener("mousedown", this._panelDragMouseDownHandler);
@@ -1082,7 +1031,14 @@ class OpenPosePanel {
 				this._forceClearCanvasDropHighlight("panel-close");
 				this._forceClearCanvasDropHighlight = null;
 			}
+			this._setCanvasDropHighlight = null;
             window.removeEventListener("resize", this._resizeHandler);
+			window.visualViewport?.removeEventListener("resize", this._visualViewportResizeHandler);
+			window.visualViewport?.removeEventListener("scroll", this._visualViewportResizeHandler);
+			if (this.canvasElem && this._pendingCanvasInsertHandler) {
+				this.canvasElem.removeEventListener("pointerdown", this._pendingCanvasInsertHandler, true);
+				this._pendingCanvasInsertHandler = null;
+			}
             if (this._viewportObserver) {
                 this._viewportObserver.disconnect();
                 this._viewportObserver = null;
@@ -1339,14 +1295,157 @@ class OpenPosePanel {
 		);
 	}
 
+	setupCompactEditorNavigation() {
+		this.editorPaneButtons = Array.from(this.container?.querySelectorAll("[data-editor-pane-target]") || []);
+		this.editorPanes = Array.from(this.container?.querySelectorAll("[data-editor-pane]") || []);
+		this.container?.classList.add("ope-openpose-editor-active");
+		this.editorPaneButtons.forEach((button) => {
+			button.addEventListener("click", () => this.setEditorPane(button.dataset.editorPaneTarget));
+		});
+		this.setEditorPane("canvas");
+	}
+
+	setEditorPane(paneName) {
+		const nextPane = ["canvas", "pose", "keypoints"].includes(paneName) ? paneName : "canvas";
+		if (nextPane !== "canvas" && this.pendingCanvasInsert) {
+			this.clearPendingCanvasInsert();
+		}
+		this.activeEditorPane = nextPane;
+		const canvasActive = nextPane === "canvas";
+		this.panel?.classList.toggle("ope-openpose-editor-canvas-active", canvasActive);
+		this.container?.classList.toggle("ope-openpose-editor-canvas-active", canvasActive);
+		const keypointsSplit = nextPane === "keypoints";
+		this.panel?.classList.toggle("ope-openpose-keypoints-split", keypointsSplit);
+		this.container?.classList.toggle("ope-openpose-keypoints-split", keypointsSplit);
+		this.editorPaneButtons?.forEach((button) => {
+			const active = button.dataset.editorPaneTarget === nextPane;
+			button.classList.toggle("is-active", active);
+			button.setAttribute("aria-selected", active ? "true" : "false");
+		});
+		this.editorPanes?.forEach((pane) => {
+			pane.classList.toggle("is-active", pane.dataset.editorPane === nextPane);
+		});
+		if (nextPane === "canvas" || keypointsSplit) {
+			this.scheduleCanvasFit();
+		}
+	}
+
+	updateResponsiveLayout(panelWidth, viewportHeight, mobile = false) {
+		const compact = panelWidth <= 900;
+		const changed = compact !== this.isCompactLayout;
+		this.isCompactLayout = compact;
+		this.isMobileLayout = mobile;
+		this.panel?.classList.toggle("ope-openpose-compact", compact);
+		this.panel?.classList.toggle("ope-openpose-mobile", mobile);
+		this.container?.classList.toggle("ope-openpose-compact", compact);
+		this.container?.classList.toggle("ope-openpose-mobile", mobile);
+		if (this.activeTab === "editor") {
+			this.setOverlayPlaceholderWidths(compact);
+		}
+		if (changed && compact && this.activeTab === "editor") {
+			this.setEditorPane("canvas");
+		}
+	}
+
+	beginCanvasInsert(insert) {
+		const selectedPoseIndex = this.renderer?.getSelectedPoseIndex?.();
+		if (selectedPoseIndex == null || selectedPoseIndex < 0) {
+			showToast("warn", "Pose Editor", t("toast.no_pose_selected"));
+			return;
+		}
+		this.pendingCanvasInsert = insert;
+		this.canvasArea?.classList.add("openpose-canvas-insert-pending");
+		if (!(this.isCompactLayout && this.activeEditorPane === "keypoints")) {
+			this.setEditorPane("canvas");
+		}
+	}
+
+	clearPendingCanvasInsert() {
+		this.pendingCanvasInsert = null;
+		this.canvasArea?.classList.remove("openpose-canvas-insert-pending");
+		this.renderer?.setHandInsertPreviewSide?.(null);
+	}
+
+	handlePendingCanvasInsert(event) {
+		if (!this.pendingCanvasInsert || event.button !== 0) {
+			return;
+		}
+		const insert = this.pendingCanvasInsert;
+		this.clearPendingCanvasInsert();
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		if (insert.type === "hand") {
+			void this.placeMissingHandAt(insert.side, event.clientX, event.clientY);
+		} else if (insert.type === "keypoint") {
+			this.placeMissingKeypointAt(insert.keypointId, event.clientX, event.clientY);
+		}
+	}
+
+	placeMissingKeypointAt(keypointId, clientX, clientY) {
+		const selectedPoseIndex = this.renderer?.getSelectedPoseIndex?.();
+		if (selectedPoseIndex == null || selectedPoseIndex < 0) {
+			showToast("warn", "Pose Editor", t("toast.no_pose_selected"));
+			return;
+		}
+		const selectedPose = this.renderer?.getPoses?.()[selectedPoseIndex];
+		if (!selectedPose) {
+			return;
+		}
+		const logical = this.renderer.screenToLogical(clientX, clientY);
+		if (this.renderer.getHandEditModeInfo?.()) {
+			this.renderer.placeHandEditKeypoint?.(keypointId, logical.x, logical.y);
+			return;
+		}
+		const format = getFormatForPose(selectedPose.keypoints);
+		if (!isFormatEditAllowed(format ? format.id : null)) {
+			showToast("warn", "Pose Editor", t("toast.coco17_edit_disabled"));
+			return;
+		}
+		if (this.renderer.placeKeypoint(selectedPoseIndex, keypointId, logical.x, logical.y)) {
+			this.recordHistory();
+			this.saveToNode();
+			this.refreshCocoKeypointsPanel();
+		}
+	}
+
+	async placeMissingHandAt(side, clientX, clientY) {
+		const selectedPoseIndex = this.renderer?.getSelectedPoseIndex?.();
+		if (selectedPoseIndex == null || selectedPoseIndex < 0) {
+			showToast("warn", "Pose Editor", t("toast.no_pose_selected"));
+			return;
+		}
+		const logical = this.renderer.screenToLogical(clientX, clientY);
+		const handLabel = t(`pose_editor.keypoints.${side}_hand`);
+		const selectedView = await showChoiceDialog({
+			host: this.container,
+			title: t("pose_editor.hand_orientation.title"),
+			message: t("pose_editor.hand_orientation.message", { hand: handLabel }),
+			choices: [
+				{ value: "palm", icon: "✋", label: t("pose_editor.hand_orientation.palm") },
+				{ value: "back", icon: "🤚", label: t("pose_editor.hand_orientation.back") },
+			],
+			closeLabel: t("pose_editor.hand_orientation.close"),
+		});
+		if (!selectedView) {
+			return;
+		}
+		const result = this.renderer.insertNeutralHand(selectedPoseIndex, side, logical.x, logical.y, selectedView);
+		if (result) {
+			showToast("success", t("toast.hand_inserted_title"), t(`toast.hand_inserted_${result.facing}`, { hand: handLabel }));
+		}
+	}
+
 	getPanelHeaderHeight() {
 		const header = this.getPanelHeader();
 		if (!header) {
-			return 40;
+			return 0;
+		}
+		if (header.classList.contains("ope-openpose-native-header") || window.getComputedStyle(header).display === "none") {
+			return 0;
 		}
 		const rect = header.getBoundingClientRect();
 		const height = rect.height || header.offsetHeight || 0;
-		return height > 0 ? height : 40;
+		return Math.max(0, height);
 	}
 
 	removePanelDragListeners() {
@@ -1445,8 +1544,11 @@ class OpenPosePanel {
 		if (!this.panel) {
 			return;
 		}
-		const viewportWidth = window.innerWidth || document.documentElement?.clientWidth || 0;
-		const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+		const visualViewport = window.visualViewport;
+		const viewportWidth = visualViewport?.width || window.innerWidth || document.documentElement?.clientWidth || 0;
+		const viewportHeight = visualViewport?.height || window.innerHeight || document.documentElement?.clientHeight || 0;
+		const viewportLeft = visualViewport?.offsetLeft || 0;
+		const viewportTop = visualViewport?.offsetTop || 0;
 		const baseMarginX = Math.max(0, Number(this.panelMarginX) || 0);
 		const baseMarginY = Math.max(0, Number(this.panelMarginY) || 0);
 		const maxWidth = Math.max(0, Number(this.panelMaxWidth) || 0);
@@ -1456,7 +1558,7 @@ class OpenPosePanel {
 
 		// Auto-maximize at narrow widths (responsive behavior)
 		const autoMaximizeThreshold = 900;
-		if (viewportWidth <= autoMaximizeThreshold) {
+		if (viewportWidth <= autoMaximizeThreshold || viewportHeight <= 500) {
 			if (!this.isMaximized) {
 				this.stopPanelDrag();
 				this.isMaximized = true;
@@ -1464,13 +1566,14 @@ class OpenPosePanel {
 			}
 		}
 
-		const marginX = this.isMaximized ? maximizeMargin : baseMarginX;
-		const marginY = this.isMaximized ? maximizeMargin : baseMarginY;
+		const phoneViewport = viewportWidth <= 700 || viewportHeight <= 500;
+		const marginX = phoneViewport ? 0 : (this.isMaximized ? maximizeMargin : baseMarginX);
+		const marginY = phoneViewport ? 0 : (this.isMaximized ? maximizeMargin : baseMarginY);
 
 		let width = viewportWidth - marginX * 2;
 		let height = viewportHeight - marginY * 2;
-		let left = marginX;
-		let top = marginY;
+		let left = viewportLeft + marginX;
+		let top = viewportTop + marginY;
 
 		if (!this.isMaximized) {
 			if (restoreWidth > 0) {
@@ -1482,8 +1585,8 @@ class OpenPosePanel {
 			if (maxWidth > 0) {
 				width = Math.min(width, maxWidth);
 			}
-			left = Math.max(marginX, Math.floor((viewportWidth - width) / 2));
-			top = Math.max(marginY, Math.floor((viewportHeight - height) / 2));
+			left = viewportLeft + Math.max(marginX, Math.floor((viewportWidth - width) / 2));
+			top = viewportTop + Math.max(marginY, Math.floor((viewportHeight - height) / 2));
 		}
 
 		if (width <= 0) {
@@ -1503,13 +1606,17 @@ class OpenPosePanel {
 		this.panel.style.cssText = `
             position: fixed !important;
             width: ${width}px !important;
+            min-width: 0 !important;
+            max-width: none !important;
             height: ${height}px !important;
             left: ${left}px !important;
             top: ${top}px !important;
             z-index: 1000 !important;
             margin: 0 !important;
+            box-sizing: border-box !important;
         `;
 		this.panel.classList.toggle("ope-openpose-modal-maximized", this.isMaximized);
+		this.updateResponsiveLayout(width, height, phoneViewport);
 
 		const footer = this.panel.footer || this.panel.querySelector(".dialog-footer");
 		if (footer) {
@@ -1518,6 +1625,9 @@ class OpenPosePanel {
 		const dialogContent = this.panel.querySelector(".dialog-content");
 		if (dialogContent) {
 			dialogContent.classList.add("ope-openpose-dialog-content");
+			dialogContent.style.setProperty("width", "100%", "important");
+			dialogContent.style.setProperty("max-width", "100%", "important");
+			dialogContent.style.setProperty("min-width", "0", "important");
 			dialogContent.style.height = `${Math.max(0, height - this.getPanelHeaderHeight())}px`;
 		}
 		this.updatePanelDragHandleState();
@@ -1627,7 +1737,7 @@ class OpenPosePanel {
 	}
 
 	setupTabs(container) {
-		this.tabButtons = Array.from(container.querySelectorAll(".openpose-tab"));
+		this.tabButtons = Array.from(container.querySelectorAll(".openpose-tab[data-tab]"));
 		this.mainLayout = container.querySelector(".openpose-main");
 		this.tabButtons.forEach((button) => {
 			if (button.dataset.tabReady) {
@@ -1639,9 +1749,41 @@ class OpenPosePanel {
 				this.setActiveTab(tab);
 			});
 		});
+		this.tabScrollArea = container.querySelector(".openpose-tab-scroll-area");
 		const desiredTab = this.activeTab || "editor";
 		const hasDesired = this.tabButtons.some((btn) => btn.dataset.tab === desiredTab);
 		this.setActiveTab(hasDesired ? desiredTab : "editor");
+	}
+
+	revealActiveTab(tabName) {
+		if (!this.tabScrollArea) {
+			return;
+		}
+		const button = this.container?.querySelector(`.openpose-tab[data-tab="${tabName}"]`);
+		if (!button) {
+			return;
+		}
+		requestAnimationFrame(() => {
+			const areaLeft = this.tabScrollArea.scrollLeft;
+			const areaRight = areaLeft + this.tabScrollArea.clientWidth;
+			const areaRect = this.tabScrollArea.getBoundingClientRect();
+			const buttonRect = button.getBoundingClientRect();
+			const renderedScale = areaRect.width > 0 && this.tabScrollArea.clientWidth > 0
+				? areaRect.width / this.tabScrollArea.clientWidth
+				: 1;
+			const buttonLeft = (buttonRect.left - areaRect.left) / renderedScale + areaLeft;
+			const buttonRight = buttonLeft + buttonRect.width / renderedScale;
+			let target = areaLeft;
+			if (buttonLeft < areaLeft) {
+				target = Math.max(0, buttonLeft - 8);
+			} else if (buttonRight > areaRight) {
+				target = buttonRight - this.tabScrollArea.clientWidth + 8;
+			}
+			if (target !== areaLeft) {
+				const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+				this.tabScrollArea.scrollTo({ left: target, behavior: reducedMotion ? "auto" : "smooth" });
+			}
+		});
 	}
 
 	getTabStyleConfig() {
@@ -1724,7 +1866,7 @@ class OpenPosePanel {
 			rightPlaceholder.style.minWidth = "0";
 			return;
 		}
-		if (compact) {
+		if (compact || this.isCompactLayout) {
 			leftPlaceholder.style.display = "none";
 			rightPlaceholder.style.display = "none";
 			leftPlaceholder.style.flex = "0 0 auto";
@@ -1749,7 +1891,23 @@ class OpenPosePanel {
 	setActiveTab(tabName) {
 		const nextTab = tabName || "editor";
 		this.activeTab = nextTab;
+		if (this.container) {
+			this.container.dataset.activeTab = nextTab;
+		}
+		this.container?.classList.toggle("ope-openpose-editor-active", nextTab === "editor");
 		poseEditorOverlay.applyTabButtonStyles(this.tabButtons, nextTab, this.getTabStyleConfig());
+		const mobileMoreActive = ["merge", "guide", "about"].includes(nextTab);
+		const mobileMoreButton = this.container?.querySelector(".openpose-mobile-more-tab");
+		const mobileMoreMenu = this.container?.querySelector(".openpose-mobile-more-menu");
+		mobileMoreButton?.classList.toggle("is-active", mobileMoreActive);
+		mobileMoreButton?.setAttribute("aria-expanded", "false");
+		if (mobileMoreMenu) {
+			mobileMoreMenu.hidden = true;
+			mobileMoreMenu.querySelectorAll("[data-tab]").forEach((item) => {
+				item.classList.toggle("is-active", item.dataset.tab === nextTab);
+			});
+		}
+		this.revealActiveTab(nextTab);
 
 		if (nextTab === "editor") {
 			this.moduleManager?.deactivateActive();
@@ -1763,6 +1921,7 @@ class OpenPosePanel {
 			return;
 		}
 
+		this.clearPendingCanvasInsert();
 		this.setSidebarControlsDisabled(true);
 		this.setBackgroundControlsEnabled(false);
 		const handled = this.moduleManager?.activate(nextTab);
@@ -2346,10 +2505,12 @@ app.registerExtension({
                 // Find the pose_json widget (created by Python INPUT_TYPES)
                 this.jsonWidget = this.widgets.find(w => w.name === "pose_json");
 
-                this.openOpenPoseEditor = () => {
+                this.openOpenPoseEditor = async () => {
                     const graphCanvas = LiteGraph.LGraphCanvas.active_canvas
                     if (graphCanvas == null)
                         return;
+
+					await poseEditorOverlay.stylesReady;
 
                     // Create backdrop overlay to block interaction with workflow
                     const backdrop = document.createElement("div");

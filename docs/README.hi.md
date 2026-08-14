@@ -18,6 +18,7 @@ OpenPose Studio एक उन्नत ComfyUI एक्सटेंशन ह�
 ## <a id="table-of-contents"></a>विषय-सूची
 
 - ✨ [फ़ीचर](#features)
+- 📱 [रेस्पॉन्सिव मोबाइल इंटरफ़ेस](#responsive-mobile-interface)
 - 📦 [इंस्टॉलेशन](#installation)
 - 🎯 [उपयोग](#usage)
 - 🖐️ [हाथों का संपादन](#hand-editing)
@@ -73,6 +74,16 @@ OpenPose Studio एक उन्नत ComfyUI एक्सटेंशन ह�
 - restart के बाद भी सेटिंग्स बनी रहती हैं: गैलरी view mode और बैकग्राउंड overlay सेटिंग्स launch पर पुनः स्थापित होती हैं
 - नेटिव ComfyUI एकीकरण: toasts और dialogs, सुरक्षित fallback के साथ
 
+## <a id="responsive-mobile-interface"></a>रेस्पॉन्सिव मोबाइल इंटरफ़ेस
+
+OpenPose Studio मोबाइल ब्राउज़र पर पूरी तरह responsive और touch-friendly है। एडिटर संकरी स्क्रीन पर कैनवास को उपयोगी बनाए रखता है, Preset और COCO Keypoint टूल्स को केंद्रित views के रूप में दिखाता है और कई thumbnail densities वाली compact Gallery प्रदान करता है।
+
+<p align="center">
+  <img src="../assets/openpose-studio-mobile-responsive.png" alt="Canvas, Preset, COCO Keypoints और Gallery views वाला OpenPose Studio responsive मोबाइल इंटरफ़ेस" width="100%" />
+</p>
+
+<p align="center"><sub>Android पर कैनवास संपादन, Preset कंट्रोल, अनुपस्थित keypoints का प्रबंधन और Gallery का Small Icons view।</sub></p>
+
 ---
 
 यदि आपके पास किसी नए फ़ीचर का विचार है, तो हमें अवश्य बताएँ—संभव है कि हम उसे जल्दी लागू कर सकें। फ़ीडबैक, विचार या सुझाव प्रोजेक्ट के Issues पेज पर भेजें: https://github.com/andreszs/comfyui-openpose-studio/issues
@@ -80,14 +91,33 @@ OpenPose Studio एक उन्नत ComfyUI एक्सटेंशन ह�
 ## <a id="installation"></a>इंस्टॉलेशन
 
 ### आवश्यकताएँ
+
 - ComfyUI का हाल का build
 - Python 3.10+
 
-### चरण
+### विकल्प 1: नेटिव Extension Manager (अनुशंसित)
 
-1. इस repository को `ComfyUI/custom_nodes/` में clone करें।
-2. ComfyUI restart करें।
-3. पुष्टि करें कि नोड्स `image > OpenPose Studio` में दिखाई देते हैं।
+1. ComfyUI का नेटिव **Extension Manager** खोलें, फिर **Nodes Manager** खोलें।
+2. `openpose-studio` खोजें और **OpenPose Studio** चुनें।
+3. **Install** पर क्लिक करें और इंस्टॉलेशन पूरा होने पर ComfyUI restart करें।
+
+<p align="center">
+  <img src="../assets/openpose-studio-extension-manager-install.png" alt="ComfyUI के नेटिव Extension Manager से OpenPose Studio इंस्टॉल करना" width="100%" />
+</p>
+
+### विकल्प 2: मैन्युअल इंस्टॉलेशन
+
+`ComfyUI/custom_nodes/` में terminal खोलें और repository clone करें:
+
+```bash
+git clone https://github.com/andreszs/comfyui-openpose-studio.git
+```
+
+Repository clone करने के बाद ComfyUI restart करें।
+
+### इंस्टॉलेशन सत्यापित करें
+
+पुष्टि करें कि **OpenPose Studio** नोड मेनू में `image > OpenPose Studio` के अंतर्गत दिखाई देता है।
 
 ---
 
@@ -282,9 +312,10 @@ Keypoints का क्रम (index → नाम):
 
 ### View modes
 
-Gallery तीन display modes का समर्थन करती है:
+Gallery चार display modes का समर्थन करती है:
 - **Large** — तुरंत विज़ुअल चयन के लिए बड़े previews
 - **Medium** — preview आकार और density का संतुलन
+- **Small** — संकरे और मोबाइल layouts के लिए अनुकूलित dense icon grid
 - **Tiles** — अतिरिक्त metadata, जैसे **canvas size**, **keypoint counts** और अन्य पोज़ विवरण वाला compact grid
 
 ### फ़ीचर

@@ -6,6 +6,11 @@ import { UiIcons } from "../ui-icons.js";
 
 export function buildPresetsMergerOverlayHtml() {
   return `
+    <div class="openpose-view-tabs openpose-merge-compact-tabs" role="tablist" aria-label="${t("pose_merger.tab.title")}">
+        <button class="openpose-view-tab is-active" type="button" role="tab" aria-selected="true" data-merge-pane-target="center">${UiIcons.svg('fileJson', { size: 16, className: 'openpose-ui-icon' })}<span>${t("pose_merger.section.added_files")}</span></button>
+        <button class="openpose-view-tab" type="button" role="tab" aria-selected="false" data-merge-pane-target="left">${UiIcons.svg('canvas', { size: 16, className: 'openpose-ui-icon' })}<span>${t("pose_merger.preview.title")}</span></button>
+        <button class="openpose-view-tab" type="button" role="tab" aria-selected="false" data-merge-pane-target="right">${UiIcons.svg('sliders', { size: 16, className: 'openpose-ui-icon' })}<span>${t("pose_merger.table.actions")}</span></button>
+    </div>
     <div class="openpose-merge-sidebar openpose-merge-panel" data-merge-panel="left">
         <div class="openpose-merge-sidebar-card">
             <label class="openpose-label">${t("pose_merger.preview.title")}</label>
@@ -14,7 +19,7 @@ export function buildPresetsMergerOverlayHtml() {
             </div>
         </div>
     </div>
-    <div class="openpose-merge-main openpose-merge-panel" data-merge-panel="center">
+    <div class="openpose-merge-main openpose-merge-panel is-active" data-merge-panel="center">
         <div class="openpose-merge-note">${t("pose_merger.description")}</div>
         <div class="openpose-guide-section openpose-merge-section-files">
             <div class="openpose-guide-title">${t("pose_merger.section.added_files")}</div>
@@ -48,7 +53,7 @@ export function buildPresetsMergerOverlayHtml() {
     </div>
     <div class="openpose-merge-sidebar openpose-merge-sidebar-right openpose-merge-panel" data-merge-panel="right">
         <div class="openpose-merge-sidebar-card">
-            <label class="openpose-label">Actions</label>
+            <label class="openpose-label">${t("pose_merger.table.actions")}</label>
             <div class="openpose-merge-actions openpose-merge-actions-sidebar">
                 <button class="openpose-btn openpose-merge-add" data-action="merge-add">${t("pose_merger.btn.add_file")}</button>
                 <button class="openpose-btn openpose-merge-clear" data-action="merge-clear">${t("pose_merger.btn.clear_list")}</button>
@@ -63,7 +68,7 @@ export function buildPresetsMergerOverlayHtml() {
 `;
 }
 
-export function setupPresetsMergerStyles(container) {
+export function setupPresetsMergerStyles(container, openposeInstance = null) {
   container
     .querySelectorAll(
       ".openpose-merge-panel .openpose-btn:not(.openpose-apply-btn):not(.openpose-cancel-btn):not(.openpose-support-btn)",
@@ -376,8 +381,8 @@ export function setupPresetsMergerStyles(container) {
     spacer.style.flex = "1";
   });
 
-  // Donation footer (shared with pose editor sidebar)
-  applyDonationFooterStyles(container);
+  // Support link (shared with pose editor sidebar)
+  applyDonationFooterStyles(container, () => openposeInstance?.setActiveTab("about"));
 }
 
 export const poseMergerOverlay = {
@@ -957,6 +962,10 @@ export class PosePresetsMerger {
       ".openpose-merge-preview-frame",
     );
     this.previewCanvas = container.querySelector(".openpose-merge-preview");
+	this.compactPaneButtons = Array.from(container.querySelectorAll("[data-merge-pane-target]"));
+	this.compactPaneButtons.forEach((button) => {
+	  button.addEventListener("click", () => this.setCompactPane(button.dataset.mergePaneTarget));
+	});
     if (this.previewCanvas) {
       this.previewCanvas.width = PREVIEW_CANVAS_SIZE;
       this.previewCanvas.height = PREVIEW_CANVAS_SIZE;
@@ -989,6 +998,7 @@ export class PosePresetsMerger {
     }
 
     this.renderTable();
+	this.setCompactPane("center");
   }
 
   showMergerToast(message, tone = "info") {
@@ -2122,6 +2132,19 @@ export class PosePresetsMerger {
       }
     });
   }
+
+  setCompactPane(paneName) {
+    const nextPane = ["left", "center", "right"].includes(paneName) ? paneName : "center";
+    this.activeCompactPane = nextPane;
+    this.compactPaneButtons?.forEach((button) => {
+      const active = button.dataset.mergePaneTarget === nextPane;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    this.panels?.forEach((panel) => {
+      panel.classList.toggle("is-active", panel.dataset.mergePanel === nextPane);
+    });
+  }
 }
 
 export function setupPosePresetsMerger(container, openposeInstance = null) {
@@ -2134,12 +2157,12 @@ const poseMergerState = {
 
 registerModule({
   id: "merge",
-  labelKey: "pose_merger.summary.title",
+  labelKey: "pose_merger.tab.title",
   order: 20,
   slot: "module-panels",
   buildUI: buildPresetsMergerOverlayHtml,
   initUI: (container, openpose) => {
-    poseMergerOverlay.initUI(container);
+    poseMergerOverlay.initUI(container, openpose);
     poseMergerState.presetsMerger = setupPosePresetsMerger(container, openpose);
   },
   onActivate: ({ openpose }) => {
@@ -2152,6 +2175,7 @@ registerModule({
     openpose.setSidebarControlsDisabled(true);
     openpose.setBackgroundControlsEnabled(false);
     if (poseMergerState.presetsMerger) {
+      poseMergerState.presetsMerger.setCompactPane("center");
       poseMergerState.presetsMerger.setPanelsVisible(true);
       poseMergerState.presetsMerger.refreshOnShow();
     }

@@ -100,6 +100,7 @@ export class OpenPoseCanvas2D {
 		// Logical size (matches JSON width/height)
 		this.logicalWidth = options.logicalWidth || 768;
 		this.logicalHeight = options.logicalHeight || 512;
+		this.poseCountLabel = options.poseCountLabel;
 		
 		// State
 		this.poses = []; // Array of {keypoints: Array(18) of {x,y} or null}
@@ -199,6 +200,7 @@ export class OpenPoseCanvas2D {
 		this.handlePointerDown = this.handlePointerDown.bind(this);
 		this.handlePointerMove = this.handlePointerMove.bind(this);
 		this.handlePointerUp = this.handlePointerUp.bind(this);
+		this.handlePointerCancel = this.handlePointerCancel.bind(this);
 		this.handlePointerLeave = this.handlePointerLeave.bind(this);
 		this.handleDoubleClick = this.handleDoubleClick.bind(this);
 		
@@ -206,6 +208,7 @@ export class OpenPoseCanvas2D {
 		this.canvas.addEventListener('pointerdown', this.handlePointerDown);
 		this.canvas.addEventListener('pointermove', this.handlePointerMove);
 		this.canvas.addEventListener('pointerup', this.handlePointerUp);
+		this.canvas.addEventListener('pointercancel', this.handlePointerCancel);
 		this.canvas.addEventListener('pointerleave', this.handlePointerLeave);
 		this.canvas.addEventListener('dblclick', this.handleDoubleClick);
 		
@@ -267,13 +270,23 @@ export class OpenPoseCanvas2D {
 			: { width: this.logicalWidth, height: this.logicalHeight };
 	}
 
-	updateCanvasBackingStore() {
+	updateCanvasBackingStore(cssWidth = null, cssHeight = null) {
 		const dpr = window.devicePixelRatio || 1;
 		const viewport = this.getViewportDimensions();
-		this.canvas.width = viewport.width * dpr;
-		this.canvas.height = viewport.height * dpr;
+		const displayWidth = Number.isFinite(cssWidth) && cssWidth > 0
+			? cssWidth
+			: this.canvas.clientWidth || parseFloat(this.canvas.style.width) || viewport.width;
+		const displayHeight = Number.isFinite(cssHeight) && cssHeight > 0
+			? cssHeight
+			: this.canvas.clientHeight || parseFloat(this.canvas.style.height) || viewport.height;
+
+		this.canvas.width = Math.max(1, Math.round(displayWidth * dpr));
+		this.canvas.height = Math.max(1, Math.round(displayHeight * dpr));
 		this.ctx.resetTransform();
-		this.ctx.scale(dpr, dpr);
+		this.ctx.scale(
+			this.canvas.width / viewport.width,
+			this.canvas.height / viewport.height,
+		);
 	}
 	
 	setSize(logicalWidth, logicalHeight, cssWidth, cssHeight) {
@@ -282,9 +295,9 @@ export class OpenPoseCanvas2D {
 		if (this.handEditMode) {
 			this.handEditMode.viewportSize = Math.max(logicalWidth, logicalHeight);
 		}
-		this.updateCanvasBackingStore();
 		this.canvas.style.width = cssWidth + 'px';
 		this.canvas.style.height = cssHeight + 'px';
+		this.updateCanvasBackingStore(cssWidth, cssHeight);
 		
 		// Fill with dark background for visibility
 		this.clearAndFillBackground();
@@ -329,6 +342,31 @@ export class OpenPoseCanvas2D {
 		}
 		this.ctx.fillStyle = this.backgroundFillStyle;
 		this.ctx.fillRect(0, 0, viewport.width, viewport.height);
+	}
+
+	drawCanvasWatermark() {
+		const scaleX = this.canvas.clientWidth / this.logicalWidth;
+		const scaleY = this.canvas.clientHeight / this.logicalHeight;
+		const displayScale = Math.min(scaleX, scaleY) || 1;
+		const fontSize = Math.max(10, Math.min(24, 12 / displayScale));
+		const inset = Math.max(8, Math.min(20, 8 / displayScale));
+		const baseline = this.logicalHeight - inset;
+		const poseLabel = typeof this.poseCountLabel === 'function'
+			? this.poseCountLabel(this.poses.length)
+			: `Poses: ${this.poses.length}`;
+
+		this.ctx.save();
+		this.ctx.globalAlpha = 0.55;
+		this.ctx.fillStyle = '#fff';
+		this.ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+		this.ctx.shadowBlur = Math.max(2, 2 / displayScale);
+		this.ctx.font = `500 ${fontSize}px Arial, sans-serif`;
+		this.ctx.textBaseline = 'bottom';
+		this.ctx.textAlign = 'left';
+		this.ctx.fillText(`${Math.round(this.logicalWidth)} \u00D7 ${Math.round(this.logicalHeight)}`, inset, baseline);
+		this.ctx.textAlign = 'right';
+		this.ctx.fillText(poseLabel, this.logicalWidth - inset, baseline);
+		this.ctx.restore();
 	}
 
 	initializeHandEditControls() {
@@ -517,12 +555,12 @@ export class OpenPoseCanvas2D {
 		return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
 	}
 
-	findBodyKeypointAtPoint(pointer) {
+	findBodyKeypointAtPoint(pointer, hitRadius = this.keypointHitRadius) {
 		for (let poseIndex = this.poses.length - 1; poseIndex >= 0; poseIndex--) {
 			const pose = this.poses[poseIndex];
 			for (let keypointId = 0; keypointId < pose.keypoints.length; keypointId++) {
 				const keypoint = pose.keypoints[keypointId];
-				if (keypoint && Math.hypot(pointer.x - keypoint.x, pointer.y - keypoint.y) <= this.keypointHitRadius) {
+				if (keypoint && Math.hypot(pointer.x - keypoint.x, pointer.y - keypoint.y) <= hitRadius) {
 					return { poseIndex, keypointId };
 				}
 			}
@@ -530,13 +568,13 @@ export class OpenPoseCanvas2D {
 		return null;
 	}
 
-	isPointOnHand(pointer, handKeypoints) {
+	isPointOnHand(pointer, handKeypoints, hitRadius = this.keypointHitRadius) {
 		for (const kp of handKeypoints) {
-			if (kp && Math.hypot(pointer.x - kp.x, pointer.y - kp.y) <= this.keypointHitRadius) {
+			if (kp && Math.hypot(pointer.x - kp.x, pointer.y - kp.y) <= hitRadius) {
 				return true;
 			}
 		}
-		const lineHitRadius = Math.max(6, this.handLineWidth + 3);
+		const lineHitRadius = Math.max(6, this.handLineWidth + 3, hitRadius);
 		for (const [a, b] of HAND_EDGES) {
 			const start = handKeypoints[a];
 			const end = handKeypoints[b];
@@ -547,13 +585,13 @@ export class OpenPoseCanvas2D {
 		return false;
 	}
 
-	findHandAtPoint(pointer, includeSelectedBounds = true) {
+	findHandAtPoint(pointer, includeSelectedBounds = true, hitRadius = this.keypointHitRadius) {
 		if (includeSelectedBounds && this.selectedHand && this.isHandPoseInteractive(this.selectedHand.poseIndex)) {
 			const pose = this.poses[this.selectedHand.poseIndex];
 			const config = this.getHandSideConfig(this.selectedHand.side);
 			if (this.isSelectableHand(pose, this.selectedHand.side)) {
 				const bounds = this.getHandBounds(pose[config.property]);
-				const padding = 10;
+				const padding = Math.max(10, hitRadius);
 				if (bounds && pointer.x >= bounds.minX - padding && pointer.x <= bounds.maxX + padding &&
 					pointer.y >= bounds.minY - padding && pointer.y <= bounds.maxY + padding) {
 					return { ...this.selectedHand };
@@ -570,7 +608,7 @@ export class OpenPoseCanvas2D {
 					continue;
 				}
 				const { property } = this.getHandSideConfig(side);
-				if (this.isPointOnHand(pointer, pose[property])) {
+				if (this.isPointOnHand(pointer, pose[property], hitRadius)) {
 					return { poseIndex, side };
 				}
 			}
@@ -1365,6 +1403,7 @@ export class OpenPoseCanvas2D {
 		this.canvas.removeEventListener('pointerdown', this.handlePointerDown);
 		this.canvas.removeEventListener('pointermove', this.handlePointerMove);
 		this.canvas.removeEventListener('pointerup', this.handlePointerUp);
+		this.canvas.removeEventListener('pointercancel', this.handlePointerCancel);
 		this.canvas.removeEventListener('pointerleave', this.handlePointerLeave);
 		this.canvas.removeEventListener('dblclick', this.handleDoubleClick);
 		this.canvasResizeObserver?.disconnect();
@@ -1801,6 +1840,7 @@ export class OpenPoseCanvas2D {
 				       this.drawBackground();
 				       debugLog('[OpenPoseCanvas2D] Background image drawn');
 			       }
+			       this.drawCanvasWatermark();
 			       // Draw conditioning area overlays (above background/grid, below poses)
 			       if (this.conditioningAreasVisible && this.conditioningAreas && this.conditioningAreas.length > 0) {
 				       this.drawConditioningAreaOverlays();
@@ -3225,7 +3265,27 @@ export class OpenPoseCanvas2D {
 		};
 	}
 
-	findNearestEditableHandKeypoint(pointer) {
+	getPointerHitRadius(baseRadius, pointerType) {
+		if (pointerType !== 'touch' && pointerType !== 'pen') {
+			return baseRadius;
+		}
+		const rect = this.canvas.getBoundingClientRect();
+		const viewport = this.getViewportDimensions();
+		if (rect.width <= 0 || rect.height <= 0) {
+			return baseRadius;
+		}
+		const cssRadius = pointerType === 'touch' ? 22 : 16;
+		const logicalScale = Math.max(viewport.width / rect.width, viewport.height / rect.height);
+		return Math.max(baseRadius, cssRadius * logicalScale);
+	}
+
+	releaseCapturedPointer(pointerId) {
+		if (pointerId != null && this.canvas.hasPointerCapture(pointerId)) {
+			this.canvas.releasePointerCapture(pointerId);
+		}
+	}
+
+	findNearestEditableHandKeypoint(pointer, hitRadius = this.handEditHitRadius) {
 		const mode = this.handEditMode;
 		if (!mode) {
 			return null;
@@ -3244,14 +3304,15 @@ export class OpenPoseCanvas2D {
 				nearestId = keypointId;
 			}
 		}
-		return nearestDistance <= this.handEditHitRadius ? nearestId : null;
+		return nearestDistance <= hitRadius ? nearestId : null;
 	}
 
 	handleHandEditPointerDown(evt, pointer) {
 		if (evt.button !== 0 || !this.handEditMode) {
 			return;
 		}
-		const keypointId = this.findNearestEditableHandKeypoint(pointer);
+		const hitRadius = this.getPointerHitRadius(this.handEditHitRadius, evt.pointerType);
+		const keypointId = this.findNearestEditableHandKeypoint(pointer, hitRadius);
 		if (keypointId === null) {
 			return;
 		}
@@ -3312,13 +3373,18 @@ export class OpenPoseCanvas2D {
 	
 	handlePointerDown(evt) {
 		const pointer = this.screenToLogical(evt.clientX, evt.clientY);
+		const keypointHitRadius = this.getPointerHitRadius(this.keypointHitRadius, evt.pointerType);
+		const handleHitRadius = this.getPointerHitRadius(this.handleHitRadius, evt.pointerType);
+		if (evt.pointerType === 'touch') {
+			evt.preventDefault();
+		}
 		if (this.handEditMode) {
 			this.handleHandEditPointerDown(evt, pointer);
 			return;
 		}
 		this.dragStartPointer = pointer;
 		const isShift = evt.shiftKey;
-		const bodyKeypointHit = !isShift ? this.findBodyKeypointAtPoint(pointer) : null;
+		const bodyKeypointHit = !isShift ? this.findBodyKeypointAtPoint(pointer, keypointHitRadius) : null;
 
 		// ── 0. Area badge row hit-test (highest priority, primary button only) ──
 		// Only active when conditioning areas are globally visible and data exists.
@@ -3347,22 +3413,22 @@ export class OpenPoseCanvas2D {
 			if (handData) {
 				const handles = this.getHandTransformHandles(handData.bounds, 10);
 				const editDistance = Math.hypot(pointer.x - handles.edit.x, pointer.y - handles.edit.y);
-				if (editDistance <= this.handleHitRadius && this.hasEditableHand(handData.pose, handData.handRef.side)) {
+				if (editDistance <= handleHitRadius && this.hasEditableHand(handData.pose, handData.handRef.side)) {
 					this.enterHandEditMode(handData.handRef.poseIndex, handData.handRef.side);
 					return;
 				}
 				const mirrorVDistance = Math.hypot(pointer.x - handles.mirrorV.x, pointer.y - handles.mirrorV.y);
-				if (mirrorVDistance <= this.handleHitRadius) {
+				if (mirrorVDistance <= handleHitRadius) {
 					this.applyMirrorToHand(handData.handRef, 'vertical');
 					return;
 				}
 				const mirrorHDistance = Math.hypot(pointer.x - handles.mirrorH.x, pointer.y - handles.mirrorH.y);
-				if (mirrorHDistance <= this.handleHitRadius) {
+				if (mirrorHDistance <= handleHitRadius) {
 					this.applyMirrorToHand(handData.handRef, 'horizontal');
 					return;
 				}
 				const rotationDistance = Math.hypot(pointer.x - handles.rotate.x, pointer.y - handles.rotate.y);
-				if (rotationDistance <= this.handleHitRadius) {
+				if (rotationDistance <= handleHitRadius) {
 					this.activeDragMode = 'rotateHand';
 					this.dragStartHandKeypoints = handData.keypoints.map((kp) => kp ? { x: kp.x, y: kp.y } : null);
 					this.handTransformPivot = { ...handData.keypoints[0] };
@@ -3378,7 +3444,7 @@ export class OpenPoseCanvas2D {
 				for (const handleName of ['nw', 'ne', 'sw', 'se']) {
 					const handle = handles[handleName];
 					const distance = Math.hypot(pointer.x - handle.x, pointer.y - handle.y);
-					if (distance <= this.handleHitRadius) {
+					if (distance <= handleHitRadius) {
 						this.activeDragMode = 'scaleHand';
 						this.activeScaleHandle = handleName;
 						this.dragStartHandKeypoints = handData.keypoints.map((kp) => kp ? { x: kp.x, y: kp.y } : null);
@@ -3403,7 +3469,7 @@ export class OpenPoseCanvas2D {
 				const handles = this.getScaleHandles(mkBbox, 10);
 				for (const [name, handle] of Object.entries(handles)) {
 					const dist = Math.sqrt((pointer.x - handle.x) ** 2 + (pointer.y - handle.y) ** 2);
-					if (dist <= this.handleHitRadius) {
+					if (dist <= handleHitRadius) {
 						this.activeDragMode = 'scaleSelectedKeypoints';
 						this.activeScaleHandle = name;
 						// Snapshot selected keypoints' start positions
@@ -3430,7 +3496,7 @@ export class OpenPoseCanvas2D {
 				// Check rotation handle first (physically separated above the box)
 				const rotHandle = this.getRotationHandle(bbox, 10);
 				const rotDist = Math.sqrt((pointer.x - rotHandle.x) ** 2 + (pointer.y - rotHandle.y) ** 2);
-				if (rotDist <= this.handleHitRadius) {
+				if (rotDist <= handleHitRadius) {
 					this.activeDragMode = 'rotatePose';
 					this.dragStartPose = JSON.parse(JSON.stringify(pose));
 					this.rotatePivot = {
@@ -3445,20 +3511,20 @@ export class OpenPoseCanvas2D {
 				// Check mirror handles (instant-click, no drag)
 				const mirrorVHandle = this.getMirrorVHandle(bbox, 10);
 				const mirrorVDist = Math.sqrt((pointer.x - mirrorVHandle.x) ** 2 + (pointer.y - mirrorVHandle.y) ** 2);
-				if (mirrorVDist <= this.handleHitRadius) {
+				if (mirrorVDist <= handleHitRadius) {
 					this.applyMirrorToPose(this.selectedPoseIndex, 'vertical');
 					return;
 				}
 				const mirrorHHandle = this.getMirrorHHandle(bbox, 10);
 				const mirrorHDist = Math.sqrt((pointer.x - mirrorHHandle.x) ** 2 + (pointer.y - mirrorHHandle.y) ** 2);
-				if (mirrorHDist <= this.handleHitRadius) {
+				if (mirrorHDist <= handleHitRadius) {
 					this.applyMirrorToPose(this.selectedPoseIndex, 'horizontal');
 					return;
 				}
 				const handles = this.getScaleHandles(bbox, 10);
 				for (const [name, handle] of Object.entries(handles)) {
 					const dist = Math.sqrt((pointer.x - handle.x) ** 2 + (pointer.y - handle.y) ** 2);
-					if (dist <= this.handleHitRadius) {
+					if (dist <= handleHitRadius) {
 						this.activeDragMode = 'scalePose';
 						this.activeScaleHandle = name;
 						this.dragStartPose = JSON.parse(JSON.stringify(pose));
@@ -3480,7 +3546,7 @@ export class OpenPoseCanvas2D {
 					const kp = activePose.keypoints[kpId];
 					if (kp) {
 						const dist = Math.sqrt((pointer.x - kp.x) ** 2 + (pointer.y - kp.y) ** 2);
-						if (dist <= this.keypointHitRadius) {
+						if (dist <= keypointHitRadius) {
 							this.selectedHand = null;
 							if (this.selectedKeypointIds.has(kpId)) {
 								this.selectedKeypointIds.delete(kpId);
@@ -3538,7 +3604,7 @@ export class OpenPoseCanvas2D {
 		}
 
 		if (!isShift) {
-			const handHit = this.findHandAtPoint(pointer, true);
+			const handHit = this.findHandAtPoint(pointer, true, keypointHitRadius);
 			if (handHit) {
 				const pose = this.poses[handHit.poseIndex];
 				const { property } = this.getHandSideConfig(handHit.side);
@@ -4269,7 +4335,7 @@ export class OpenPoseCanvas2D {
 			this.dragStartKeypoint = null;
 			this.dragStartAttachedHands = null;
 			this.wristFusionTargets = null;
-			this.canvas.releasePointerCapture(evt.pointerId);
+			this.releaseCapturedPointer(evt.pointerId);
 			this.notifyChange('geometry');
 			this.updateCursor();
 			this.requestRedraw();
@@ -4361,11 +4427,15 @@ export class OpenPoseCanvas2D {
 		this.dragStartKeypointMap = null;
 		this.rotatePivot = null;
 		this.rotateStartAngle = null;
-		this.canvas.releasePointerCapture(evt.pointerId);
+		this.releaseCapturedPointer(evt.pointerId);
 		
 		// Update cursor after drag ends (may restore to default or keep crosshair if still hovering)
 		this.updateCursor();
 		this.requestRedraw();
+	}
+
+	handlePointerCancel(evt) {
+		this.handlePointerUp(evt);
 	}
 	
 	handlePointerLeave(evt) {

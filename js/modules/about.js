@@ -62,14 +62,17 @@ export function buildAboutOverlayHtml() {
                         <div class="openpose-about-row-title openpose-support-titlebar">
                             <span>${t("about.support.title")}</span>
                             <div class="openpose-support-badges">
-                                <a class="openpose-support-badge-link openpose-support-badge" href="${ABOUT_INFO.kofiUrl}" target="_blank" rel="noopener noreferrer" title="${t("donate.tooltip.kofi")}">
+                                <a class="openpose-support-badge-link openpose-support-badge openpose-support-badge-kofi" href="${ABOUT_INFO.kofiUrl}" target="_blank" rel="noopener noreferrer" title="${t("donate.tooltip.kofi")}">
                                     <img class="openpose-support-badge-img" src="/openpose/assets/badge_kofi.svg" alt="${t("donate.tooltip.kofi")}" title="${t("donate.tooltip.kofi")}" />
+                                    <span class="openpose-support-mobile-label">Ko-fi</span>
                                 </a>
-                                <a class="openpose-support-badge-link openpose-support-badge" href="${ABOUT_INFO.paypalUrl}" target="_blank" rel="noopener noreferrer" title="${t("donate.tooltip.paypal")}">
+                                <a class="openpose-support-badge-link openpose-support-badge openpose-support-badge-paypal" href="${ABOUT_INFO.paypalUrl}" target="_blank" rel="noopener noreferrer" title="${t("donate.tooltip.paypal")}">
                                     <img class="openpose-support-badge-img" src="/openpose/assets/badge_paypal.svg" alt="${t("donate.tooltip.paypal")}" title="${t("donate.tooltip.paypal")}" />
+                                    <span class="openpose-support-mobile-label">PayPal</span>
                                 </a>
-                                <a class="openpose-support-badge-link openpose-support-badge" href="#openpose-usdc" title="${t("donate.tooltip.usdc")}">
+                                <a class="openpose-support-badge-link openpose-support-badge openpose-support-badge-usdc" href="#openpose-usdc" title="${t("donate.tooltip.usdc")}">
                                     <img class="openpose-support-badge-img" src="/openpose/assets/badge_usdc.svg" alt="${t("donate.tooltip.usdc")}" title="${t("donate.tooltip.usdc")}" />
+                                    <span class="openpose-support-mobile-label">USDC</span>
                                 </a>
                             </div>
                         </div>
