@@ -120,6 +120,7 @@ DEBUG_RENDER = os.environ.get("OPENPOSE_EDITOR_DEBUG", "").strip().lower() in ("
 RENDER_STYLE_VERSION = 2
 RENDER_STYLE_KEYS = {
     "version": "comfyui_openpose_editor.renderer.version",
+    "xinsir_compatibility": "comfyui_openpose_editor.renderer.xinsir_compatibility",
     "body": {
         "line_width": "comfyui_openpose_editor.renderer.body.line_width",
         "keypoint_color": "comfyui_openpose_editor.renderer.body.keypoint_color",
@@ -139,6 +140,7 @@ RENDER_STYLE_KEYS = {
 
 DEFAULT_RENDER_STYLE = {
     "version": RENDER_STYLE_VERSION,
+    "xinsir_compatibility": False,
     "body": {
         "line_width": 4,
         "keypoint_color": None,
@@ -228,6 +230,7 @@ def _normalize_render_style_payload(payload):
     )))
     return {
         "version": version,
+        "xinsir_compatibility": payload.get(RENDER_STYLE_KEYS["xinsir_compatibility"]) is True,
         "body": _read_render_style_section(payload, "body", DEFAULT_RENDER_STYLE["body"]),
         "hands": _read_render_style_section(payload, "hands", DEFAULT_RENDER_STYLE["hands"]),
         "face": _read_render_style_section(payload, "face", DEFAULT_RENDER_STYLE["face"]),
@@ -251,6 +254,16 @@ def get_runtime_render_style_fingerprint():
         return json.dumps(get_runtime_render_style(), sort_keys=True, separators=(",", ":"))
     except Exception:
         return "default"
+
+
+def _get_xinsir_body_line_width(canvas_width, canvas_height):
+    """Return the body stick width expected by Xinsir SDXL ControlNet models."""
+    max_side = max(int(canvas_width), int(canvas_height))
+    if max_side < 500:
+        scale = 1
+    else:
+        scale = min(2 + (max_side // 1000), 7)
+    return 4 * scale
 
 
 def _style_rgb(color, fallback):
@@ -842,6 +855,11 @@ def render_pose_image(pose_json: str, show_body=True, show_face=True, show_hands
     body_style = render_style["body"]
     hands_style = render_style["hands"]
     face_style = render_style["face"]
+    body_line_width = (
+        _get_xinsir_body_line_width(width, height)
+        if render_style.get("xinsir_compatibility")
+        else body_style["line_width"]
+    )
 
     # Create black canvas (RGB)
     canvas = np.zeros((height, width, 3), dtype=np.uint8)
@@ -900,7 +918,7 @@ def render_pose_image(pose_json: str, show_body=True, show_face=True, show_hands
             limb_colors=limb_colors,
             keypoint_colors=keypoint_colors,
             keypoint_radius=body_style["keypoint_radius"],
-            line_width=body_style["line_width"],
+            line_width=body_line_width,
             keypoint_color=body_style["keypoint_color"],
         )
 

@@ -162,6 +162,8 @@
     "render_style.field.keypoint_color":  "Keypoint का रंग",
     "render_style.field.keypoint_radius":  "Keypoint की त्रिज्या",
     "render_style.unit.px":  "px",
+    "render_style.xinsir.label":  "Xinsir ControlNet संगतता",
+    "render_style.xinsir.description":  "कैनवास रिज़ॉल्यूशन के अनुसार केवल शरीर की लाइन चौड़ाई अपने आप समायोजित करता है। सक्रिय होने पर मैन्युअल चौड़ाई अनदेखी होती है; keypoints, हाथ और चेहरा नहीं बदलते।",
     "render_style.warning.title":  "प्रयोगात्मक",
     "feature.not_available_yet":  "क्षमा करें, यह फ़ीचर अभी उपलब्ध नहीं है। यह सुनिश्चित करने के लिए अपडेट देखें कि आप नवीनतम वर्ज़न पर हैं।",
     "pose_merger.summary.title":  "पोज़ मर्जर",

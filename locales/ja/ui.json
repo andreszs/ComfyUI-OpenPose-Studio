@@ -160,6 +160,8 @@
   "render_style.field.keypoint_color": "キーポイントの色",
   "render_style.field.keypoint_radius": "Keypoint radius",
   "render_style.unit.px": "px",
+  "render_style.xinsir.label": "Xinsir ControlNet 互換モード",
+  "render_style.xinsir.description": "キャンバス解像度に応じて身体の線幅だけを自動調整します。有効時は手動の線幅を無視し、キーポイント、手、顔は変更しません。",
 
   "render_style.warning.title": "実験的機能",
   "feature.not_available_yet": "申し訳ありませんが、この機能はまだ利用できません。最新バージョンか確認するため、更新をチェックしてください。",

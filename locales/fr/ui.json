@@ -162,6 +162,8 @@
   "render_style.field.keypoint_color": "Couleur des points clés",
   "render_style.field.keypoint_radius": "Rayon des points clés",
   "render_style.unit.px": "px",
+  "render_style.xinsir.label": "Compatibilité Xinsir ControlNet",
+  "render_style.xinsir.description": "Ajuste automatiquement uniquement l’épaisseur des lignes du corps selon la résolution du canevas. L’épaisseur manuelle est ignorée ; les points clés, les mains et le visage restent inchangés.",
   "render_style.warning.title": "Expérimental",
   "feature.not_available_yet": "Désolé, cette fonctionnalité n’est pas encore disponible. Recherchez des mises à jour pour vérifier que vous utilisez la dernière version.",
   "pose_merger.summary.title": "Fusionneur de poses",

@@ -75,6 +75,8 @@ _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
 _normalize_pose_json = _mod._normalize_pose_json
+_normalize_render_style_payload = _mod._normalize_render_style_payload
+_get_xinsir_body_line_width = _mod._get_xinsir_body_line_width
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -258,6 +260,31 @@ class TestConsistentFormatAcrossPersons(unittest.TestCase):
         self.assertEqual(len(poses), 2, "Both valid persons must be kept.")
         for pose in poses:
             self.assertFalse(pose.get("is_coco17", False))
+
+
+class TestXinsirCompatibility(unittest.TestCase):
+
+    def test_compatibility_is_disabled_by_default(self):
+        settings = _normalize_render_style_payload({})
+        self.assertFalse(settings["xinsir_compatibility"])
+
+    def test_compatibility_accepts_json_boolean_true_only(self):
+        key = "comfyui_openpose_editor.renderer.xinsir_compatibility"
+        self.assertTrue(_normalize_render_style_payload({key: True})["xinsir_compatibility"])
+        self.assertFalse(_normalize_render_style_payload({key: "true"})["xinsir_compatibility"])
+
+    def test_body_line_width_scales_with_longest_canvas_side(self):
+        cases = [
+            ((499, 499), 4),
+            ((512, 512), 8),
+            ((1024, 768), 12),
+            ((2048, 1024), 16),
+            ((5000, 3000), 28),
+            ((8000, 8000), 28),
+        ]
+        for dimensions, expected in cases:
+            with self.subTest(dimensions=dimensions):
+                self.assertEqual(_get_xinsir_body_line_width(*dimensions), expected)
 
 
 if __name__ == "__main__":

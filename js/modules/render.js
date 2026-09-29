@@ -10,6 +10,7 @@ const RENDER_STYLE_SYNC_URL = "/openpose/render_style";
 
 const RENDER_STYLE_KEYS = {
 	version: "comfyui_openpose_editor.renderer.version",
+	xinsirCompatibility: "comfyui_openpose_editor.renderer.xinsir_compatibility",
 	body: {
 		lineWidth: "comfyui_openpose_editor.renderer.body.line_width",
 		keypointColor: "comfyui_openpose_editor.renderer.body.keypoint_color",
@@ -47,6 +48,13 @@ export function buildRenderStylePanelHtml() {
 					</div>
 				</div>
 				<div class="openpose-render-style-controls-wrapper">
+					<label class="openpose-render-style-xinsir">
+						<input type="checkbox" data-render-field="xinsir_compatibility" />
+						<span class="openpose-render-style-xinsir-copy">
+							<span class="openpose-render-style-xinsir-label">${t("render_style.xinsir.label")}</span>
+							<span class="openpose-render-style-xinsir-description">${t("render_style.xinsir.description")}</span>
+						</span>
+					</label>
 					<div class="openpose-render-style-sections">
 						<div class="openpose-render-style-section" data-render-section="body">
 							<div class="openpose-render-style-section-title">${t("render_style.section.body")}</div>
@@ -165,6 +173,7 @@ function normalizeSectionSettings(payload, defaults, keyMap) {
 function buildPayload(settings) {
 	return {
 		[RENDER_STYLE_KEYS.version]: settings.version,
+		[RENDER_STYLE_KEYS.xinsirCompatibility]: settings.xinsirCompatibility,
 		[RENDER_STYLE_KEYS.body.lineWidth]: settings.body.lineWidth,
 		[RENDER_STYLE_KEYS.body.keypointColor]: Array.isArray(settings.body.keypointColor) ? settings.body.keypointColor.slice() : null,
 		[RENDER_STYLE_KEYS.body.keypointRadius]: settings.body.keypointRadius,
@@ -181,6 +190,7 @@ function buildDefaultSettings(openpose) {
 	void openpose;
 	return {
 		version: RENDER_STYLE_VERSION,
+		xinsirCompatibility: false,
 		body: {
 			lineWidth: 4,
 			keypointColor: null,
@@ -207,6 +217,7 @@ function buildSettingsFromPayload(payload, defaults) {
 	}
 	return {
 		version: RENDER_STYLE_VERSION,
+		xinsirCompatibility: safePayload[RENDER_STYLE_KEYS.xinsirCompatibility] === true,
 		body: normalizeSectionSettings(safePayload, defaults.body, RENDER_STYLE_KEYS.body),
 		hands: normalizeSectionSettings(safePayload, defaults.hands, RENDER_STYLE_KEYS.hands),
 		face: normalizeSectionSettings(safePayload, defaults.face, RENDER_STYLE_KEYS.face)
@@ -258,6 +269,7 @@ const renderStyleState = {
 	settings: null,
 	payload: null,
 	controls: null,
+	xinsirInput: null,
 	isUpdating: false
 };
 
@@ -337,6 +349,12 @@ function applySettingsToUI(settings) {
 		updateNumberInput(controls.keypointRadiusInput, settings[section].keypointRadius);
 		updateColorControls(section, settings[section].keypointColor);
 	});
+	if (renderStyleState.xinsirInput) {
+		renderStyleState.xinsirInput.checked = settings.xinsirCompatibility === true;
+	}
+	if (renderStyleState.controls?.body?.lineWidthInput) {
+		renderStyleState.controls.body.lineWidthInput.disabled = settings.xinsirCompatibility === true;
+	}
 }
 
 function buildSectionControls(sectionEl) {
@@ -436,6 +454,7 @@ function setupRenderStylePanel(container, openpose) {
 	renderStyleState.defaults = buildDefaultSettings(openpose);
 	const stored = getPersistedJSON(RENDER_STYLE_STORAGE_KEY, null);
 	const settings = buildSettingsFromPayload(stored, renderStyleState.defaults);
+	renderStyleState.xinsirInput = panel?.querySelector('[data-render-field="xinsir_compatibility"]') || null;
 	renderStyleState.controls = {
 		body: buildSectionControls(panel?.querySelector('[data-render-section="body"]')),
 		hands: buildSectionControls(panel?.querySelector('[data-render-section="hands"]')),
@@ -448,6 +467,17 @@ function setupRenderStylePanel(container, openpose) {
 	Object.entries(renderStyleState.controls || {}).forEach(([section, controls]) => {
 		bindSectionHandlers(section, controls);
 	});
+	if (renderStyleState.xinsirInput && !renderStyleState.xinsirInput.dataset.renderStyleReady) {
+		renderStyleState.xinsirInput.dataset.renderStyleReady = "1";
+		renderStyleState.xinsirInput.addEventListener("change", (event) => {
+			if (!renderStyleState.settings) {
+				return;
+			}
+			renderStyleState.settings.xinsirCompatibility = event.target.checked === true;
+			setRenderStyleState(renderStyleState.settings);
+			applySettingsToUI(renderStyleState.settings);
+		});
+	}
 
 	const resetButton = panel?.querySelector('[data-action="render-style-reset"]');
 	if (resetButton && !resetButton.dataset.renderStyleResetReady) {
@@ -498,6 +528,43 @@ export function setupRenderStyleStyles(container) {
 		wrapper.style.display = "flex";
 		wrapper.style.flexDirection = "column";
 		wrapper.style.gap = "12px";
+	}
+
+	const xinsirOption = container.querySelector(".openpose-render-style-xinsir");
+	if (xinsirOption) {
+		xinsirOption.style.display = "flex";
+		xinsirOption.style.alignItems = "flex-start";
+		xinsirOption.style.gap = "10px";
+		xinsirOption.style.padding = "12px 16px";
+		xinsirOption.style.borderRadius = "8px";
+		xinsirOption.style.background = "linear-gradient(rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.035)), var(--openpose-panel-bg)";
+		xinsirOption.style.cursor = "pointer";
+	}
+
+	const xinsirInput = container.querySelector('[data-render-field="xinsir_compatibility"]');
+	if (xinsirInput) {
+		xinsirInput.style.marginTop = "2px";
+	}
+
+	const xinsirCopy = container.querySelector(".openpose-render-style-xinsir-copy");
+	if (xinsirCopy) {
+		xinsirCopy.style.display = "flex";
+		xinsirCopy.style.flexDirection = "column";
+		xinsirCopy.style.gap = "3px";
+	}
+
+	const xinsirLabel = container.querySelector(".openpose-render-style-xinsir-label");
+	if (xinsirLabel) {
+		xinsirLabel.style.fontSize = "13px";
+		xinsirLabel.style.fontWeight = "600";
+		xinsirLabel.style.color = "var(--openpose-text)";
+	}
+
+	const xinsirDescription = container.querySelector(".openpose-render-style-xinsir-description");
+	if (xinsirDescription) {
+		xinsirDescription.style.fontSize = "11px";
+		xinsirDescription.style.lineHeight = "1.35";
+		xinsirDescription.style.color = "var(--openpose-text-muted)";
 	}
 
 	const actions = container.querySelector(".openpose-render-style-actions");

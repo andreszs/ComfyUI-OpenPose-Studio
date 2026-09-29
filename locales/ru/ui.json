@@ -162,6 +162,8 @@
   "render_style.field.keypoint_color": "Цвет ключевой точки",
   "render_style.field.keypoint_radius": "Радиус ключевой точки",
   "render_style.unit.px": "px",
+  "render_style.xinsir.label": "Совместимость с Xinsir ControlNet",
+  "render_style.xinsir.description": "Автоматически изменяет только толщину линий тела в зависимости от разрешения холста. Ручная толщина игнорируется; ключевые точки, руки и лицо не меняются.",
   "render_style.warning.title": "Экспериментально",
   "feature.not_available_yet": "Извините, эта функция пока недоступна. Пожалуйста, проверьте обновления, чтобы убедиться, что у вас установлена последняя версия.",
   "pose_merger.summary.title": "Объединитель поз",

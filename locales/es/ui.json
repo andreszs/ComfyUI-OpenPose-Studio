@@ -160,6 +160,8 @@
   "render_style.field.keypoint_color": "Color de Keypoint",
   "render_style.field.keypoint_radius": "Keypoint radius",
   "render_style.unit.px": "px",
+  "render_style.xinsir.label": "Compatibilidad con Xinsir ControlNet",
+  "render_style.xinsir.description": "Ajusta automáticamente sólo el ancho de las líneas del cuerpo según la resolución del lienzo. Mientras esté activo se ignora el ancho manual; los keypoints, las manos y la cara no cambian.",
 
   "render_style.warning.title": "Experimental",
   "feature.not_available_yet": "Lo sentimos, esta función aún no está disponible. Por favor, busca actualizaciones para asegurarte de tener la última versión.",

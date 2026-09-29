@@ -162,6 +162,8 @@
     "render_style.field.keypoint_color":  "Keypoint color",
     "render_style.field.keypoint_radius":  "Keypoint radius",
     "render_style.unit.px":  "px",
+    "render_style.xinsir.label":  "Xinsir ControlNet compatibility",
+    "render_style.xinsir.description":  "Automatically adjusts only the body line width for the canvas resolution. Body line width is ignored while enabled; keypoints, hands, and face are unchanged.",
     "render_style.warning.title":  "Experimental",
     "feature.not_available_yet":  "Sorry, this feature isn't available yet. Please check for updates to make sure you're on the latest version.",
     "pose_merger.summary.title":  "Poses Merger",
