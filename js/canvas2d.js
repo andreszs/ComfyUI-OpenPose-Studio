@@ -105,6 +105,7 @@ export class OpenPoseCanvas2D {
 		// State
 		this.poses = []; // Array of {keypoints: Array(18) of {x,y} or null}
 		this.selectedPoseIndex = null;
+		this.selectedPoseIndices = new Set(); // Group selection; selectedPoseIndex remains the active pose for sidebar editing
 		this.hoveredKeypointId = null;
 		this.sidebarHoveredKeypointId = null; // Track sidebar hover separately (takes priority)
 		this.canvasHoveredKeypointId = null; // Track canvas hover separately
@@ -152,12 +153,16 @@ export class OpenPoseCanvas2D {
 		this.backgroundFillStyle = options.backgroundFillStyle || '#1a1a1a';
 		
 		// Interaction state
-		this.activeDragMode = 'none'; // 'none' | 'movePose' | 'moveHand' | 'scaleHand' | 'rotateHand' | 'dragKeypoint' | 'scalePose' | 'rotatePose' | 'marquee' | 'moveSelectedKeypoints' | 'scaleSelectedKeypoints'
+		this.activeDragMode = 'none'; // 'none' | 'pendingPoseToggle' | 'movePose' | 'movePoseGroup' | 'moveHand' | 'scaleHand' | 'rotateHand' | 'dragKeypoint' | 'scalePose' | 'scalePoseGroup' | 'rotatePose' | 'marquee' | 'moveSelectedKeypoints' | 'scaleSelectedKeypoints'
 		this.activeKeypointId = null;
 		this.activeScaleHandle = null; // 'tl' | 'tr' | 'bl' | 'br'
 		this.hoveredHandHandle = null;
 		this.dragStartPointer = null;
 		this.dragStartPose = null;
+		this.dragStartPoses = null;
+		this.dragStartGroupBounds = null;
+		this.pendingPoseToggleIndex = null;
+		this.pendingPoseToggleMoved = false;
 		this.dragStartKeypoint = null;
 		this.dragStartAttachedHands = null;
 		this.dragStartHandKeypoints = null;
@@ -888,6 +893,7 @@ export class OpenPoseCanvas2D {
 		const { property } = this.getHandSideConfig(side);
 		const bufferedKeypoints = pose[property].map((kp) => kp ? { x: kp.x, y: kp.y } : null);
 		this.selectedPoseIndex = poseIndex;
+		this.selectedPoseIndices = new Set([poseIndex]);
 		this.selectedKeypointIds = new Set();
 		this.selectedHand = null;
 		this.sidebarHoveredHand = null;
@@ -1049,6 +1055,13 @@ export class OpenPoseCanvas2D {
 				handRightKeypoints: this.normalizeExtraKeypoints(pose.handRightKeypoints || pose.hand_right_keypoints_2d)
 			};
 		});
+		if (this.selectedPoseIndex === null || this.selectedPoseIndex >= this.poses.length) {
+			this.selectedPoseIndex = null;
+			this.selectedPoseIndices = new Set();
+		} else {
+			this.selectedPoseIndices = new Set([this.selectedPoseIndex]);
+		}
+		this.selectedKeypointIds = new Set();
 		this.selectedHand = null;
 		this.hoveredHand = null;
 		this.sidebarHoveredHand = null;
@@ -1073,6 +1086,7 @@ export class OpenPoseCanvas2D {
 		       const resolvedFormatId = formatId !== null ? formatId : detectFormat(keypoints18);
 		       this.poses.push({ keypoints: keypoints18, formatId: resolvedFormatId, faceKeypoints, handLeftKeypoints, handRightKeypoints });
 		       this.selectedPoseIndex = this.poses.length - 1;
+		       this.selectedPoseIndices = new Set([this.selectedPoseIndex]);
 		       this.selectedHand = null;
 		       this.sidebarHoveredHand = null;
 		       debugLog('[OpenPoseCanvas2D] addPose:', {
@@ -1164,6 +1178,7 @@ export class OpenPoseCanvas2D {
 		
 		this.poses = [];
 		this.selectedPoseIndex = null;
+		this.selectedPoseIndices = new Set();
 		this.selectedHand = null;
 		this.hoveredHand = null;
 		this.sidebarHoveredHand = null;
@@ -1184,8 +1199,19 @@ export class OpenPoseCanvas2D {
 			this.hoveredHand = null;
 			this.sidebarHoveredHand = null;
 			this.poses.splice(index, 1);
+			const adjustedSelection = new Set();
+			for (const selectedIndex of this.selectedPoseIndices) {
+				if (selectedIndex === index) continue;
+				adjustedSelection.add(selectedIndex > index ? selectedIndex - 1 : selectedIndex);
+			}
+			this.selectedPoseIndices = adjustedSelection;
 			if (this.selectedPoseIndex === index) {
-				this.selectedPoseIndex = this.poses.length > 0 ? Math.min(index, this.poses.length - 1) : null;
+				this.selectedPoseIndex = this.selectedPoseIndices.size > 0
+					? this.selectedPoseIndices.values().next().value
+					: (this.poses.length > 0 ? Math.min(index, this.poses.length - 1) : null);
+				if (this.selectedPoseIndex !== null) {
+					this.selectedPoseIndices.add(this.selectedPoseIndex);
+				}
 				this.selectedKeypointIds = new Set();
 			} else if (this.selectedPoseIndex > index) {
 				this.selectedPoseIndex--;
@@ -1196,13 +1222,20 @@ export class OpenPoseCanvas2D {
 	}
 	
 	setSelectedPose(indexOrNull) {
-		if (this.selectedPoseIndex !== indexOrNull) {
+		const nextIndex = Number.isInteger(indexOrNull) && indexOrNull >= 0 && indexOrNull < this.poses.length
+			? indexOrNull
+			: null;
+		const isSameSingleSelection = this.selectedPoseIndex === nextIndex &&
+			((nextIndex === null && this.selectedPoseIndices.size === 0) ||
+			(this.selectedPoseIndices.size === 1 && this.selectedPoseIndices.has(nextIndex)));
+		if (!isSameSingleSelection) {
 			// Clear multi-keypoint selection whenever the active pose changes
 			this.selectedKeypointIds = new Set();
 		}
 		this.selectedHand = null;
 		this.sidebarHoveredHand = null;
-		this.selectedPoseIndex = indexOrNull;
+		this.selectedPoseIndex = nextIndex;
+		this.selectedPoseIndices = nextIndex === null ? new Set() : new Set([nextIndex]);
 		if (this.hoveredHand && !this.isHandPoseInteractive(this.hoveredHand.poseIndex)) {
 			this.hoveredHand = null;
 		}
@@ -1212,6 +1245,38 @@ export class OpenPoseCanvas2D {
 	
 	getSelectedPoseIndex() {
 		return this.selectedPoseIndex;
+	}
+
+	getSelectedPoseIndices() {
+		return Array.from(this.selectedPoseIndices)
+			.filter((index) => index >= 0 && index < this.poses.length)
+			.sort((a, b) => a - b);
+	}
+
+	togglePoseSelection(index) {
+		if (!Number.isInteger(index) || index < 0 || index >= this.poses.length) {
+			return;
+		}
+		this.selectedHand = null;
+		this.sidebarHoveredHand = null;
+		this.selectedKeypointIds = new Set();
+		if (this.selectedPoseIndices.has(index)) {
+			this.selectedPoseIndices.delete(index);
+			if (this.selectedPoseIndex === index) {
+				this.selectedPoseIndex = this.selectedPoseIndices.size > 0
+					? this.selectedPoseIndices.values().next().value
+					: null;
+			}
+		} else {
+			this.selectedPoseIndices.add(index);
+			if (this.selectedPoseIndex === null) {
+				this.selectedPoseIndex = index;
+			}
+		}
+		this.hoveredHand = null;
+		this.preselectionPoseIndex = null;
+		this.notifySelectionChange();
+		this.requestRedraw();
 	}
 
 	getSelectedHand() {
@@ -1329,7 +1394,7 @@ export class OpenPoseCanvas2D {
 			return;
 		}
 
-		if (this.activeDragMode === 'moveHand' || this.activeDragMode === 'rotateHand') {
+		if (this.activeDragMode === 'moveHand' || this.activeDragMode === 'rotateHand' || this.activeDragMode === 'movePoseGroup') {
 			this.canvas.style.cursor = 'grabbing';
 		}
 		// During an active rotation drag, show grabbing cursor
@@ -1338,7 +1403,7 @@ export class OpenPoseCanvas2D {
 		}
 		// Mirror handles use pointer — communicated via getHandleCursor map; no drag mode needed
 		// During an active scale drag, show the resize cursor for that handle
-		else if ((this.activeDragMode === 'scalePose' || this.activeDragMode === 'scaleSelectedKeypoints' || this.activeDragMode === 'scaleHand') && this.activeScaleHandle) {
+		else if ((this.activeDragMode === 'scalePose' || this.activeDragMode === 'scalePoseGroup' || this.activeDragMode === 'scaleSelectedKeypoints' || this.activeDragMode === 'scaleHand') && this.activeScaleHandle) {
 			this.canvas.style.cursor = this.getHandleCursor(this.activeScaleHandle);
 		}
 		// During an active drag of a keypoint or selected keypoints, always show crosshair/move
@@ -1855,12 +1920,12 @@ export class OpenPoseCanvas2D {
 				       debugLog('[OpenPoseCanvas2D] Drawing', this.poses.length, 'poses');
 				       const hasPosePreselection = this.preselectionPoseIndex !== null && this.preselectionPoseIndex < this.poses.length;
 				       for (let i = 0; i < this.poses.length; i++) {
-					       const highlightPose = hasPosePreselection && i === this.preselectionPoseIndex && i !== this.selectedPoseIndex;
+					       const highlightPose = hasPosePreselection && i === this.preselectionPoseIndex && !this.selectedPoseIndices.has(i);
 					       if (highlightPose) {
 						       ctx.save();
 						       ctx.filter = 'brightness(1.35) saturate(1.3)';
 					       }
-					       this.drawPose(this.poses[i], i === this.selectedPoseIndex);
+					       this.drawPose(this.poses[i], this.selectedPoseIndices.has(i));
 					       if (highlightPose) {
 						       ctx.restore();
 					       }
@@ -1879,8 +1944,13 @@ export class OpenPoseCanvas2D {
 			       }
 			       // Draw selection UI for selected pose (only when no hand or multi-keypoint selection is active)
 			       if (!this.selectedHand && this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length && this.selectedKeypointIds.size === 0) {
-				       debugLog('[OpenPoseCanvas2D] Drawing selection UI for pose', this.selectedPoseIndex);
-				       this.drawSelectionUI(this.poses[this.selectedPoseIndex]);
+				       const selectedPoseIndices = this.getSelectedPoseIndices();
+				       debugLog('[OpenPoseCanvas2D] Drawing selection UI for pose selection', selectedPoseIndices);
+				       if (selectedPoseIndices.length > 1) {
+					       this.drawSelectionUI(null, { bbox: this.getSelectedPosesBounds(), scaleOnly: true });
+				       } else {
+					       this.drawSelectionUI(this.poses[this.selectedPoseIndex]);
+				       }
 				       debugLog('[OpenPoseCanvas2D] Selection UI drawn');
 			       }
 			       // Draw preselection UI for hovered pose (if different from selected)
@@ -2416,8 +2486,8 @@ export class OpenPoseCanvas2D {
 		}
 	}
 	
-	drawSelectionUI(pose) {
-		const bbox = this.getPoseBounds(pose);
+	drawSelectionUI(pose, options = {}) {
+		const bbox = options.bbox || this.getPoseBounds(pose);
 		if (!bbox) return;
 
 		const ctx = this.ctx;
@@ -2468,6 +2538,7 @@ export class OpenPoseCanvas2D {
 				ctx.strokeRect(handle.x - handleSize / 2, handle.y - handleSize / 2, handleSize, handleSize);
 			}
 		}
+		if (options.scaleOnly) return;
 
 		// Draw rotation handle above bounding box
 		const rotHandle = this.getRotationHandle(bbox, padding);
@@ -3005,6 +3076,58 @@ export class OpenPoseCanvas2D {
 		
 		return hasPoints ? { minX, minY, maxX, maxY } : null;
 	}
+
+	getPoseContentBounds(pose) {
+		let minX = Infinity, minY = Infinity;
+		let maxX = -Infinity, maxY = -Infinity;
+		let hasPoints = false;
+		for (const property of ['keypoints', 'faceKeypoints', 'handLeftKeypoints', 'handRightKeypoints']) {
+			const points = pose?.[property];
+			if (!Array.isArray(points)) continue;
+			for (const point of points) {
+				if (!point) continue;
+				minX = Math.min(minX, point.x);
+				minY = Math.min(minY, point.y);
+				maxX = Math.max(maxX, point.x);
+				maxY = Math.max(maxY, point.y);
+				hasPoints = true;
+			}
+		}
+		return hasPoints ? { minX, minY, maxX, maxY } : null;
+	}
+
+	getSelectedPosesBounds(posesByIndex = null) {
+		let minX = Infinity, minY = Infinity;
+		let maxX = -Infinity, maxY = -Infinity;
+		let hasPoints = false;
+		for (const index of this.getSelectedPoseIndices()) {
+			const pose = posesByIndex instanceof Map ? posesByIndex.get(index) : this.poses[index];
+			const bounds = this.getPoseContentBounds(pose);
+			if (!bounds) continue;
+			minX = Math.min(minX, bounds.minX);
+			minY = Math.min(minY, bounds.minY);
+			maxX = Math.max(maxX, bounds.maxX);
+			maxY = Math.max(maxY, bounds.maxY);
+			hasPoints = true;
+		}
+		return hasPoints ? { minX, minY, maxX, maxY } : null;
+	}
+
+	captureSelectedPoses() {
+		const snapshots = new Map();
+		for (const index of this.getSelectedPoseIndices()) {
+			snapshots.set(index, JSON.parse(JSON.stringify(this.poses[index])));
+		}
+		return snapshots;
+	}
+
+	applyPoseSnapshotTransform(pose, snapshot, transformPoint) {
+		for (const property of ['keypoints', 'faceKeypoints', 'handLeftKeypoints', 'handRightKeypoints']) {
+			const sourcePoints = snapshot?.[property];
+			if (!Array.isArray(sourcePoints)) continue;
+			pose[property] = sourcePoints.map((point) => point ? transformPoint(point) : null);
+		}
+	}
 	
 	getScaleHandles(bbox, padding) {
 		const cornerHandles = {
@@ -3489,7 +3612,27 @@ export class OpenPoseCanvas2D {
 		}
 
 		// ── 3. Pose-level scale + rotation handles (only when no multi-kp selection active) ──
-		if (!isShift && !this.selectedHand && this.selectedPoseIndex !== null && this.selectedKeypointIds.size === 0) {
+		const selectedPoseIndices = this.getSelectedPoseIndices();
+		const hasPoseGroupSelection = selectedPoseIndices.length > 1;
+		if (!isShift && !this.selectedHand && hasPoseGroupSelection && this.selectedKeypointIds.size === 0) {
+			const bbox = this.getSelectedPosesBounds();
+			if (bbox) {
+				const handles = this.getScaleHandles(bbox, 10);
+				for (const [name, handle] of Object.entries(handles)) {
+					const dist = Math.hypot(pointer.x - handle.x, pointer.y - handle.y);
+					if (dist <= handleHitRadius) {
+						this.activeDragMode = 'scalePoseGroup';
+						this.activeScaleHandle = name;
+						this.dragStartPoses = this.captureSelectedPoses();
+						this.dragStartGroupBounds = this.getSelectedPosesBounds(this.dragStartPoses);
+						this.canvas.setPointerCapture(evt.pointerId);
+						this.updateCursor();
+						return;
+					}
+				}
+			}
+		}
+		if (!isShift && !hasPoseGroupSelection && !this.selectedHand && this.selectedPoseIndex !== null && this.selectedKeypointIds.size === 0) {
 			const pose = this.poses[this.selectedPoseIndex];
 			const bbox = this.getPoseBounds(pose);
 			if (bbox) {
@@ -3540,7 +3683,7 @@ export class OpenPoseCanvas2D {
 		// For plain click: find the topmost keypoint across all poses.
 		if (isShift) {
 			// Shift+Click: toggle keypoint in active pose only
-			if (this.selectedPoseIndex !== null) {
+			if (!hasPoseGroupSelection && this.selectedPoseIndex !== null) {
 				const activePose = this.poses[this.selectedPoseIndex];
 				for (let kpId = 0; kpId < activePose.keypoints.length; kpId++) {
 					const kp = activePose.keypoints[kpId];
@@ -3559,7 +3702,40 @@ export class OpenPoseCanvas2D {
 					}
 				}
 			}
-			// Shift+Click on empty space or inactive pose keypoint — fall through to step 6 for marquee start
+			// Otherwise Shift+Click toggles a complete pose in the group selection.
+			for (let poseIdx = this.poses.length - 1; poseIdx >= 0; poseIdx--) {
+				const bbox = this.getPoseContentBounds(this.poses[poseIdx]);
+				if (bbox && pointer.x >= bbox.minX && pointer.x <= bbox.maxX &&
+					pointer.y >= bbox.minY && pointer.y <= bbox.maxY) {
+					this.activeDragMode = 'pendingPoseToggle';
+					this.pendingPoseToggleIndex = poseIdx;
+					this.pendingPoseToggleMoved = false;
+					this.canvas.setPointerCapture(evt.pointerId);
+					return;
+				}
+			}
+			// Shift+drag on empty space retains the existing keypoint-marquee behavior for a single pose.
+		}
+
+		// With a pose group selected, pressing anywhere within a selected pose moves the whole group.
+		if (!isShift && hasPoseGroupSelection) {
+			for (let i = selectedPoseIndices.length - 1; i >= 0; i--) {
+				const poseIndex = selectedPoseIndices[i];
+				const bbox = this.getPoseContentBounds(this.poses[poseIndex]);
+				if (bbox && pointer.x >= bbox.minX && pointer.x <= bbox.maxX &&
+					pointer.y >= bbox.minY && pointer.y <= bbox.maxY) {
+					this.selectedHand = null;
+					this.preselectionPoseIndex = null;
+					this.selectionBoxHovered = true;
+					this.hoveredHandle = null;
+					this.activeDragMode = 'movePoseGroup';
+					this.dragStartPoses = this.captureSelectedPoses();
+					this.dragStartGroupBounds = this.getSelectedPosesBounds(this.dragStartPoses);
+					this.canvas.setPointerCapture(evt.pointerId);
+					this.updateCursor();
+					return;
+				}
+			}
 		}
 
 		// Plain click: body keypoints take priority over hands.
@@ -3667,6 +3843,9 @@ export class OpenPoseCanvas2D {
 		}
 
 		// ── 6. Empty space — start marquee selection (only if a pose is selected) ──
+		if (isShift && hasPoseGroupSelection) {
+			return;
+		}
 		if (isShift && this.selectedPoseIndex !== null && this.selectedKeypointIds.size > 0) {
 			// Shift-marquee: additive — keep existing selection as the base
 			this.marqueeSelectionBase = new Set(this.selectedKeypointIds);
@@ -3793,8 +3972,31 @@ export class OpenPoseCanvas2D {
 				}
 			}
 		} else if (this.selectedPoseIndex !== null && this.selectedPoseIndex < this.poses.length) {
-			// Priority 1: multi-keypoint selection bbox handles
-			if (this.selectedKeypointIds.size > 0) {
+			const selectedPoseIndices = this.getSelectedPoseIndices();
+			// Priority 1: multi-pose selection bbox handles
+			if (selectedPoseIndices.length > 1) {
+				const groupBbox = this.getSelectedPosesBounds();
+				if (groupBbox) {
+					const padding = 10;
+					const handles = this.getScaleHandles(groupBbox, padding);
+					for (const [name, handle] of Object.entries(handles)) {
+						const dist = Math.hypot(pointer.x - handle.x, pointer.y - handle.y);
+						if (dist <= this.handleHitRadius) {
+							this.hoveredHandle = name;
+							this.selectionBoxHovered = true;
+							break;
+						}
+					}
+					if (!this.hoveredHandle) {
+						this.selectionBoxHovered = pointer.x >= groupBbox.minX - padding &&
+							pointer.x <= groupBbox.maxX + padding &&
+							pointer.y >= groupBbox.minY - padding &&
+							pointer.y <= groupBbox.maxY + padding;
+					}
+				}
+			}
+			// Priority 2: multi-keypoint selection bbox handles
+			else if (this.selectedKeypointIds.size > 0) {
 				const mkBbox = this.getSelectedKeypointsBounds();
 				if (mkBbox) {
 					const padding = 10;
@@ -3818,7 +4020,7 @@ export class OpenPoseCanvas2D {
 					}
 				}
 			} else {
-				// Priority 2: pose-level bbox handles (only when no multi-selection)
+				// Priority 3: pose-level bbox handles (only when no multi-selection)
 				const selectedPose = this.poses[this.selectedPoseIndex];
 				const bbox = this.getPoseBounds(selectedPose);
 				if (bbox) {
@@ -3881,8 +4083,8 @@ export class OpenPoseCanvas2D {
 		if (!this.hoveredHandle && !this.hoveredHandHandle && !this.hoveredHand) {
 			// Check poses in reverse order (top to bottom) for preselection
 			for (let poseIdx = this.poses.length - 1; poseIdx >= 0; poseIdx--) {
-				// Skip the currently selected pose - it has its own selection UI
-				if (poseIdx === this.selectedPoseIndex) continue;
+				// Skip selected poses - they have their own selection UI
+				if (this.selectedPoseIndices.has(poseIdx)) continue;
 
 				const pose = this.poses[poseIdx];
 				const bbox = this.getPoseBounds(pose);
@@ -3905,6 +4107,21 @@ export class OpenPoseCanvas2D {
 		// Return early if not actively dragging (hover detection done)
 		if (this.activeDragMode === 'none') return;
 
+		if (this.activeDragMode === 'pendingPoseToggle') {
+			const dragDistance = Math.hypot(pointer.x - this.dragStartPointer.x, pointer.y - this.dragStartPointer.y);
+			if (dragDistance < 5) return;
+			this.pendingPoseToggleMoved = true;
+			if (this.getSelectedPoseIndices().length > 1) return;
+			this.activeDragMode = 'marquee';
+			this.marqueeSelectionBase = new Set(this.selectedKeypointIds);
+			this.marqueeRect = {
+				x1: this.dragStartPointer.x,
+				y1: this.dragStartPointer.y,
+				x2: pointer.x,
+				y2: pointer.y
+			};
+		}
+
 		// ── Marquee drag ──
 		if (this.activeDragMode === 'marquee') {
 			this.marqueeRect.x2 = pointer.x;
@@ -3925,6 +4142,90 @@ export class OpenPoseCanvas2D {
 					}
 				}
 				this.selectedKeypointIds = liveSelection;
+			}
+			this.requestRedraw();
+			return;
+		}
+
+		if (this.activeDragMode === 'movePoseGroup') {
+			if (!this.dragStartPoses || !this.dragStartGroupBounds) return;
+			let dx = pointer.x - this.dragStartPointer.x;
+			let dy = pointer.y - this.dragStartPointer.y;
+			dx = Math.max(-this.dragStartGroupBounds.minX, Math.min(this.logicalWidth - this.dragStartGroupBounds.maxX, dx));
+			dy = Math.max(-this.dragStartGroupBounds.minY, Math.min(this.logicalHeight - this.dragStartGroupBounds.maxY, dy));
+			for (const [index, snapshot] of this.dragStartPoses) {
+				const pose = this.poses[index];
+				if (!pose) continue;
+				this.applyPoseSnapshotTransform(pose, snapshot, (point) => ({
+					x: point.x + dx,
+					y: point.y + dy
+				}));
+			}
+			this.requestRedraw();
+			return;
+		}
+
+		if (this.activeDragMode === 'scalePoseGroup') {
+			const bbox = this.dragStartGroupBounds;
+			if (!this.dragStartPoses || !bbox) return;
+			const handle = this.activeScaleHandle;
+			let scaleX = 1, scaleY = 1, anchorX, anchorY;
+			if (['nw', 'ne', 'sw', 'se'].includes(handle)) {
+				const anchorMap = {
+					nw: { x: bbox.maxX, y: bbox.maxY },
+					ne: { x: bbox.minX, y: bbox.maxY },
+					sw: { x: bbox.maxX, y: bbox.minY },
+					se: { x: bbox.minX, y: bbox.minY }
+				};
+				const anchor = anchorMap[handle];
+				anchorX = anchor.x;
+				anchorY = anchor.y;
+				const originalHandle = this.getScaleHandles(bbox, 10)[handle];
+				const originalDistance = Math.hypot(originalHandle.x - anchorX, originalHandle.y - anchorY);
+				const currentDistance = Math.hypot(pointer.x - anchorX, pointer.y - anchorY);
+				const scale = originalDistance > 0 ? Math.max(0.1, Math.min(10, currentDistance / originalDistance)) : 1;
+				scaleX = scale;
+				scaleY = scale;
+			} else if (handle === 'e') {
+				anchorX = bbox.minX; anchorY = (bbox.minY + bbox.maxY) / 2;
+				const width = bbox.maxX - bbox.minX;
+				scaleX = width > 0 ? Math.max(0.1, Math.min(10, (pointer.x - anchorX) / width)) : 1;
+			} else if (handle === 'w') {
+				anchorX = bbox.maxX; anchorY = (bbox.minY + bbox.maxY) / 2;
+				const width = bbox.maxX - bbox.minX;
+				scaleX = width > 0 ? Math.max(0.1, Math.min(10, (anchorX - pointer.x) / width)) : 1;
+			} else if (handle === 's') {
+				anchorX = (bbox.minX + bbox.maxX) / 2; anchorY = bbox.minY;
+				const height = bbox.maxY - bbox.minY;
+				scaleY = height > 0 ? Math.max(0.1, Math.min(10, (pointer.y - anchorY) / height)) : 1;
+			} else if (handle === 'n') {
+				anchorX = (bbox.minX + bbox.maxX) / 2; anchorY = bbox.maxY;
+				const height = bbox.maxY - bbox.minY;
+				scaleY = height > 0 ? Math.max(0.1, Math.min(10, (anchorY - pointer.y) / height)) : 1;
+			}
+
+			let maxScaleX = 10;
+			let maxScaleY = 10;
+			if (bbox.maxX > anchorX) maxScaleX = Math.min(maxScaleX, (this.logicalWidth - anchorX) / (bbox.maxX - anchorX));
+			if (bbox.minX < anchorX) maxScaleX = Math.min(maxScaleX, (0 - anchorX) / (bbox.minX - anchorX));
+			if (bbox.maxY > anchorY) maxScaleY = Math.min(maxScaleY, (this.logicalHeight - anchorY) / (bbox.maxY - anchorY));
+			if (bbox.minY < anchorY) maxScaleY = Math.min(maxScaleY, (0 - anchorY) / (bbox.minY - anchorY));
+			if (scaleX === scaleY) {
+				const maximumUniformScale = Math.max(0.1, Math.min(maxScaleX, maxScaleY));
+				scaleX = Math.min(scaleX, maximumUniformScale);
+				scaleY = scaleX;
+			} else {
+				scaleX = Math.min(scaleX, Math.max(0.1, maxScaleX));
+				scaleY = Math.min(scaleY, Math.max(0.1, maxScaleY));
+			}
+
+			for (const [index, snapshot] of this.dragStartPoses) {
+				const pose = this.poses[index];
+				if (!pose) continue;
+				this.applyPoseSnapshotTransform(pose, snapshot, (point) => ({
+					x: anchorX + (point.x - anchorX) * scaleX,
+					y: anchorY + (point.y - anchorY) * scaleY
+				}));
 			}
 			this.requestRedraw();
 			return;
@@ -4317,6 +4618,12 @@ export class OpenPoseCanvas2D {
 			this.handleHandEditPointerUp(evt);
 			return;
 		}
+		if (this.activeDragMode === 'pendingPoseToggle') {
+			if (evt.type !== 'pointercancel' && !this.pendingPoseToggleMoved && this.pendingPoseToggleIndex !== null) {
+				this.togglePoseSelection(this.pendingPoseToggleIndex);
+			}
+			this.activeDragMode = 'none';
+		}
 		// ── Drag-to-delete: drop on trash target deletes the keypoint ──
 		if (this.activeDragMode === 'dragKeypoint' && this.trashTargetHovered && this.dragStartKeypoint) {
 			const { poseIndex, keypointId } = this.dragStartKeypoint;
@@ -4416,6 +4723,10 @@ export class OpenPoseCanvas2D {
 		this.activeScaleHandle = null;
 		this.dragStartPointer = null;
 		this.dragStartPose = null;
+		this.dragStartPoses = null;
+		this.dragStartGroupBounds = null;
+		this.pendingPoseToggleIndex = null;
+		this.pendingPoseToggleMoved = false;
 		this.dragStartKeypoint = null;
 		this.dragStartAttachedHands = null;
 		this.dragStartHandKeypoints = null;
@@ -4504,7 +4815,7 @@ export class OpenPoseCanvas2D {
 		if (hitPoseIdx === null) return;
 
 		// Ensure the double-clicked pose becomes the active selection
-		if (this.selectedPoseIndex !== hitPoseIdx) {
+		if (this.selectedPoseIndex !== hitPoseIdx || this.getSelectedPoseIndices().length !== 1) {
 			this.setSelectedPose(hitPoseIdx);
 		}
 

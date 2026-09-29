@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.3.1] - 2026-09-29
+
+### Added
+- Added `Shift`+click multi-pose selection for moving several poses together while preserving their relative positions.
+- Added shared scaling handles for multi-pose selections, including body, face, and hand keypoints.
+
+### Fixed
+- Constrained group movement and scaling to the canvas bounds to prevent selected poses from being moved or resized outside the workspace.
+
+---
+
 ## [2.3.0] - 2026-08-14
 
 ### Added
